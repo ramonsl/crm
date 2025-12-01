@@ -1,0 +1,17 @@
+{
+    "buildCommand": "npm run build",
+    "devCommand": "npm run dev",
+    "installCommand": "npm install",
+    "framework": "nextjs",
+    "regions": [
+        "gru1"
+    ],
+    "env": {
+        "OPENAI_API_KEY": "@openai-api-key"
+    },
+    "functions": {
+        "src/app/api/**/*.ts": {
+            "maxDuration": 60
+        }
+    }
+}

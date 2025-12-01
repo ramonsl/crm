@@ -45,13 +45,33 @@ export const getClient = () => {
         messageQueue.addLog('Inicializando cliente WhatsApp...', 'info');
         global.whatsappStatus = 'initializing';
 
+        // Determine session path based on environment
+        const getSessionPath = () => {
+            if (process.env.WHATSAPP_SESSION_PATH) {
+                return process.env.WHATSAPP_SESSION_PATH;
+            }
+            if (process.env.NODE_ENV === 'production') {
+                const prodPath = '/app/data/.wwebjs_auth';
+                // Create directory if it doesn't exist
+                if (!fs.existsSync(prodPath)) {
+                    fs.mkdirSync(prodPath, { recursive: true });
+                }
+                return prodPath;
+            }
+            return './.wwebjs_auth';
+        };
+
+        const sessionPath = getSessionPath();
+        console.log(`[WhatsApp] Using session path: ${sessionPath}`);
+
         global.whatsappClient = new Client({
-            authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
+            authStrategy: new LocalAuth({ dataPath: sessionPath }),
             puppeteer: {
                 headless: true,
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
             },
         });
+
 
         global.whatsappClient.on('qr', (qr) => {
             global.whatsappQrCode = qr;

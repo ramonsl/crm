@@ -1,8 +1,29 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs';
 
-const dbPath = path.join(process.cwd(), 'crm.db');
+// Use persistent volume path in production, local path in development
+const getDbPath = () => {
+  if (process.env.DATABASE_PATH) {
+    return process.env.DATABASE_PATH;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    const prodPath = '/app/data';
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(prodPath)) {
+      fs.mkdirSync(prodPath, { recursive: true });
+    }
+    return path.join(prodPath, 'crm.db');
+  }
+
+  return path.join(process.cwd(), 'crm.db');
+};
+
+const dbPath = getDbPath();
+console.log(`[DB] Using database at: ${dbPath}`);
 const db = new Database(dbPath);
+
 
 // Initialize database
 db.exec(`
