@@ -1,0 +1,150 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+}
+
+.title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 0.25rem;
+    letter-spacing: -0.025em;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.card {
+    background-color: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.typeSelection {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    justify-content: center;
+}
+
+.radioLabel {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+.radioLabel input {
+    accent-color: var(--primary);
+    width: 1.2rem;
+    height: 1.2rem;
+}
+
+.uploadSection {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 4rem 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.uploadSection:hover {
+    border-color: var(--primary);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.uploadIcon {
+    width: 48px;
+    height: 48px;
+    color: var(--text-muted);
+}
+
+.uploadText {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
+}
+
+.uploadSubtext {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.errorBox {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: rgba(252, 66, 74, 0.1);
+    border: 1px solid rgba(252, 66, 74, 0.2);
+    border-radius: var(--radius-md);
+    color: var(--danger);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.stats {
+    margin-top: 2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.statItem {
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 1.5rem;
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.statValue {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.statLabel {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.textCenter {
+    text-align: center;
+}

@@ -1,0 +1,33 @@
+import { NextResponse } from 'next/server';
+import db from '@/lib/db';
+
+export async function GET() {
+    try {
+        const statuses = db.prepare('SELECT DISTINCT status FROM leads WHERE status IS NOT NULL ORDER BY status').all() as { status: string }[];
+        const rawSemesters = db.prepare('SELECT DISTINCT tipo_ingresso FROM leads WHERE tipo_ingresso IS NOT NULL').all() as { tipo_ingresso: string }[];
+
+        // Extract semesters using Regex (e.g., 2025/1, 2024.2)
+        const semesterSet = new Set<string>();
+        const semesterRegex = /(\d{4}[./-]\d{1,2})/;
+
+        rawSemesters.forEach(item => {
+            const match = item.tipo_ingresso.match(semesterRegex);
+            if (match) {
+                semesterSet.add(match[1].replace('.', '/').replace('-', '/')); // Normalize to YYYY/N
+            }
+        });
+
+        const semesters = Array.from(semesterSet).sort().reverse();
+
+        const courses = db.prepare("SELECT DISTINCT curso_interesse FROM leads WHERE curso_interesse IS NOT NULL AND curso_interesse != '' ORDER BY curso_interesse").all() as { curso_interesse: string }[];
+
+        return NextResponse.json({
+            statuses: statuses.map(s => s.status),
+            semesters: semesters,
+            courses: courses.map(c => c.curso_interesse)
+        });
+    } catch (error) {
+        console.error(error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}

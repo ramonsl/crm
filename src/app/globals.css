@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Corona Admin Theme Palette */
+  --primary: #0090e7;
+  /* Blue */
+  --primary-hover: #007ac1;
+
+  --secondary: #6c7293;
+  /* Muted Grey */
+
+  --bg-body: #000000;
+  /* Black - Main Background */
+  --bg-surface: #191c24;
+  /* Dark Grey - Cards/Sidebar */
+  --bg-sidebar: #191c24;
+  /* Dark Grey - Sidebar */
+
+  --text-main: #ffffff;
+  /* White */
+  --text-secondary: #6c7293;
+  /* Muted Grey */
+  --text-muted: #6c7293;
+  /* Muted Grey */
+  --text-on-dark: #ffffff;
+
+  --border-color: #2c2e33;
+  /* Dark Border */
+
+  --success: #00d25b;
+  /* Green */
+  --warning: #ffab00;
+  /* Amber */
+  --danger: #fc424a;
+  /* Red */
+  --info: #8f5fe8;
+  /* Purple */
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+
+  --radius-md: 0.25rem;
+  /* Sharper corners */
+  --radius-lg: 0.25rem;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background-color: var(--bg-body);
+  color: var(--text-main);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
