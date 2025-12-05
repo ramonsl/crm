@@ -1,0 +1,142 @@
+/**
+ * ProfileAvatar Styles
+ */
+
+.avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    position: relative;
+    transition: transform 0.2s ease;
+}
+
+.avatar:hover {
+    transform: scale(1.05);
+}
+
+/* Sizes */
+.small {
+    width: 32px;
+    height: 32px;
+    border-width: 2px;
+}
+
+.medium {
+    width: 40px;
+    height: 40px;
+    border-width: 2px;
+}
+
+.large {
+    width: 56px;
+    height: 56px;
+    border-width: 3px;
+}
+
+/* Image */
+.image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Badge (when no image) */
+.badge {
+    border: none;
+    font-weight: 600;
+    color: white;
+}
+
+.letter {
+    font-size: inherit;
+    line-height: 1;
+}
+
+.small .letter {
+    font-size: 14px;
+}
+
+.medium .letter {
+    font-size: 16px;
+}
+
+.large .letter {
+    font-size: 24px;
+}
+
+/* Status Color Borders (for images) */
+.border-blue {
+    border: solid #2196F3;
+}
+
+.border-purple {
+    border: solid #9C27B0;
+}
+
+.border-cyan {
+    border: solid #00BCD4;
+}
+
+.border-yellow {
+    border: solid #FFC107;
+}
+
+.border-orange {
+    border: solid #FF9800;
+}
+
+.border-light-orange {
+    border: solid #FFB74D;
+}
+
+.border-green {
+    border: solid #4CAF50;
+}
+
+.border-red {
+    border: solid #f44336;
+}
+
+.border-gray {
+    border: solid #9E9E9E;
+}
+
+/* Status Color Backgrounds (for badges) */
+.bg-blue {
+    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+}
+
+.bg-purple {
+    background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);
+}
+
+.bg-cyan {
+    background: linear-gradient(135deg, #00BCD4 0%, #0097A7 100%);
+}
+
+.bg-yellow {
+    background: linear-gradient(135deg, #FFC107 0%, #FFA000 100%);
+}
+
+.bg-orange {
+    background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+}
+
+.bg-light-orange {
+    background: linear-gradient(135deg, #FFB74D 0%, #FFA726 100%);
+}
+
+.bg-green {
+    background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
+}
+
+.bg-red {
+    background: linear-gradient(135deg, #f44336 0%, #D32F2F 100%);
+}
+
+.bg-gray {
+    background: linear-gradient(135deg, #9E9E9E 0%, #757575 100%);
+}

@@ -27,4 +27,47 @@ describe('Database', () => {
         // For now, simple existence check is enough for the singleton pattern.
         expect(db).toBeTruthy();
     });
+
+    describe('Message History Schema', () => {
+        it('should create message_history table with correct structure', () => {
+            const mockExec = (Database as jest.MockedClass<typeof Database>).mock.results[0].value.exec;
+
+            // Check if message_history table creation was called
+            const execCalls = mockExec.mock.calls;
+            const messageHistoryTableCall = execCalls.find((call: any) =>
+                call[0]?.includes('CREATE TABLE IF NOT EXISTS message_history')
+            );
+
+            expect(messageHistoryTableCall).toBeDefined();
+        });
+
+        it('should create indexes for message_history table', () => {
+            const mockExec = (Database as jest.MockedClass<typeof Database>).mock.results[0].value.exec;
+
+            const execCalls = mockExec.mock.calls;
+
+            // Check for CPF index
+            const cpfIndexCall = execCalls.find((call: any) =>
+                call[0]?.includes('CREATE INDEX IF NOT EXISTS idx_message_history_cpf')
+            );
+            expect(cpfIndexCall).toBeDefined();
+
+            // Check for sent_at index
+            const sentAtIndexCall = execCalls.find((call: any) =>
+                call[0]?.includes('CREATE INDEX IF NOT EXISTS idx_message_history_sent_at')
+            );
+            expect(sentAtIndexCall).toBeDefined();
+        });
+
+        it('should add last_template_name column to leads table', () => {
+            const mockExec = (Database as jest.MockedClass<typeof Database>).mock.results[0].value.exec;
+
+            const execCalls = mockExec.mock.calls;
+            const lastTemplateNameCall = execCalls.find((call: any) =>
+                call[0]?.includes('ALTER TABLE leads ADD COLUMN last_template_name')
+            );
+
+            expect(lastTemplateNameCall).toBeDefined();
+        });
+    });
 });

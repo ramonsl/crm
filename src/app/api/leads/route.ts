@@ -1,26 +1,36 @@
 import { NextResponse, NextRequest } from 'next/server';
 import db from '@/lib/db';
+import { LeadRepository } from '@/lib/repositories';
 import { normalizePhone } from '@/lib/utils';
+import type { LeadFilters, CreateLeadDto, UpdateLeadDto } from '@/lib/repositories';
+
+// Initialize repository
+const leadRepository = new LeadRepository(db);
 
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
-        const page = parseInt(searchParams.get('page') || '1');
-        const limit = parseInt(searchParams.get('limit') || '10');
-        const search = searchParams.get('search') || '';
-        const status = searchParams.get('status') || '';
-        const semester = searchParams.get('semester') || '';
-        const offset = (page - 1) * limit;
 
+        // Build filters from query params
+        const filters: LeadFilters & Record<string, any> = {
+            page: parseInt(searchParams.get('page') || '1'),
+            pageSize: parseInt(searchParams.get('limit') || '10'),
+            search: searchParams.get('search') || undefined,
+            status: searchParams.get('status') || undefined,
+        };
+
+        // Complex query building for features not yet in repository
+        // TODO: Move this logic to repository methods
         let query = 'SELECT * FROM leads WHERE 1=1';
         const params: any[] = [];
 
-        if (search) {
+        if (filters.search) {
             query += ' AND (nome LIKE ? OR email LIKE ? OR cpf LIKE ?)';
-            const term = `%${search}%`;
+            const term = `%${filters.search}%`;
             params.push(term, term, term);
         }
 
+        const status = searchParams.get('status');
         if (status && status !== 'all') {
             const statuses = status.split(',');
             if (statuses.length > 0) {
@@ -40,6 +50,7 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        const semester = searchParams.get('semester');
         if (semester) {
             const semesters = semester.split(',');
             if (semesters.length > 0) {
@@ -49,7 +60,7 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        const course = searchParams.get('course') || '';
+        const course = searchParams.get('course');
         if (course) {
             const courses = course.split(',');
             if (courses.length > 0) {
@@ -66,7 +77,6 @@ export async function GET(req: NextRequest) {
 
         const lastMessagePeriod = searchParams.get('last_message_period');
         if (lastMessagePeriod) {
-            const now = new Date();
             if (lastMessagePeriod === '1h') {
                 query += " AND last_message_time >= datetime('now', '-1 hour', 'localtime')";
             } else if (lastMessagePeriod === 'today') {
@@ -84,6 +94,16 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        const isNew = searchParams.get('is_new');
+        if (isNew === '1') {
+            query += ' AND is_new = 1';
+        }
+
+        const statusChanged = searchParams.get('status_changed');
+        if (statusChanged === '1') {
+            query += ' AND status_changed = 1';
+        }
+
         // Get total count for pagination
         const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
         const totalResult = db.prepare(countQuery).get(...params) as { total: number };
@@ -98,8 +118,9 @@ export async function GET(req: NextRequest) {
         const validSortOrder = ['ASC', 'DESC'].includes(sortOrder) ? sortOrder : 'DESC';
 
         // Get data
+        const offset = (filters.page! - 1) * filters.pageSize!;
         query += ` ORDER BY ${validSortBy} ${validSortOrder} LIMIT ? OFFSET ?`;
-        params.push(limit, offset);
+        params.push(filters.pageSize, offset);
 
         const leads = db.prepare(query).all(...params);
 
@@ -107,17 +128,16 @@ export async function GET(req: NextRequest) {
             data: leads,
             pagination: {
                 total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit)
+                page: filters.page,
+                limit: filters.pageSize,
+                totalPages: Math.ceil(total / filters.pageSize!)
             }
         });
     } catch (error) {
-        console.error(error);
+        console.error('[API /api/leads GET] Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
-
 
 export async function POST(req: NextRequest) {
     try {
@@ -128,52 +148,61 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Name and Phone are required' }, { status: 400 });
         }
 
-        const stmt = db.prepare(`
-            INSERT INTO leads (nome, email, telefone, cpf, status, tipo_ingresso)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `);
+        const normalizedPhone = normalizePhone(telefone);
 
-        stmt.run(nome, email, normalizePhone(telefone), cpf, status || 'NOVO', tipo_ingresso);
+        // Use repository to create lead
+        // If CPF is empty, use phone as CPF (since CPF is PRIMARY KEY)
+        const leadData: CreateLeadDto = {
+            cpf: cpf && cpf.trim() !== '' ? cpf : normalizedPhone,
+            nome,
+            telefone: normalizedPhone,
+            email,
+            status: status || 'NOVO',
+            tipo_ingresso,
+        };
 
-        return NextResponse.json({ success: true });
-    } catch (error: any) {
-        console.error(error);
-        if (error.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
-            return NextResponse.json({ error: 'CPF already exists' }, { status: 409 });
+        const createdLead = leadRepository.create(leadData);
+        console.log('[API /api/leads POST] Lead created successfully:', createdLead.id);
+
+        return NextResponse.json({ success: true, data: createdLead });
+    } catch (error: unknown) {
+        console.error('[API /api/leads POST] Error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        if (errorMessage.includes('UNIQUE constraint failed')) {
+            return NextResponse.json({ error: 'CPF or telefone already exists' }, { status: 409 });
         }
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
 
-
 export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
-        console.log('PUT /api/leads received body:', body);
+        console.log('[API /api/leads PUT] Received body:', body);
         const { nome, email, telefone, cpf, status, tipo_ingresso, curso_interesse, escola, originalCpf } = body;
 
         if (!nome || !telefone || !cpf) {
-            console.log('Missing required fields:', { nome, telefone, cpf });
+            console.log('[API /api/leads PUT] Missing required fields:', { nome, telefone, cpf });
             return NextResponse.json({ error: 'Name, Phone and CPF are required' }, { status: 400 });
         }
 
-        // If originalCpf is provided, we are updating the PK as well, or just updating based on it
         const targetCpf = originalCpf || cpf;
-        console.log('Target CPF:', targetCpf);
+        console.log('[API /api/leads PUT] Target CPF:', targetCpf);
 
-        // If CPF is changing, we need to handle it carefully due to FK constraints
+        // If CPF is changing, handle FK constraints
         if (originalCpf && originalCpf !== cpf) {
-            console.log('CPF is changing from', originalCpf, 'to', cpf);
+            console.log('[API /api/leads PUT] CPF changing from', originalCpf, 'to', cpf);
+
             // Check if new CPF already exists
-            const existing = db.prepare('SELECT cpf FROM leads WHERE cpf = ?').get(cpf);
+            const existing = leadRepository.findByCpf(cpf);
             if (existing) {
-                console.log('New CPF already exists');
+                console.log('[API /api/leads PUT] New CPF already exists');
                 return NextResponse.json({ error: 'CPF already exists' }, { status: 409 });
             }
 
-            // Transaction approach
+            // Transaction approach (still using direct DB for complex transaction)
             const transaction = db.transaction(() => {
-                // 1. Create new lead with new CPF
                 const insert = db.prepare(`
                     INSERT INTO leads (nome, email, telefone, cpf, status, tipo_ingresso, curso_interesse, escola, created_at, updated_at, last_message, unread_count, last_message_time, profile_image)
                     SELECT ?, ?, ?, ?, ?, ?, ?, ?, created_at, CURRENT_TIMESTAMP, last_message, unread_count, last_message_time, profile_image
@@ -181,11 +210,9 @@ export async function PUT(req: NextRequest) {
                 `);
                 insert.run(nome, email, normalizePhone(telefone), cpf, status, tipo_ingresso, curso_interesse, escola, originalCpf);
 
-                // 2. Move messages to new lead
                 const updateMessages = db.prepare('UPDATE messages SET contact_cpf = ? WHERE contact_cpf = ?');
                 updateMessages.run(cpf, originalCpf);
 
-                // 3. Delete old lead
                 const deleteOld = db.prepare('DELETE FROM leads WHERE cpf = ?');
                 deleteOld.run(originalCpf);
             });
@@ -194,30 +221,44 @@ export async function PUT(req: NextRequest) {
             return NextResponse.json({ success: true });
         }
 
-        const stmt = db.prepare(`
-            UPDATE leads 
-            SET nome = ?, email = ?, telefone = ?, cpf = ?, status = ?, tipo_ingresso = ?, curso_interesse = ?, escola = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE cpf = ?
-        `);
-
-        const normalizedPhone = normalizePhone(telefone);
-        console.log('Updating lead:', { nome, email, normalizedPhone, cpf, status, tipo_ingresso, curso_interesse, escola, targetCpf });
-
-        const result = stmt.run(nome, email, normalizedPhone, cpf, status, tipo_ingresso, curso_interesse, escola, targetCpf);
-        console.log('Update result:', result);
-
-        if (result.changes === 0) {
-            console.log('No changes made (Contact not found?)');
+        // Find lead by CPF to get ID
+        const lead = leadRepository.findByCpf(targetCpf);
+        if (!lead) {
+            console.log('[API /api/leads PUT] Lead not found');
             return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
         }
 
-        return NextResponse.json({ success: true });
-    } catch (error: any) {
-        console.error('PUT /api/leads error:', error);
-        if (error.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
+        // Use repository to update
+        const updateData: UpdateLeadDto = {
+            nome,
+            email: email || undefined,  // Convert empty string to undefined
+            telefone: normalizePhone(telefone),
+            status,
+            curso_interesse: curso_interesse || undefined,
+            escola: escola || undefined,
+            tipo_ingresso: tipo_ingresso || undefined,
+        };
+
+        console.log('[API /api/leads PUT] Update data:', updateData);
+
+        leadRepository.update(targetCpf, updateData);
+        console.log('[API /api/leads PUT] Lead updated successfully');
+
+        // Return updated lead
+        const updatedLead = leadRepository.findByCpf(targetCpf);
+        return NextResponse.json({ success: true, data: updatedLead });
+    } catch (error: unknown) {
+        console.error('[API /api/leads PUT] Error:', error);
+        if (error instanceof Error) {
+            console.error('[API /api/leads PUT] Error message:', error.message);
+            console.error('[API /api/leads PUT] Error stack:', error.stack);
+        }
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        if (errorMessage.includes('UNIQUE constraint failed')) {
             return NextResponse.json({ error: 'CPF already exists' }, { status: 409 });
         }
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error', details: errorMessage }, { status: 500 });
     }
 }
 
@@ -225,28 +266,42 @@ export async function DELETE(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const cpf = searchParams.get('cpf');
+        const telefone = searchParams.get('telefone');
         const all = searchParams.get('all');
 
         if (all === 'true') {
+            // Direct DB for bulk delete (not common operation)
             const stmt = db.prepare('DELETE FROM leads');
             stmt.run();
             return NextResponse.json({ success: true, message: 'All contacts deleted' });
         }
 
-        if (!cpf) {
-            return NextResponse.json({ error: 'CPF is required' }, { status: 400 });
+        // Need either CPF or telefone
+        if (!cpf && !telefone) {
+            return NextResponse.json({ error: 'CPF or telefone is required' }, { status: 400 });
         }
 
-        const stmt = db.prepare('DELETE FROM leads WHERE cpf = ?');
-        const result = stmt.run(cpf);
+        let lead: any;
 
-        if (result.changes === 0) {
+        // Try to find by CPF first, then by telefone
+        if (cpf) {
+            lead = leadRepository.findByCpf(cpf);
+        } else if (telefone) {
+            // Find by telefone
+            const stmt = db.prepare('SELECT * FROM leads WHERE telefone = ?');
+            lead = stmt.get(telefone);
+        }
+
+        if (!lead) {
             return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
         }
 
+        // Delete using CPF (primary key)
+        leadRepository.delete(lead.cpf);
+
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error(error);
+        console.error('[API /api/leads DELETE] Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

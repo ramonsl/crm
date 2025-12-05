@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getStatus, getClient } from '@/lib/whatsapp';
+import { WHATSAPP_CONFIG } from '@/lib/constants';
 
 // POST /api/whatsapp/sync-history - Sync conversation history from WhatsApp
 export async function POST(req: NextRequest) {
@@ -74,13 +75,13 @@ export async function POST(req: NextRequest) {
 
                 for (const phoneVariation of variations) {
                     try {
-                        const chatId = `${phoneVariation}@c.us`;
+                        const chatId = `${phoneVariation} @c.us`;
 
                         // Get the chat
                         const chat = await client.getChatById(chatId);
 
                         if (chat) {
-                            console.log(`[Sync History] Found chat for ${contact.nome} with ${phoneVariation}`);
+                            console.log(`[Sync History] Found chat for ${contact.nome} with ${phoneVariation} `);
                             chatFound = true;
 
                             // Fetch messages
@@ -99,9 +100,9 @@ export async function POST(req: NextRequest) {
 
                                     if (!existingMsg) {
                                         const insertStmt = db.prepare(`
-                                            INSERT INTO messages (contact_cpf, message_id, direction, body, timestamp, status)
-                                            VALUES (?, ?, ?, ?, ?, ?)
-                                        `);
+                                            INSERT INTO messages(contact_cpf, message_id, direction, body, timestamp, status)
+VALUES(?, ?, ?, ?, ?, ?)
+    `);
 
                                         const direction = msg.fromMe ? 'outgoing' : 'incoming';
                                         const timestamp = new Date(msg.timestamp * 1000).toISOString();
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
                                         messagesImported++;
                                     }
                                 } catch (msgError) {
-                                    console.error(`[Sync History] Error inserting message:`, msgError);
+                                    console.error(`[Sync History] Error inserting message: `, msgError);
                                 }
                             }
 
@@ -130,9 +131,9 @@ export async function POST(req: NextRequest) {
                                 const updateStmt = db.prepare(`
                                     UPDATE leads
                                     SET last_message = ?,
-                                        last_message_time = ?
-                                    WHERE cpf = ?
-                                `);
+    last_message_time = ?
+        WHERE cpf = ?
+            `);
                                 const lastMsgTime = new Date(lastMsg.timestamp * 1000).toISOString();
                                 updateStmt.run(lastMsg.body, lastMsgTime, contact.cpf);
                             }
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
                         }
                     } catch (err) {
                         // Continue to next variation
-                        console.log(`[Sync History] No chat with variation ${phoneVariation}`);
+                        console.log(`[Sync History] No chat with variation ${phoneVariation} `);
                     }
                 }
 
@@ -152,15 +153,15 @@ export async function POST(req: NextRequest) {
                 }
 
                 // Small delay to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 200));
+                await new Promise(resolve => setTimeout(resolve, WHATSAPP_CONFIG.HISTORY_SYNC_DELAY_MS));
 
             } catch (error: any) {
                 contactsFailed++;
-                console.error(`[Sync History] Error for ${contact.nome}:`, error);
+                console.error(`[Sync History] Error for ${contact.nome}: `, error);
             }
         }
 
-        console.log(`[Sync History] Completed: ${contactsProcessed} contacts, ${messagesImported} messages imported, ${contactsFailed} failed`);
+        console.log(`[Sync History]Completed: ${contactsProcessed} contacts, ${messagesImported} messages imported, ${contactsFailed} failed`);
 
         return NextResponse.json({
             success: true,

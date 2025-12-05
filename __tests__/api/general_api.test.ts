@@ -81,7 +81,7 @@ describe('General APIs', () => {
 
             const req = new NextRequest('http://localhost/api/templates', {
                 method: 'POST',
-                body: JSON.stringify({ title: 'T1', content: 'C1' })
+                body: JSON.stringify({ name: 'T1', message: 'C1' })
             });
 
             const res = await POST_TEMPLATES(req);
@@ -98,7 +98,7 @@ describe('General APIs', () => {
 
             const req = new NextRequest('http://localhost/api/templates', {
                 method: 'PUT',
-                body: JSON.stringify({ id: 1, title: 'T1', content: 'C1' })
+                body: JSON.stringify({ id: 1, name: 'T1', message: 'C1' })
             });
 
             const res = await PUT_TEMPLATES(req);

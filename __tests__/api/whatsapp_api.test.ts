@@ -69,7 +69,8 @@ describe('WhatsApp API', () => {
             const data = await res.json();
 
             expect(data.success).toBe(true);
-            expect(sendMessage).toHaveBeenCalledWith('5511999999999', 'Hello Test User');
+            // A API extrai apenas o primeiro nome, então "Test User" vira "Test"
+            expect(sendMessage).toHaveBeenCalledWith('5511999999999', 'Hello Test');
         });
 
         it('POST disconnect should call logout', async () => {

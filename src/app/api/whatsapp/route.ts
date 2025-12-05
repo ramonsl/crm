@@ -4,7 +4,15 @@ import db from '@/lib/db';
 
 export async function GET() {
     const status = getStatus();
-    return NextResponse.json(status);
+
+    // Add reconnection and health check info
+    return NextResponse.json({
+        ...status,
+        reconnectAttempts: global.whatsappReconnectAttempts || 0,
+        lastDisconnect: global.whatsappLastDisconnect || null,
+        healthCheckActive: global.whatsappHealthCheckTimer !== null,
+        restartHistory: global.whatsappRestartHistory?.length || 0,
+    });
 }
 
 export async function POST(req: Request) {
@@ -25,10 +33,15 @@ export async function POST(req: Request) {
             const lead = stmt.get(phone, phoneWithoutCountry) as { nome: string } | undefined;
 
             if (lead && lead.nome) {
-                message = message.replace(/{nome}/g, lead.nome);
+                const firstName = lead.nome.trim().split(' ')[0];
+                message = message
+                    .replace(/{nome_completo}/g, lead.nome)
+                    .replace(/{nome}/g, firstName);
             } else {
                 // Fallback if name not found or empty
-                message = message.replace(/{nome}/g, 'Visitante');
+                message = message
+                    .replace(/{nome_completo}/g, 'Visitante')
+                    .replace(/{nome}/g, 'Visitante');
             }
 
             await sendMessage(phone, message);

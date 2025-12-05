@@ -516,7 +516,7 @@ export default function ChatPage() {
     const getStatusColor = (status: string) => {
         const statusLower = status?.toLowerCase() || '';
         if (statusLower === 'inscrito') return '#3b82f6';
-        if (statusLower === 'aprovado') return '#d97706';
+        if (statusLower === 'aprovado') return '#FFB74D'; // Laranja claro
         if (statusLower === 'matriculado') return '#16a34a';
         if (statusLower === 'novo') return '#4b5563';
         if (statusLower === 'pendente') return '#c2410c';

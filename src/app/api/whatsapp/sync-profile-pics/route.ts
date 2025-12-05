@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import db from '@/lib/db';
+import { WHATSAPP_CONFIG } from '@/lib/constants';
 import { getContactProfilePicture, getStatus } from '@/lib/whatsapp';
 
 // POST /api/whatsapp/sync-profile-pics - Sync profile pictures for all contacts
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
                 }
 
                 // Small delay to avoid rate limiting (100ms between requests)
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => setTimeout(resolve, WHATSAPP_CONFIG.PROFILE_SYNC_DELAY_MS));
 
             } catch (error: any) {
                 failCount++;

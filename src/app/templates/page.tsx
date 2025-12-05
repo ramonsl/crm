@@ -7,8 +7,8 @@ import { useToast } from '@/contexts/ToastContext';
 
 interface Template {
     id: number;
-    title: string;
-    content: string;
+    name: string;
+    message: string;
     type?: string;
 }
 
@@ -18,7 +18,7 @@ export default function TemplatesPage() {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
-    const [formData, setFormData] = useState({ title: '', content: '', type: 'fixed' });
+    const [formData, setFormData] = useState({ name: '', message: '', type: 'fixed' });
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -40,10 +40,10 @@ export default function TemplatesPage() {
     const handleOpenModal = (template?: Template) => {
         if (template) {
             setEditingTemplate(template);
-            setFormData({ title: template.title, content: template.content, type: template.type || 'fixed' });
+            setFormData({ name: template.name, message: template.message, type: template.type || 'fixed' });
         } else {
             setEditingTemplate(null);
-            setFormData({ title: '', content: '', type: 'fixed' });
+            setFormData({ name: '', message: '', type: 'fixed' });
         }
         setIsModalOpen(true);
     };
@@ -51,11 +51,11 @@ export default function TemplatesPage() {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingTemplate(null);
-        setFormData({ title: '', content: '', type: 'fixed' });
+        setFormData({ name: '', message: '', type: 'fixed' });
     };
 
     const handleSave = async () => {
-        if (!formData.title || !formData.content) return;
+        if (!formData.name || !formData.message) return;
 
         setSaving(true);
         try {
@@ -84,22 +84,30 @@ export default function TemplatesPage() {
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Tem certeza que deseja excluir este modelo?')) return;
+        const templateName = templates.find(t => t.id === id)?.name;
+
+        if (!window.confirm(`Tem certeza que deseja excluir o modelo "${templateName}"?\n\nEsta ação não pode ser desfeita.`)) {
+            return;
+        }
 
         try {
             const res = await fetch(`/api/templates?id=${id}`, {
                 method: 'DELETE'
             });
 
-            if (res.ok) {
-                fetchTemplates();
-                toastSuccess('Modelo excluído com sucesso!');
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                toastSuccess(`Modelo "${templateName}" excluído com sucesso!`);
+                await fetchTemplates(); // Force refetch
             } else {
-                toastError('Erro ao excluir.');
+                const errorMsg = data.error || 'Erro ao excluir modelo.';
+                toastError(errorMsg);
+                console.error('Delete failed:', data);
             }
         } catch (error) {
-            console.error(error);
-            toastError('Erro ao excluir.');
+            console.error('Delete error:', error);
+            toastError('Erro de conexão ao excluir modelo.');
         }
     };
 
@@ -131,10 +139,10 @@ export default function TemplatesPage() {
                     <div key={template.id} className={styles.card}>
                         <div className={styles.cardHeader}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <FileText size={18} color={template.type === 'ai_prompt' ? '#8b5cf6' : '#64748b'} />
+                                <FileText size={18} color={template.type === 'ai' ? '#8b5cf6' : '#64748b'} />
                                 <div>
-                                    <h3 className={styles.cardTitle}>{template.title}</h3>
-                                    {template.type === 'ai_prompt' && (
+                                    <h3 className={styles.cardTitle}>{template.name}</h3>
+                                    {template.type === 'ai' && (
                                         <span style={{ fontSize: '0.7rem', backgroundColor: '#8b5cf6', color: 'white', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>IA</span>
                                     )}
                                 </div>
@@ -156,7 +164,7 @@ export default function TemplatesPage() {
                                 </button>
                             </div>
                         </div>
-                        <p className={styles.cardContent}>{template.content}</p>
+                        <p className={styles.cardContent}>{template.message}</p>
                     </div>
                 ))}
             </div>
@@ -179,32 +187,32 @@ export default function TemplatesPage() {
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                                 >
                                     <option value="fixed">Mensagem Fixa</option>
-                                    <option value="ai_prompt">Prompt de IA</option>
+                                    <option value="ai">Mensagem com IA</option>
                                 </select>
                             </div>
 
                             <div className={styles.inputGroup}>
-                                <label>Título</label>
+                                <label>Nome do Modelo</label>
                                 <input
                                     type="text"
                                     className={styles.input}
                                     placeholder="Ex: Boas-vindas"
-                                    value={formData.title}
-                                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 />
                             </div>
                             <div className={styles.inputGroup}>
-                                <label>{formData.type === 'ai_prompt' ? 'Prompt para a IA' : 'Conteúdo da Mensagem'}</label>
+                                <label>{formData.type === 'ai' ? 'Prompt para a IA' : 'Mensagem'}</label>
                                 <textarea
                                     className={styles.textarea}
-                                    placeholder={formData.type === 'ai_prompt' ?
+                                    placeholder={formData.type === 'ai' ?
                                         "Ex: Crie uma mensagem de boas-vindas amigável para {nome}..." :
                                         "Ex: Olá {nome}, tudo bem?"}
-                                    value={formData.content}
-                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                    value={formData.message}
+                                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                                 />
                                 <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.5rem' }}>
-                                    Dica: Use <strong>{'{nome}'}</strong> para inserir o nome do contato automaticamente.
+                                    Dica: Use <strong>{'{nome}'}</strong> (primeiro nome), <strong>{'{nome_completo}'}</strong>, <strong>{'{curso}'}</strong> ou <strong>{'{escola}'}</strong> para personalizar.
                                 </p>
                             </div>
                             <div className={styles.modalFooter}>
@@ -214,7 +222,7 @@ export default function TemplatesPage() {
                                 <button
                                     className={styles.primaryButton}
                                     onClick={handleSave}
-                                    disabled={saving || !formData.title || !formData.content}
+                                    disabled={saving || !formData.name || !formData.message}
                                 >
                                     {saving ? 'Salvando...' : 'Salvar'}
                                 </button>

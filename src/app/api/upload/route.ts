@@ -51,8 +51,8 @@ export async function POST(req: NextRequest) {
         let updated = 0;
 
         const insertStmt = db.prepare(`
-      INSERT INTO leads (cpf, nome, email, telefone, tipo_ingresso, status, data_inscricao)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO leads (cpf, nome, email, telefone, tipo_ingresso, status, data_inscricao, is_new, last_import_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
     `);
 
         const updateStmt = db.prepare(`
@@ -125,18 +125,23 @@ export async function POST(req: NextRequest) {
 
                 if (existing) {
                     let notes = existing.notes || '';
+                    let statusChanged = 0;
+
                     if (existing.status !== status) {
                         const date = new Date().toLocaleDateString('pt-BR');
                         notes = `${notes ? notes + '\n' : ''}[${date}] Status alterado: ${existing.status} -> ${status}`;
+                        statusChanged = 1;
                     }
 
-                    // Update status, semester, notes if found
+                    // Update status, semester, notes, and tracking fields
                     const updateFullStmt = db.prepare(`
                         UPDATE leads 
-                        SET status = ?, tipo_ingresso = ?, data_inscricao = ?, notes = ?, updated_at = CURRENT_TIMESTAMP 
+                        SET status = ?, tipo_ingresso = ?, data_inscricao = ?, notes = ?, 
+                            is_new = 0, status_changed = ?, last_import_date = CURRENT_TIMESTAMP, 
+                            updated_at = CURRENT_TIMESTAMP 
                         WHERE cpf = ?
                     `);
-                    updateFullStmt.run(status, tipo_ingresso, data_inscricao, notes, cpf);
+                    updateFullStmt.run(status, tipo_ingresso, data_inscricao, notes, statusChanged, cpf);
                     updated++;
                 } else {
                     insertStmt.run(cpf, nome, email, telefone, tipo_ingresso, status, data_inscricao);

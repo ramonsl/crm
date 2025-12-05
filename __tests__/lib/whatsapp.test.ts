@@ -10,6 +10,7 @@ jest.mock('whatsapp-web.js', () => {
             destroy: jest.fn().mockResolvedValue(true),
             sendMessage: jest.fn().mockResolvedValue({ id: { id: 'mock_msg_id' } }),
             getNumberId: jest.fn().mockResolvedValue({ _serialized: '5551981636027@c.us' }),
+            getState: jest.fn().mockResolvedValue('CONNECTED'),
         })),
         LocalAuth: jest.fn(),
     };
@@ -51,7 +52,9 @@ describe('WhatsApp Client', () => {
 
         // Force ready status for test
         (global as any).whatsappStatus = 'ready';
-        (global as any).whatsappClient = new Client({} as any);
+        const mockClient = new Client({} as any);
+        (mockClient as any).getState = jest.fn().mockResolvedValue('CONNECTED');
+        (global as any).whatsappClient = mockClient;
 
         const result = await whatsapp.sendMessage('5551981636027', 'Hello');
         expect(result.success).toBe(true);
@@ -145,10 +148,12 @@ describe('WhatsApp Client', () => {
             if (phone === '+5551999999999') return { _serialized: '5551999999999@c.us' };
             return null;
         });
+        const getStateMock = jest.fn().mockResolvedValue('CONNECTED');
 
         (global as any).whatsappClient = {
             sendMessage: sendMessageMock,
-            getNumberId: getNumberIdMock
+            getNumberId: getNumberIdMock,
+            getState: getStateMock
         };
         (global as any).whatsappStatus = 'ready';
 
@@ -162,9 +167,11 @@ describe('WhatsApp Client', () => {
     it('should respect international numbers', async () => {
         const sendMessageMock = jest.fn().mockResolvedValue({ id: { id: 'msg_id' } });
         const getNumberIdMock = jest.fn().mockResolvedValue({ _serialized: '123456789012@c.us' });
+        const getStateMock = jest.fn().mockResolvedValue('CONNECTED');
         (global as any).whatsappClient = {
             sendMessage: sendMessageMock,
-            getNumberId: getNumberIdMock
+            getNumberId: getNumberIdMock,
+            getState: getStateMock
         };
         (global as any).whatsappStatus = 'ready';
 

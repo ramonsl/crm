@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, CheckCircle, AlertTriangle, Info, AlertCircle } from 'lucide-react';
+import { TOAST_CONFIG } from '@/lib/constants';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -21,7 +22,7 @@ const Toast: React.FC<ToastProps> = ({ id, message, type, duration = 3000, onClo
         const timer = setTimeout(() => {
             setIsVisible(false);
             // Wait for exit animation to finish before removing
-            setTimeout(() => onClose(id), 300);
+            setTimeout(() => onClose(id), TOAST_CONFIG.ANIMATION_DURATION_MS);
         }, duration);
 
         return () => clearTimeout(timer);
@@ -84,7 +85,7 @@ const Toast: React.FC<ToastProps> = ({ id, message, type, duration = 3000, onClo
             <button
                 onClick={() => {
                     setIsVisible(false);
-                    setTimeout(() => onClose(id), 300);
+                    setTimeout(() => onClose(id), TOAST_CONFIG.ANIMATION_DURATION_MS);
                 }}
                 style={{
                     background: 'none',

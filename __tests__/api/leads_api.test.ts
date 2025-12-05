@@ -51,15 +51,28 @@ describe('Leads API', () => {
 
     describe('POST', () => {
         it('should create a new lead', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({ run: jest.fn() });
+            const mockRun = jest.fn().mockReturnValue({ lastInsertRowid: 1 });
+            const mockGet = jest.fn().mockReturnValue({
+                id: 1,
+                cpf: '12345678901',
+                nome: 'Test Lead',
+                telefone: '51999999999',
+                email: 'test@test.com',
+                status: 'NOVO'
+            });
+
+            (db.prepare as jest.Mock).mockReturnValue({
+                run: mockRun,
+                get: mockGet,
+            });
 
             const req = new NextRequest('http://localhost/api/leads', {
                 method: 'POST',
                 body: JSON.stringify({
-                    nome: 'New Lead',
-                    email: 'test@example.com',
-                    telefone: '5511999999999',
-                    cpf: '12345678901'
+                    nome: 'Test Lead',
+                    telefone: '51999999999',
+                    cpf: '12345678901',
+                    email: 'test@test.com'
                 })
             });
 
@@ -83,10 +96,16 @@ describe('Leads API', () => {
         });
 
         it('should handle duplicate CPF', async () => {
+            const mockRun = jest.fn().mockImplementation(() => {
+                const error: any = new Error('UNIQUE constraint failed');
+                error.message = 'UNIQUE constraint failed: leads.cpf';
+                throw error;
+            });
+            const mockGet = jest.fn();
+
             (db.prepare as jest.Mock).mockReturnValue({
-                run: jest.fn().mockImplementation(() => {
-                    throw { code: 'SQLITE_CONSTRAINT_PRIMARYKEY' };
-                })
+                run: mockRun,
+                get: mockGet,
             });
 
             const req = new NextRequest('http://localhost/api/leads', {
@@ -105,8 +124,17 @@ describe('Leads API', () => {
 
     describe('PUT', () => {
         it('should update an existing lead', async () => {
+            const mockGet = jest.fn().mockReturnValue({
+                id: 1,
+                cpf: '12345678901',
+                nome: 'Test Lead',
+                telefone: '51999999999',
+            });
+            const mockRun = jest.fn().mockReturnValue({ changes: 1 });
+
             (db.prepare as jest.Mock).mockReturnValue({
-                run: jest.fn().mockReturnValue({ changes: 1 })
+                run: mockRun,
+                get: mockGet,
             });
 
             const req = new NextRequest('http://localhost/api/leads', {
@@ -124,13 +152,21 @@ describe('Leads API', () => {
         });
 
         it('should handle CPF change with transaction', async () => {
-            // Mock existing check to return null (new CPF doesn't exist)
-            const mockGet = jest.fn().mockReturnValue(null);
+            // Mock to return null for new CPF check (doesn't exist)
+            // Then return data for transaction operations
+            let callCount = 0;
+            const mockGet = jest.fn().mockImplementation(() => {
+                callCount++;
+                // First call: check if new CPF exists (should return null)
+                if (callCount === 1) return null;
+                // Subsequent calls: return lead data for transaction
+                return { id: 1, cpf: '12345678901' };
+            });
             const mockRun = jest.fn();
 
-            (db.prepare as jest.Mock).mockImplementation((query) => {
-                if (query.includes('SELECT cpf FROM leads')) return { get: mockGet };
-                return { run: mockRun };
+            (db.prepare as jest.Mock).mockReturnValue({
+                get: mockGet,
+                run: mockRun,
             });
 
             const req = new NextRequest('http://localhost/api/leads', {
@@ -151,8 +187,15 @@ describe('Leads API', () => {
 
     describe('DELETE', () => {
         it('should delete a lead', async () => {
+            const mockGet = jest.fn().mockReturnValue({
+                id: 1,
+                cpf: '12345678901',
+            });
+            const mockRun = jest.fn().mockReturnValue({ changes: 1 });
+
             (db.prepare as jest.Mock).mockReturnValue({
-                run: jest.fn().mockReturnValue({ changes: 1 })
+                run: mockRun,
+                get: mockGet,
             });
 
             const req = new NextRequest('http://localhost/api/leads?cpf=12345678901');
@@ -162,8 +205,12 @@ describe('Leads API', () => {
         });
 
         it('should return 404 if lead not found', async () => {
+            const mockGet = jest.fn().mockReturnValue(null); // Lead not found
+            const mockRun = jest.fn().mockReturnValue({ changes: 0 });
+
             (db.prepare as jest.Mock).mockReturnValue({
-                run: jest.fn().mockReturnValue({ changes: 0 })
+                run: mockRun,
+                get: mockGet,
             });
 
             const req = new NextRequest('http://localhost/api/leads?cpf=99999999999');

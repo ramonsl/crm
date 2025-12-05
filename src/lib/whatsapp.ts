@@ -1,6 +1,8 @@
 import { Client, LocalAuth, MessageMedia } from 'whatsapp-web.js';
 import db from './db';
 import { messageQueue } from './messageQueue';
+import { WHATSAPP_CONFIG } from './constants';
+import type { WhatsAppMessage, WhatsAppContact, WhatsAppMedia } from './types';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,6 +12,11 @@ declare global {
     var whatsappClient: Client | null;
     var whatsappQrCode: string | null;
     var whatsappStatus: 'disconnected' | 'initializing' | 'ready';
+    var whatsappReconnectAttempts: number;
+    var whatsappReconnectTimer: NodeJS.Timeout | null;
+    var whatsappLastDisconnect: number | null;
+    var whatsappHealthCheckTimer: NodeJS.Timeout | null;
+    var whatsappRestartHistory: number[]; // Timestamps of recent restarts
 }
 
 // Initialize globals if they don't exist
@@ -17,6 +24,11 @@ if (!global.whatsappStatus) {
     global.whatsappStatus = 'disconnected';
     global.whatsappQrCode = null;
     global.whatsappClient = null;
+    global.whatsappReconnectAttempts = 0;
+    global.whatsappReconnectTimer = null;
+    global.whatsappLastDisconnect = null;
+    global.whatsappHealthCheckTimer = null;
+    global.whatsappRestartHistory = [];
 }
 
 const addSystemAlert = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
@@ -26,6 +38,168 @@ const addSystemAlert = (title: string, message: string, type: 'info' | 'warning'
     } catch (e) {
         console.error('Error adding system alert:', e);
     }
+};
+
+/**
+ * Attempt to reconnect to WhatsApp with exponential backoff
+ * Implements retry logic with increasing delays between attempts
+ */
+const attemptReconnect = async () => {
+    // Clear any existing reconnect timer
+    if (global.whatsappReconnectTimer) {
+        clearTimeout(global.whatsappReconnectTimer);
+        global.whatsappReconnectTimer = null;
+    }
+
+    // Check if we've exceeded max attempts
+    if (global.whatsappReconnectAttempts >= WHATSAPP_CONFIG.RECONNECT_MAX_ATTEMPTS) {
+        console.error('[WhatsApp] ❌ Máximo de tentativas de reconexão atingido. Intervenção manual necessária.');
+        messageQueue.addLog(`❌ Falha após ${WHATSAPP_CONFIG.RECONNECT_MAX_ATTEMPTS} tentativas. Reconecte manualmente.`, 'error');
+        addSystemAlert(
+            'WhatsApp - Reconexão Falhada',
+            `Falhou após ${WHATSAPP_CONFIG.RECONNECT_MAX_ATTEMPTS} tentativas. Por favor, reconecte manualmente.`,
+            'error'
+        );
+
+        // Try to notify admin
+        try {
+            if (global.whatsappClient) {
+                await global.whatsappClient.sendMessage(
+                    WHATSAPP_CONFIG.ADMIN_PHONE,
+                    `🔴 ALERTA CRÍTICO: WhatsApp falhou após ${WHATSAPP_CONFIG.RECONNECT_MAX_ATTEMPTS} tentativas de reconexão. Intervenção manual necessária.`
+                );
+            }
+        } catch (e) {
+            console.error('[WhatsApp] Falha ao notificar admin sobre erro crítico:', e);
+        }
+
+        return;
+    }
+
+    const attempt = global.whatsappReconnectAttempts;
+    const delay = WHATSAPP_CONFIG.RECONNECT_DELAYS_MS[Math.min(attempt, WHATSAPP_CONFIG.RECONNECT_DELAYS_MS.length - 1)];
+
+    console.log(`[WhatsApp] 🔄 Agendando reconexão (tentativa ${attempt + 1}/${WHATSAPP_CONFIG.RECONNECT_MAX_ATTEMPTS}) em ${delay / 1000}s...`);
+    messageQueue.addLog(`🔄 Reconexão automática em ${delay / 1000}s (tentativa ${attempt + 1}/${WHATSAPP_CONFIG.RECONNECT_MAX_ATTEMPTS})`, 'info');
+
+    // Notify admin after 3 failed attempts
+    if (attempt === 2) {
+        console.log('[WhatsApp] ⚠️ Notificando admin sobre problemas de conexão...');
+        try {
+            if (global.whatsappClient) {
+                await global.whatsappClient.sendMessage(
+                    WHATSAPP_CONFIG.ADMIN_PHONE,
+                    `⚠️ AVISO: WhatsApp está tendo problemas de conexão. ${attempt + 1} tentativas de reconexão até agora.`
+                );
+            }
+        } catch (e) {
+            console.error('[WhatsApp] Falha ao notificar admin:', e);
+        }
+    }
+
+    global.whatsappReconnectTimer = setTimeout(async () => {
+        global.whatsappReconnectAttempts++;
+        console.log(`[WhatsApp] 🔄 Tentativa de reconexão ${global.whatsappReconnectAttempts}/${WHATSAPP_CONFIG.RECONNECT_MAX_ATTEMPTS}...`);
+        messageQueue.addLog(`🔄 Tentando reconectar (${global.whatsappReconnectAttempts}/${WHATSAPP_CONFIG.RECONNECT_MAX_ATTEMPTS})...`, 'info');
+
+        try {
+            // Destroy old client if exists
+            if (global.whatsappClient) {
+                try {
+                    await global.whatsappClient.destroy();
+                } catch (e) {
+                    console.error('[WhatsApp] Erro ao destruir cliente antigo:', e);
+                }
+                global.whatsappClient = null;
+            }
+
+            // Force status reset
+            global.whatsappStatus = 'disconnected';
+            global.whatsappQrCode = null;
+
+            // Re-initialize client
+            console.log('[WhatsApp] Reinicializando cliente...');
+            getClient();
+
+            // If initialization succeeds, reconnect attempts will be reset in the 'ready' handler
+        } catch (error) {
+            console.error('[WhatsApp] Erro durante reconexão:', error);
+            // Schedule another attempt
+            attemptReconnect();
+        }
+    }, delay);
+};
+
+/**
+ * Health check to verify connection is truly alive
+ * Runs periodically to detect and fix inconsistent states
+ */
+const startHealthCheck = () => {
+    // Clear any existing health check timer
+    if (global.whatsappHealthCheckTimer) {
+        clearInterval(global.whatsappHealthCheckTimer);
+    }
+
+    console.log(`[WhatsApp] 🏥 Iniciando health check periódico (intervalo: ${WHATSAPP_CONFIG.HEALTH_CHECK_INTERVAL_MS / 60000} minutos)`);
+
+    global.whatsappHealthCheckTimer = setInterval(async () => {
+        console.log('[WhatsApp] 🏥 Executando health check...');
+
+        try {
+            const isReady = await isClientReady();
+
+            if (!isReady && global.whatsappStatus === 'ready') {
+                console.warn('[WhatsApp] ⚠️ Health check detectou inconsistência: status "ready" mas cliente não está CONNECTED');
+                messageQueue.addLog('⚠️ Health check: cliente não está realmente conectado. Tentando reconectar...', 'info');
+
+                // Trigger reconnection
+                global.whatsappStatus = 'disconnected';
+                attemptReconnect();
+            } else if (isReady && global.whatsappStatus !== 'ready') {
+                console.log('[WhatsApp] ✅ Health check: corrigindo status dessincronizado para "ready"');
+                global.whatsappStatus = 'ready';
+            } else if (isReady) {
+                console.log('[WhatsApp] ✅ Health check: OK - Cliente conectado e funcionando');
+            } else {
+                console.log('[WhatsApp] 🟡 Health check: Cliente não conectado (esperado se ainda não autenticou)');
+            }
+        } catch (error) {
+            console.error('[WhatsApp] ❌ Erro durante health check:', error);
+        }
+    }, WHATSAPP_CONFIG.HEALTH_CHECK_INTERVAL_MS);
+};
+
+/**
+ * Clean up old restart timestamps outside the window
+ * Returns true if we're within limits, false if too many restarts
+ */
+const canRestart = (): boolean => {
+    const now = Date.now();
+    const windowStart = now - WHATSAPP_CONFIG.RESTART_WINDOW_MS;
+
+    // Filter out old restarts outside the window
+    global.whatsappRestartHistory = global.whatsappRestartHistory.filter(ts => ts > windowStart);
+
+    // Check if we're within limits
+    if (global.whatsappRestartHistory.length >= WHATSAPP_CONFIG.MAX_RESTARTS_PER_WINDOW) {
+        console.error(
+            `[WhatsApp] ❌ Muitos restarts detectados! ${global.whatsappRestartHistory.length} restarts nos últimos ${WHATSAPP_CONFIG.RESTART_WINDOW_MS / 60000} minutos.`
+        );
+        messageQueue.addLog(
+            `❌ Loop de restart detectado! ${global.whatsappRestartHistory.length} restarts recentes. Parando para evitar loop infinito.`,
+            'error'
+        );
+        addSystemAlert(
+            'WhatsApp - Loop de Restart Detectado',
+            `Sistema detectou ${global.whatsappRestartHistory.length} restarts em ${WHATSAPP_CONFIG.RESTART_WINDOW_MS / 60000} minutos. Intervenção manual necessária.`,
+            'error'
+        );
+        return false;
+    }
+
+    // Add current restart to history
+    global.whatsappRestartHistory.push(now);
+    return true;
 };
 
 export const getClient = () => {
@@ -87,6 +261,22 @@ export const getClient = () => {
             messageQueue.addLog('WhatsApp Conectado e Pronto!', 'success');
             addSystemAlert('WhatsApp Conectado', 'A conexão com o WhatsApp foi estabelecida com sucesso.', 'success');
 
+            // Reset reconnection attempts on successful connection
+            if (global.whatsappReconnectAttempts > 0) {
+                console.log(`[WhatsApp] ✅ Reconexão bem-sucedida após ${global.whatsappReconnectAttempts} tentativa(s)!`);
+                messageQueue.addLog(`✅ Reconectado com sucesso após ${global.whatsappReconnectAttempts} tentativa(s)!`, 'success');
+            }
+            global.whatsappReconnectAttempts = 0;
+
+            // Clear any pending reconnect timer
+            if (global.whatsappReconnectTimer) {
+                clearTimeout(global.whatsappReconnectTimer);
+                global.whatsappReconnectTimer = null;
+            }
+
+            // Start health check monitoring
+            startHealthCheck();
+
             // Send notification to admin
             try {
                 const adminPhone = '555181636027@c.us';
@@ -111,15 +301,64 @@ export const getClient = () => {
             messageQueue.addLog('Falha na autenticação.', 'error');
             addSystemAlert('Falha na Autenticação', 'O WhatsApp falhou ao autenticar. Por favor, reconecte.', 'error');
             global.whatsappClient = null; // Ensure client is cleared on failure
+
+            // Record disconnect time
+            global.whatsappLastDisconnect = Date.now();
+
+            // Attempt automatic reconnection
+            console.log('[WhatsApp] Falha de autenticação detectada. Tentando reconectar...');
+            attemptReconnect();
         });
 
-        global.whatsappClient.on('disconnected', () => {
+        global.whatsappClient.on('disconnected', (reason) => {
             global.whatsappStatus = 'disconnected';
             global.whatsappQrCode = null;
-            console.log('Client was logged out');
-            messageQueue.addLog('Cliente desconectado.', 'error');
-            addSystemAlert('WhatsApp Desconectado', 'O cliente WhatsApp foi desconectado.', 'error');
+            const reasonStr = reason || 'unknown';
+            console.log(`[WhatsApp] Cliente desconectado. Motivo: ${reasonStr}`);
+            messageQueue.addLog(`Cliente desconectado. Motivo: ${reasonStr}`, 'error');
+            addSystemAlert('WhatsApp Desconectado', `O cliente WhatsApp foi desconectado. Motivo: ${reasonStr}`, 'error');
             global.whatsappClient = null;
+
+            // Record disconnect time
+            global.whatsappLastDisconnect = Date.now();
+
+            // Stop health check while disconnected
+            if (global.whatsappHealthCheckTimer) {
+                clearInterval(global.whatsappHealthCheckTimer);
+                global.whatsappHealthCheckTimer = null;
+            }
+
+            // Attempt automatic reconnection
+            console.log('[WhatsApp] Iniciando reconexão automática...');
+            attemptReconnect();
+        });
+
+        // Error event listeners for better diagnostics and stability
+        global.whatsappClient.on('error', (error) => {
+            console.error('[WhatsApp] ❌ Client error:', error);
+            messageQueue.addLog(`❌ Erro no cliente: ${error.message || error}`, 'error');
+
+            // Critical errors that should trigger reconnection
+            const errorStr = String(error);
+            if (errorStr.includes('Protocol error') ||
+                errorStr.includes('Session closed') ||
+                errorStr.includes('Target closed')) {
+                console.error('[WhatsApp] Erro crítico detectado via event "error". Tentando reconectar...');
+                attemptReconnect();
+            }
+        });
+
+        global.whatsappClient.on('remote_session_saved', () => {
+            console.log('[WhatsApp] ✅ Sessão remota salva com sucesso');
+            messageQueue.addLog('✅ Sessão salva', 'success');
+        });
+
+        global.whatsappClient.on('loading_screen', (percent, message) => {
+            console.log(`[WhatsApp] 📱 Carregando... ${percent}% - ${message}`);
+        });
+
+        global.whatsappClient.on('change_state', (state) => {
+            console.log(`[WhatsApp] 🔄 Estado mudou para: ${state}`);
         });
 
         // Simple message handler - listens to ALL messages (including outgoing)
@@ -171,6 +410,41 @@ export const getStatus = () => {
         status: global.whatsappStatus || 'disconnected',
         qrCode: global.whatsappQrCode
     };
+};
+
+/**
+ * Verifica se o cliente está realmente pronto, consultando o estado real do cliente
+ * Não confia apenas na variável global que pode estar dessincronizada
+ */
+export const isClientReady = async (): Promise<boolean> => {
+    try {
+        // Se não há cliente, definitivamente não está pronto
+        if (!global.whatsappClient) {
+            console.log('[WhatsApp] isClientReady: No client instance');
+            return false;
+        }
+
+        // Tenta obter o estado real do cliente
+        const state = await global.whatsappClient.getState();
+        console.log(`[WhatsApp] isClientReady: Client state = ${state}, global status = ${global.whatsappStatus}`);
+
+        // CONNECTED é o estado que indica que está pronto para enviar mensagens
+        const isReady = state === 'CONNECTED';
+
+        // Sincronizar a variável global se estiver dessincronizada
+        if (isReady && global.whatsappStatus !== 'ready') {
+            console.log('[WhatsApp] ⚠️ Status dessincronizado! Cliente está CONNECTED mas global.whatsappStatus não está "ready". Corrigindo...');
+            global.whatsappStatus = 'ready';
+        } else if (!isReady && global.whatsappStatus === 'ready') {
+            console.log('[WhatsApp] ⚠️ Status dessincronizado! global.whatsappStatus está "ready" mas cliente não está CONNECTED. Corrigindo...');
+            global.whatsappStatus = 'disconnected';
+        }
+
+        return isReady;
+    } catch (error) {
+        console.error('[WhatsApp] Error checking client state:', error);
+        return false;
+    }
 };
 
 export const restartClient = async () => {
@@ -249,8 +523,9 @@ export const getContactProfilePicture = async (phone: string): Promise<string | 
 
         console.log(`[WhatsApp] No profile picture available for ${phone} (tried all variations)`);
         return null;
-    } catch (error: any) {
-        console.log(`[WhatsApp] Could not get profile picture for ${phone}: ${error.message}`);
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.log(`[WhatsApp] Could not get profile picture for ${phone}: ${errorMessage}`);
         return null;
     }
 };
@@ -396,11 +671,34 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
     console.log(`[WhatsApp] Attempting to send message to ${phone}`);
     messageQueue.addLog(`Tentando enviar para ${phone}...`, 'info');
 
-    if (!global.whatsappClient || global.whatsappStatus !== 'ready') {
-        console.error('[WhatsApp] Client not ready');
-        messageQueue.addLog('Erro: Cliente WhatsApp não está pronto.', 'error');
-        throw new Error('WhatsApp client is not ready');
+    // Verificação robusta do estado do cliente
+    const clientReady = await isClientReady();
+
+    if (!clientReady) {
+        const errorMsg = `Cliente WhatsApp não está pronto. Estado atual: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        messageQueue.addLog(`Erro: ${errorMsg}`, 'error');
+
+        // Tentar inicializar o cliente se ele não existir
+        if (!global.whatsappClient) {
+            console.log('[WhatsApp] Tentando inicializar cliente...');
+            messageQueue.addLog('Tentando inicializar cliente WhatsApp...', 'info');
+            getClient();
+
+            // Aguardar um pouco e verificar novamente
+            await new Promise(resolve => setTimeout(resolve, WHATSAPP_CONFIG.RETRY_DELAY_MS));
+            const retryReady = await isClientReady();
+
+            if (!retryReady) {
+                throw new Error('WhatsApp client is not ready and could not be initialized');
+            }
+            console.log('[WhatsApp] Cliente inicializado com sucesso após retry!');
+        } else {
+            throw new Error('WhatsApp client is not ready');
+        }
     }
+
+    console.log('[WhatsApp] ✅ Cliente verificado e pronto para enviar mensagem');
 
     // DEBUG: Log phone details
     console.log(`[WhatsApp] sendMessage received phone: "${phone}" (Length: ${phone.length})`);
@@ -485,7 +783,7 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
                     }
 
                     const msg = await withTimeout(
-                        global.whatsappClient.sendMessage(chatId12, content, { caption: mediaUrl ? message : undefined }),
+                        global.whatsappClient!.sendMessage(chatId12, content, { caption: mediaUrl ? message : undefined }),
                         15000,
                         'Timeout sending message (Force 12)'
                     );
@@ -502,7 +800,9 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
                             UPDATE leads SET last_message_time = CURRENT_TIMESTAMP, last_message = ? WHERE telefone = ? OR telefone = ?
                         `);
                         stmt.run(`(Enviada) ${message}`, phone, usedNumber);
-                    } catch (e) { }
+                    } catch (e) {
+                        console.error('[WhatsApp] Error updating DB after force send (13-digit):', e);
+                    }
 
                     return { success: true, id: msg.id.id };
 
@@ -536,7 +836,7 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
                         }
 
                         const msg = await withTimeout(
-                            global.whatsappClient.sendMessage(chatId13, content, { caption: mediaUrl ? message : undefined }),
+                            global.whatsappClient!.sendMessage(chatId13, content, { caption: mediaUrl ? message : undefined }),
                             15000,
                             'Timeout sending message (Force 13)'
                         );
@@ -550,7 +850,9 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
                                 UPDATE leads SET last_message_time = CURRENT_TIMESTAMP, last_message = ? WHERE telefone = ? OR telefone = ?
                             `);
                             stmt.run(`(Enviada) ${message}`, phone, usedNumber);
-                        } catch (e) { }
+                        } catch (e) {
+                            console.error('[WhatsApp] Error updating DB after force send (12-digit):', e);
+                        }
 
                         return { success: true, id: msg.id.id };
 
@@ -593,7 +895,7 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
 
         // Send message with timeout (15s)
         const msg = await withTimeout(
-            global.whatsappClient.sendMessage(chatId, content, { caption: mediaUrl ? message : undefined }),
+            global.whatsappClient!.sendMessage(chatId, content, { caption: mediaUrl ? message : undefined }),
             15000,
             'Timeout sending message'
         );
@@ -620,10 +922,10 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
         }
 
         return { success: true, id: msg.id.id };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[WhatsApp] Error sending message:', error);
 
-        const errorMessage = error.message || error.toString();
+        const errorMessage = error instanceof Error ? error.message : String(error);
 
         // Check for session closed, protocol errors, OR TIMEOUT, OR Evaluation failed
         if (errorMessage.includes('Session closed') ||
@@ -633,14 +935,27 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
             errorMessage.includes('Evaluation failed') ||
             errorMessage.includes('Timeout')) {
 
-            console.error('[WhatsApp] Critical session error or timeout detected. Triggering restart.');
-            messageQueue.addLog(`Erro crítico ou timeout (${errorMessage}). Reiniciando WhatsApp...`, 'error');
-            addSystemAlert('Erro Crítico WhatsApp', `Erro detectado: ${errorMessage}. Reiniciando serviço...`, 'error');
+            console.error('[WhatsApp] Erro crítico ou timeout detectado durante envio de mensagem.');
+            messageQueue.addLog(`Erro crítico ou timeout (${errorMessage}). Verificando se pode reiniciar...`, 'error');
+            addSystemAlert('Erro Crítico WhatsApp', `Erro detectado: ${errorMessage}. Tentando reiniciar...`, 'error');
 
-            // Trigger restart asynchronously so we don't block
-            restartClient().catch(console.error);
+            // Check if we can restart (not in a restart loop)
+            if (canRestart()) {
+                console.log('[WhatsApp] Dentro dos limites de restart. Reiniciando WhatsApp...');
+                messageQueue.addLog('🔄 Reiniciando WhatsApp devido a erro crítico...', 'info');
 
-            throw new Error('CRITICAL_SESSION_ERROR');
+                // Wait before restart to allow things to settle
+                await new Promise(resolve => setTimeout(resolve, WHATSAPP_CONFIG.RESTART_COOLDOWN_MS));
+
+                // Trigger restart asynchronously so we don't block
+                restartClient().catch(console.error);
+
+                throw new Error('CRITICAL_SESSION_ERROR');
+            } else {
+                console.error('[WhatsApp] ❌ Muitos restarts consecutivos. NÃO reiniciando para evitar loop.');
+                messageQueue.addLog('❌ Muitos restarts. Intervenção manual necessária.', 'error');
+                throw new Error('TOO_MANY_RESTARTS');
+            }
         }
 
         messageQueue.addLog(`Erro ao enviar para ${phone}: ${errorMessage}`, 'error');
@@ -691,7 +1006,7 @@ export const resetSession = async (autoReconnect: boolean = false) => {
     }
 
     // Wait a bit to ensure file locks are released
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, WHATSAPP_CONFIG.RETRY_DELAY_MS));
 
     // Delete auth folder
     const fs = await import('fs/promises');
@@ -718,7 +1033,7 @@ export const resetSession = async (autoReconnect: boolean = false) => {
     }
 };
 
-export const handleMessageCreate = async (msg: any) => {
+export const handleMessageCreate = async (msg: WhatsAppMessage) => {
     console.log('🔔 EVENT message_create DISPARADO!');
 
     // Only process direct messages (not groups)
@@ -748,7 +1063,7 @@ export const handleMessageCreate = async (msg: any) => {
         if (lowerBody.includes('tem aula hoje?') || lowerBody.includes('tem aula hoje')) {
             console.log(`🤖 Auto-reply triggered for ${phone}`);
             try {
-                await msg.reply('Por qual motivo não teriamos?');
+                await msg.reply?.('Por qual motivo não teriamos?');
                 messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone}`, 'success');
             } catch (e) {
                 console.error('Error sending auto-reply:', e);
@@ -817,7 +1132,7 @@ export const handleMessageCreate = async (msg: any) => {
             let mediaUrl = null;
             let mediaType = null;
 
-            if (msg.hasMedia) {
+            if (msg.hasMedia && msg.downloadMedia) {
                 try {
                     const media = await msg.downloadMedia();
                     if (media) {
@@ -928,7 +1243,7 @@ export const handleMessageCreate = async (msg: any) => {
                 let mediaUrl = null;
                 let mediaType = null;
 
-                if (msg.hasMedia) {
+                if (msg.hasMedia && msg.downloadMedia) {
                     try {
                         const media = await msg.downloadMedia();
                         if (media) {

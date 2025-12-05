@@ -14,14 +14,14 @@ export async function GET() {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { title, content, type = 'fixed' } = body;
+        const { name, message, type = 'fixed' } = body;
 
-        if (!title || !content) {
-            return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
+        if (!name || !message) {
+            return NextResponse.json({ error: 'Name and message are required' }, { status: 400 });
         }
 
-        const stmt = db.prepare('INSERT INTO templates (title, content, type) VALUES (?, ?, ?)');
-        const result = stmt.run(title, content, type);
+        const stmt = db.prepare('INSERT INTO templates (name, message, type) VALUES (?, ?, ?)');
+        const result = stmt.run(name, message, type);
 
         return NextResponse.json({ success: true, id: result.lastInsertRowid });
     } catch (error) {
@@ -33,14 +33,14 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
-        const { id, title, content, type = 'fixed' } = body;
+        const { id, name, message, type = 'fixed' } = body;
 
-        if (!id || !title || !content) {
-            return NextResponse.json({ error: 'ID, title and content are required' }, { status: 400 });
+        if (!id || !name || !message) {
+            return NextResponse.json({ error: 'ID, name and message are required' }, { status: 400 });
         }
 
-        const stmt = db.prepare('UPDATE templates SET title = ?, content = ?, type = ? WHERE id = ?');
-        const result = stmt.run(title, content, type, id);
+        const stmt = db.prepare('UPDATE templates SET name = ?, message = ?, type = ? WHERE id = ?');
+        const result = stmt.run(name, message, type, id);
 
         if (result.changes === 0) {
             return NextResponse.json({ error: 'Template not found' }, { status: 404 });

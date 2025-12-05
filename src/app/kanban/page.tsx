@@ -20,6 +20,11 @@ export default function KanbanPage() {
     const [templates, setTemplates] = useState<any[]>([]);
     const [selectedTemplateType, setSelectedTemplateType] = useState<string>('fixed');
 
+    // Import tracking filters
+    const [showOnlyNew, setShowOnlyNew] = useState(false);
+    const [showOnlyStatusChanged, setShowOnlyStatusChanged] = useState(false);
+    const [clearingMarkers, setClearingMarkers] = useState(false);
+
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -69,7 +74,50 @@ export default function KanbanPage() {
     }, []);
 
     const getLeadsByStatus = (status: string) => {
-        return leads.filter(l => l.status?.toUpperCase() === status.toUpperCase());
+        let filtered = leads.filter(l => l.status?.toUpperCase() === status.toUpperCase());
+
+        // Apply import tracking filters
+        if (showOnlyNew) {
+            filtered = filtered.filter(l => l.is_new === 1);
+        }
+        if (showOnlyStatusChanged) {
+            filtered = filtered.filter(l => l.status_changed === 1);
+        }
+
+        return filtered;
+    };
+
+    const handleClearMarkers = async () => {
+        if (!confirm('Deseja limpar todas as marcações de "Novo" e "Status Alterado"?')) {
+            return;
+        }
+
+        setClearingMarkers(true);
+        try {
+            const res = await fetch('/api/leads/clear-markers', {
+                method: 'POST'
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                toastSuccess(data.message || 'Marcações limpas com sucesso!');
+
+                // Refresh leads data
+                const leadsRes = await fetch('/api/leads?limit=1000&status=all');
+                const leadsData = await leadsRes.json();
+                if (leadsData.data) {
+                    setLeads(leadsData.data);
+                }
+            } else {
+                toastError('Erro ao limpar marcações.');
+            }
+        } catch (error) {
+            console.error('Error clearing markers:', error);
+            toastError('Erro ao limpar marcações.');
+        } finally {
+            setClearingMarkers(false);
+        }
     };
 
     const handleTemplateSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -141,6 +189,32 @@ export default function KanbanPage() {
                     <h1 className={styles.title}>Quadro Kanban</h1>
                     <p className={styles.subtitle}>Visualize e gerencie seus leads por status</p>
                 </div>
+                <div className={styles.filterSection}>
+                    <label className={styles.filterCheckbox}>
+                        <input
+                            type="checkbox"
+                            checked={showOnlyNew}
+                            onChange={(e) => setShowOnlyNew(e.target.checked)}
+                        />
+                        <span>Mostrar apenas novos</span>
+                    </label>
+                    <label className={styles.filterCheckbox}>
+                        <input
+                            type="checkbox"
+                            checked={showOnlyStatusChanged}
+                            onChange={(e) => setShowOnlyStatusChanged(e.target.checked)}
+                        />
+                        <span>Mostrar apenas com status alterado</span>
+                    </label>
+                    <button
+                        className={styles.clearButton}
+                        onClick={handleClearMarkers}
+                        disabled={clearingMarkers}
+                    >
+                        {clearingMarkers ? <RefreshCw className={styles.spin} size={16} /> : <X size={16} />}
+                        <span>Limpar Marcações</span>
+                    </button>
+                </div>
             </header>
 
             <div className={styles.boardContainer}>
@@ -170,6 +244,14 @@ export default function KanbanPage() {
                                     <div key={lead.cpf} className={styles.card}>
                                         <div className={styles.cardHeader}>
                                             <span className={styles.cardName}>{lead.nome}</span>
+                                            <div className={styles.cardBadges}>
+                                                {lead.is_new === 1 && (
+                                                    <span className={`${styles.badge} ${styles.badgeNew}`}>NOVO</span>
+                                                )}
+                                                {lead.status_changed === 1 && (
+                                                    <span className={`${styles.badge} ${styles.badgeChanged}`}>STATUS ALTERADO</span>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className={styles.cardPhone}>
                                             <Phone size={12} />

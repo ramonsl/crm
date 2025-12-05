@@ -27,6 +27,87 @@
     font-size: 0.95rem;
 }
 
+/* Filter Section */
+.filterSection {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.filterCheckbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    user-select: none;
+}
+
+.filterCheckbox input[type="checkbox"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.filterCheckbox:hover {
+    color: var(--text-main);
+}
+
+.clearButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clearButton:hover:not(:disabled) {
+    background-color: #000000;
+    border-color: var(--error);
+    color: var(--error);
+}
+
+.clearButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Card Badges */
+.cardBadges {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-end;
+}
+
+.badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    white-space: nowrap;
+}
+
+.badgeNew {
+    background-color: #10b981;
+    color: white;
+}
+
+.badgeChanged {
+    background-color: #f59e0b;
+    color: white;
+}
+
+
 .boardContainer {
     display: flex;
     gap: 1.5rem;

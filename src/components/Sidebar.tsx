@@ -29,7 +29,6 @@ export default function Sidebar({ isOpen }: { isOpen?: boolean }) {
     const links = [
         { href: '/', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/contacts', label: 'Inscritos', icon: Users },
-        { href: '/leads', label: 'Novos Leads', icon: UserPlus },
         { href: '/kanban', label: 'Kanban', icon: Columns },
         { href: '/chat', label: 'Chat', icon: MessageCircle },
         { href: '/templates', label: 'Modelos', icon: FileText },
