@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
-import { Trash2, AlertTriangle, RefreshCw, Image, MessageSquare } from 'lucide-react';
+import { Trash2, AlertTriangle, RefreshCw, Image, MessageSquare, Plus, Palette, GripVertical, Save, X, Users } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 
 export default function SettingsPage() {
@@ -24,6 +24,37 @@ export default function SettingsPage() {
     const [syncingHistory, setSyncingHistory] = useState(false);
     const [historyResults, setHistoryResults] = useState<any>(null);
 
+    // Status management states
+    interface StatusItem {
+        id: number;
+        name: string;
+        color: string;
+        display_order: number;
+    }
+    const [statuses, setStatuses] = useState<StatusItem[]>([]);
+    const [loadingStatuses, setLoadingStatuses] = useState(false);
+    const [editingStatus, setEditingStatus] = useState<StatusItem | null>(null);
+    const [newStatusName, setNewStatusName] = useState('');
+    const [newStatusColor, setNewStatusColor] = useState('#6b7280');
+
+    // Duplicates management states
+    interface DuplicateGroup {
+        telefone: string;
+        registros: Array<{
+            cpf: string;
+            nome: string;
+            email: string | null;
+            status: string;
+            tipo_ingresso: string | null;
+            created_at: string;
+            updated_at: string;
+        }>;
+    }
+    const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
+    const [loadingDuplicates, setLoadingDuplicates] = useState(false);
+    const [mergingDuplicates, setMergingDuplicates] = useState(false);
+    const [mergeConfirmGroup, setMergeConfirmGroup] = useState<DuplicateGroup | null>(null);
+
     useEffect(() => {
         fetch('/api/settings')
             .then(res => res.json())
@@ -33,7 +64,138 @@ export default function SettingsPage() {
                 if (data.maxDelay) setMaxDelay(Number(data.maxDelay));
                 if (data.metaMatriculas) setMetaMatriculas(Number(data.metaMatriculas));
             });
+
+        // Fetch statuses
+        fetchStatuses();
     }, []);
+
+    const fetchStatuses = async () => {
+        setLoadingStatuses(true);
+        try {
+            const res = await fetch('/api/statuses');
+            const data = await res.json();
+            setStatuses(data.data || []);
+        } catch (error) {
+            console.error('Error fetching statuses:', error);
+        } finally {
+            setLoadingStatuses(false);
+        }
+    };
+
+    const fetchDuplicates = async () => {
+        setLoadingDuplicates(true);
+        try {
+            const res = await fetch('/api/duplicates');
+            const data = await res.json();
+            setDuplicates(data.duplicates || []);
+        } catch (error) {
+            console.error('Error fetching duplicates:', error);
+            toastError('Erro ao buscar duplicatas');
+        } finally {
+            setLoadingDuplicates(false);
+        }
+    };
+
+    const handleMergeDuplicates = async (group: DuplicateGroup) => {
+        if (group.registros.length < 2) return;
+        // Abrir modal de confirmação
+        setMergeConfirmGroup(group);
+    };
+
+    const executeMerge = async () => {
+        if (!mergeConfirmGroup) return;
+
+        const group = mergeConfirmGroup;
+        const primaryCpf = group.registros[0].cpf;
+        const secondaryCpfs = group.registros.slice(1).map(r => r.cpf);
+
+        setMergeConfirmGroup(null); // Fechar modal
+        setMergingDuplicates(true);
+
+        try {
+            const res = await fetch('/api/duplicates/merge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ primaryCpf, secondaryCpfs })
+            });
+
+            if (res.ok) {
+                toastSuccess(`${secondaryCpfs.length} registro(s) mesclado(s) com sucesso!`);
+                fetchDuplicates();
+            } else {
+                const data = await res.json();
+                toastError(data.error || 'Erro ao mesclar');
+            }
+        } catch (error) {
+            console.error('Error merging duplicates:', error);
+            toastError('Erro ao mesclar duplicatas');
+        } finally {
+            setMergingDuplicates(false);
+        }
+    };
+
+    const handleAddStatus = async () => {
+        if (!newStatusName.trim()) {
+            toastWarning('Digite um nome para o status');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/statuses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newStatusName, color: newStatusColor })
+            });
+
+            if (res.ok) {
+                toastSuccess('Status adicionado!');
+                setNewStatusName('');
+                setNewStatusColor('#6b7280');
+                fetchStatuses();
+            } else {
+                const data = await res.json();
+                toastError(data.error || 'Erro ao adicionar status');
+            }
+        } catch (error) {
+            toastError('Erro ao adicionar status');
+        }
+    };
+
+    const handleUpdateStatus = async (status: StatusItem) => {
+        try {
+            const res = await fetch('/api/statuses', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: status.id, name: status.name, color: status.color })
+            });
+
+            if (res.ok) {
+                toastSuccess('Status atualizado!');
+                setEditingStatus(null);
+                fetchStatuses();
+            } else {
+                toastError('Erro ao atualizar status');
+            }
+        } catch (error) {
+            toastError('Erro ao atualizar status');
+        }
+    };
+
+    const handleDeleteStatus = async (id: number) => {
+        if (!confirm('Tem certeza que deseja remover este status?')) return;
+
+        try {
+            const res = await fetch(`/api/statuses?id=${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                toastSuccess('Status removido!');
+                fetchStatuses();
+            } else {
+                toastError('Erro ao remover status');
+            }
+        } catch (error) {
+            toastError('Erro ao remover status');
+        }
+    };
 
     const handleSaveKey = async () => {
         setSavingKey(true);
@@ -239,6 +401,126 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                {/* Status Management */}
+                <div className={styles.section}>
+                    <h2 className={styles.sectionTitle}>
+                        <Palette size={20} />
+                        Gerenciar Status
+                    </h2>
+                    <p className={styles.description}>
+                        Configure os status disponíveis e suas cores.
+                    </p>
+
+                    {/* Add New Status */}
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                        <input
+                            type="text"
+                            placeholder="Nome do novo status"
+                            value={newStatusName}
+                            onChange={(e) => setNewStatusName(e.target.value)}
+                            className={styles.input}
+                            style={{ flex: 1 }}
+                        />
+                        <input
+                            type="color"
+                            value={newStatusColor}
+                            onChange={(e) => setNewStatusColor(e.target.value)}
+                            style={{ width: '50px', height: '40px', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                        />
+                        <button
+                            onClick={handleAddStatus}
+                            className={styles.button}
+                            style={{ gap: '0.25rem' }}
+                        >
+                            <Plus size={16} />
+                            Adicionar
+                        </button>
+                    </div>
+
+                    {/* Status List */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {loadingStatuses ? (
+                            <p style={{ color: 'var(--text-muted)' }}>Carregando...</p>
+                        ) : statuses.length === 0 ? (
+                            <p style={{ color: 'var(--text-muted)' }}>Nenhum status cadastrado</p>
+                        ) : (
+                            statuses.map((status) => (
+                                <div
+                                    key={status.id}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        padding: '0.75rem',
+                                        background: 'var(--bg-body)',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--border-color)'
+                                    }}
+                                >
+                                    <GripVertical size={16} style={{ color: 'var(--text-muted)', cursor: 'grab' }} />
+
+                                    {editingStatus?.id === status.id ? (
+                                        <>
+                                            <input
+                                                type="text"
+                                                value={editingStatus.name}
+                                                onChange={(e) => setEditingStatus({ ...editingStatus, name: e.target.value })}
+                                                className={styles.input}
+                                                style={{ flex: 1 }}
+                                            />
+                                            <input
+                                                type="color"
+                                                value={editingStatus.color}
+                                                onChange={(e) => setEditingStatus({ ...editingStatus, color: e.target.value })}
+                                                style={{ width: '40px', height: '32px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                            />
+                                            <button
+                                                onClick={() => handleUpdateStatus(editingStatus)}
+                                                style={{ background: 'var(--success)', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}
+                                            >
+                                                <Save size={16} style={{ color: 'white' }} />
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingStatus(null)}
+                                                style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}
+                                            >
+                                                <X size={16} style={{ color: 'var(--text-muted)' }} />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span
+                                                style={{
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    borderRadius: '50%',
+                                                    backgroundColor: status.color,
+                                                    flexShrink: 0
+                                                }}
+                                            />
+                                            <span style={{ flex: 1, color: 'var(--text-main)' }}>{status.name}</span>
+                                            <button
+                                                onClick={() => setEditingStatus(status)}
+                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
+                                                title="Editar"
+                                            >
+                                                <Palette size={16} style={{ color: 'var(--text-muted)' }} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteStatus(status.id)}
+                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
+                                                title="Remover"
+                                            >
+                                                <Trash2 size={16} style={{ color: 'var(--danger)' }} />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
                 {/* Integrations Group */}
                 <div className={styles.section}>
                     <h2 className={styles.sectionTitle}>Integrações</h2>
@@ -312,6 +594,95 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                {/* Duplicate Management */}
+                <div className={styles.section}>
+                    <h2 className={styles.sectionTitle}>
+                        <Users size={20} />
+                        Gerenciar Duplicatas
+                    </h2>
+                    <p className={styles.description}>
+                        Encontre e mescle registros com o mesmo telefone.
+                    </p>
+
+                    <button
+                        onClick={fetchDuplicates}
+                        disabled={loadingDuplicates}
+                        className={styles.button}
+                        style={{ marginBottom: '1rem' }}
+                    >
+                        {loadingDuplicates ? <RefreshCw size={16} className={styles.spin} /> : <Users size={16} />}
+                        {loadingDuplicates ? 'Buscando...' : 'Buscar Duplicatas'}
+                    </button>
+
+                    {duplicates.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <p style={{ color: 'var(--warning)', fontSize: '0.875rem' }}>
+                                ⚠️ Encontrados {duplicates.length} grupos de duplicatas
+                            </p>
+                            {duplicates.slice(0, 10).map((group) => (
+                                <div
+                                    key={group.telefone}
+                                    style={{
+                                        padding: '0.75rem',
+                                        background: 'var(--bg-body)',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--border-color)'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                                            📱 {group.telefone}
+                                        </span>
+                                        <button
+                                            onClick={() => handleMergeDuplicates(group)}
+                                            disabled={mergingDuplicates}
+                                            style={{
+                                                background: 'var(--primary)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                padding: '0.25rem 0.5rem',
+                                                fontSize: '0.75rem',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {mergingDuplicates ? 'Mesclando...' : 'Mesclar'}
+                                        </button>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        {group.registros.map((reg, idx) => (
+                                            <div
+                                                key={reg.cpf}
+                                                style={{
+                                                    fontSize: '0.75rem',
+                                                    color: idx === 0 ? 'var(--success)' : 'var(--text-muted)',
+                                                    display: 'flex',
+                                                    gap: '0.5rem'
+                                                }}
+                                            >
+                                                <span>{idx === 0 ? '✓' : '○'}</span>
+                                                <span>{reg.nome || 'Sem nome'}</span>
+                                                <span>({reg.status})</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                            {duplicates.length > 10 && (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                                    ... e mais {duplicates.length - 10} grupos
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {duplicates.length === 0 && !loadingDuplicates && (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                            Clique em &quot;Buscar Duplicatas&quot; para verificar
+                        </p>
+                    )}
+                </div>
+
                 {/* Danger Zone */}
                 <div className={`${styles.section} ${styles.dangerZone}`}>
                     <h2 className={`${styles.sectionTitle} ${styles.dangerTitle}`}>
@@ -332,6 +703,73 @@ export default function SettingsPage() {
                     </button>
                 </div>
             </div>
+
+            {/* Modal de Confirmação de Merge */}
+            {mergeConfirmGroup && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div style={{
+                        background: 'var(--bg-surface)',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                        maxWidth: '400px',
+                        width: '90%',
+                        border: '1px solid var(--border-color)'
+                    }}>
+                        <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>
+                            Confirmar Merge
+                        </h3>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                            Mesclar {mergeConfirmGroup.registros.length} registros com telefone <strong>{mergeConfirmGroup.telefone}</strong>?
+                        </p>
+                        <p style={{ color: 'var(--success)', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                            ✓ <strong>{mergeConfirmGroup.registros[0].nome || 'Sem nome'}</strong> será mantido
+                        </p>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.75rem' }}>
+                            Os demais registros serão mesclados e removidos.
+                        </p>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => setMergeConfirmGroup(null)}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '6px',
+                                    padding: '0.5rem 1rem',
+                                    color: 'var(--text-main)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={executeMerge}
+                                disabled={mergingDuplicates}
+                                style={{
+                                    background: 'var(--primary)',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '0.5rem 1rem',
+                                    color: 'white',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                {mergingDuplicates ? 'Mesclando...' : 'Confirmar Merge'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

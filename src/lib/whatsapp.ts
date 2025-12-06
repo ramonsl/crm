@@ -6,12 +6,19 @@ import type { WhatsAppMessage, WhatsAppContact, WhatsAppMedia } from './types';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { ActivityRepository } from './repositories/ActivityRepository';
+import { ActivityService } from '@/services/activityService';
+
+// Activity service for logging timeline events
+const activityRepository = new ActivityRepository(db);
+const activityService = new ActivityService(activityRepository);
 
 // Define a global type to prevent TypeScript errors
 declare global {
     var whatsappClient: Client | null;
     var whatsappQrCode: string | null;
     var whatsappStatus: 'disconnected' | 'initializing' | 'ready';
+    var whatsappPhoneNumber: string | null; // Phone number connected
     var whatsappReconnectAttempts: number;
     var whatsappReconnectTimer: NodeJS.Timeout | null;
     var whatsappLastDisconnect: number | null;
@@ -24,6 +31,7 @@ if (!global.whatsappStatus) {
     global.whatsappStatus = 'disconnected';
     global.whatsappQrCode = null;
     global.whatsappClient = null;
+    global.whatsappPhoneNumber = null;
     global.whatsappReconnectAttempts = 0;
     global.whatsappReconnectTimer = null;
     global.whatsappLastDisconnect = null;
@@ -257,6 +265,18 @@ export const getClient = () => {
         global.whatsappClient.on('ready', async () => {
             global.whatsappStatus = 'ready';
             global.whatsappQrCode = null;
+
+            // Capture connected phone number
+            try {
+                const info = global.whatsappClient?.info;
+                if (info && info.wid) {
+                    global.whatsappPhoneNumber = info.wid.user;
+                    console.log(`[WhatsApp] Connected phone number: ${global.whatsappPhoneNumber}`);
+                }
+            } catch (e) {
+                console.error('[WhatsApp] Error getting connected phone:', e);
+            }
+
             console.log('🟢🟢🟢 CLIENT IS READY! WHATSAPP CONNECTED! 🟢🟢🟢');
             messageQueue.addLog('WhatsApp Conectado e Pronto!', 'success');
             addSystemAlert('WhatsApp Conectado', 'A conexão com o WhatsApp foi estabelecida com sucesso.', 'success');
@@ -406,9 +426,23 @@ export const getClient = () => {
 };
 
 export const getStatus = () => {
+    // Try to capture phone number if client is ready but phoneNumber is not set
+    if (global.whatsappStatus === 'ready' && !global.whatsappPhoneNumber && global.whatsappClient) {
+        try {
+            const info = global.whatsappClient.info;
+            if (info && info.wid) {
+                global.whatsappPhoneNumber = info.wid.user;
+                console.log(`[WhatsApp] Captured phone number from existing session: ${global.whatsappPhoneNumber}`);
+            }
+        } catch (e) {
+            console.error('[WhatsApp] Error getting phone from existing session:', e);
+        }
+    }
+
     return {
         status: global.whatsappStatus || 'disconnected',
-        qrCode: global.whatsappQrCode
+        qrCode: global.whatsappQrCode,
+        phoneNumber: global.whatsappPhoneNumber || null
     };
 };
 
@@ -1072,8 +1106,6 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
     }
     // ------------------------
 
-    const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
-
     console.log('='.repeat(60));
     console.log(`📱 MENSAGEM ${direction.toUpperCase()} ${direction === 'outgoing' ? 'para' : 'de'} ${phone}`);
     console.log(`📝 Conteúdo: ${msg.body}`);
@@ -1081,30 +1113,21 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
 
     try {
         // Check if this phone is a registered contact
-        // Generate variations to check in DB
-        const variations = [phone, phoneWithoutCountry];
-
-        // Handle Brazilian 9th digit logic
-        if (phone.startsWith('55')) {
-            // If it has 13 digits (55 + 2 DDD + 9 + 8 digits), try removing the 9
-            if (phone.length === 13) {
-                const phoneNo9 = phone.substring(0, 4) + phone.substring(5);
-                variations.push(phoneNo9);
-                variations.push(phoneNo9.substring(2)); // Also without country code
-            }
-            // If it has 12 digits (55 + 2 DDD + 8 digits), try adding the 9
-            else if (phone.length === 12) {
-                const phoneWith9 = phone.substring(0, 4) + '9' + phone.substring(4);
-                variations.push(phoneWith9);
-                variations.push(phoneWith9.substring(2)); // Also without country code
-            }
-        }
+        // Use centralized phone utility for consistent variation generation
+        const { getPhoneVariations } = await import('./utils/phoneUtils');
+        const variations = getPhoneVariations(phone);
 
         console.log(`🔍 Buscando no banco por variações: ${variations.join(', ')}`);
 
         // Create placeholders for the IN clause (?, ?, ?, ...)
+        // Prioritize leads where CPF differs from telefone (real imported leads)
         const placeholders = variations.map(() => '?').join(',');
-        const checkStmt = db.prepare(`SELECT cpf, nome, telefone FROM leads WHERE telefone IN (${placeholders})`);
+        const checkStmt = db.prepare(`
+            SELECT cpf, nome, telefone FROM leads 
+            WHERE telefone IN (${placeholders})
+            ORDER BY CASE WHEN cpf != telefone THEN 0 ELSE 1 END, cpf
+            LIMIT 1
+        `);
         let contact = checkStmt.get(...variations) as any;
 
         // Fallback: Try matching by last 8 digits (ignoring DDD and 9th digit)
@@ -1179,6 +1202,13 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
                     WHERE cpf = ?
                 `);
                 updateStmt.run(msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, contact.cpf);
+
+                // Log activity: WhatsApp received
+                try {
+                    activityService.logWhatsAppReceived(contact.cpf, msg.body || `[${mediaType || 'mídia'}]`);
+                } catch (activityError) {
+                    console.error('[WhatsApp] Error logging activity:', activityError);
+                }
             } else {
                 // For outgoing messages, just update last message without incrementing unread
                 const updateStmt = db.prepare(`
@@ -1188,6 +1218,13 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
                     WHERE cpf = ?
                 `);
                 updateStmt.run(msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, contact.cpf);
+
+                // Log activity: WhatsApp sent
+                try {
+                    activityService.logWhatsAppSent(contact.cpf, msg.body || `[${mediaType || 'mídia'}]`);
+                } catch (activityError) {
+                    console.error('[WhatsApp] Error logging activity:', activityError);
+                }
             }
 
             // Fetch and update profile picture asynchronously (don't wait)

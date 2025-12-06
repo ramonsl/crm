@@ -26,6 +26,15 @@ export async function POST(req: Request) {
 
     if (action === 'send') {
         let { phone, message } = body;
+
+        // Normalize phone: add 55 prefix if Brazilian number without it
+        // This ensures validation works correctly for numbers like "51981636027"
+        const digitsOnly = phone.replace(/\D/g, '');
+        if ((digitsOnly.length === 10 || digitsOnly.length === 11) && !digitsOnly.startsWith('55')) {
+            phone = '55' + digitsOnly;
+            console.log(`[API] Normalized phone: ${digitsOnly} → ${phone}`);
+        }
+
         try {
             // Fetch lead name for substitution
             const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;

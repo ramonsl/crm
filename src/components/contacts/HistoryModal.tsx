@@ -14,6 +14,7 @@ interface Message {
     id: number;
     contact_cpf: string;
     message: string;
+    template_name?: string; // Nome do template enviado
     direction: 'sent' | 'received';
     timestamp: string;
     status?: string;
@@ -28,6 +29,7 @@ interface HistoryModalProps {
 export function HistoryModal({ contact, isOpen, onClose }: HistoryModalProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
+    const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
 
     useEffect(() => {
         if (isOpen && contact) {
@@ -35,18 +37,36 @@ export function HistoryModal({ contact, isOpen, onClose }: HistoryModalProps) {
         }
     }, [isOpen, contact]);
 
+    const toggleMessage = (messageId: number) => {
+        setExpandedMessages(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(messageId)) {
+                newSet.delete(messageId);
+            } else {
+                newSet.add(messageId);
+            }
+            return newSet;
+        });
+    };
+
     const fetchHistory = async () => {
         if (!contact) return;
 
         setLoading(true);
         try {
-            const response = await fetch(`/api/message-history?cpf=${contact.cpf}`);
+            // Use phone number instead of CPF
+            const phone = contact.telefone;
+            const response = await fetch(`/api/message-history?phone=${encodeURIComponent(phone)}`);
+
             if (response.ok) {
                 const data = await response.json();
                 setMessages(data.messages || []);
+                console.log(`[HistoryModal] Loaded ${data.messages?.length || 0} messages`);
+            } else {
+                console.error('[HistoryModal] API error:', await response.text());
             }
         } catch (error) {
-            console.error('Error fetching history:', error);
+            console.error('[HistoryModal] Error fetching history:', error);
         } finally {
             setLoading(false);
         }
@@ -79,24 +99,46 @@ export function HistoryModal({ contact, isOpen, onClose }: HistoryModalProps) {
                         </div>
                     ) : (
                         <div className={styles.messageList}>
-                            {messages.map((msg) => (
-                                <div
-                                    key={msg.id}
-                                    className={`${styles.message} ${msg.direction === 'sent' ? styles.sent : styles.received
-                                        }`}
-                                >
-                                    <div className={styles.messageHeader}>
-                                        <span className={styles.direction}>
-                                            {msg.direction === 'sent' ? 'Enviada' : 'Recebida'}
-                                        </span>
-                                        <TimeAgoBadge date={msg.timestamp} />
+                            {messages.map((msg) => {
+                                const isExpanded = expandedMessages.has(msg.id);
+
+                                return (
+                                    <div
+                                        key={msg.id}
+                                        className={`${styles.message} ${msg.direction === 'sent' ? styles.sent : styles.received}`}
+                                    >
+                                        <div
+                                            className={styles.messageHeader}
+                                            onClick={() => toggleMessage(msg.id)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className={styles.headerLeft}>
+                                                <span className={styles.direction}>
+                                                    {msg.direction === 'sent' ? 'Enviada' : 'Recebida'}
+                                                    {msg.template_name && (
+                                                        <span className={styles.templateBadge}>
+                                                            📄 {msg.template_name}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <TimeAgoBadge date={msg.timestamp} />
+                                            </div>
+                                            <span className={styles.expandIcon}>
+                                                {isExpanded ? '▼' : '▶'}
+                                            </span>
+                                        </div>
+
+                                        {isExpanded && (
+                                            <>
+                                                <div className={styles.messageContent}>{msg.message}</div>
+                                                {msg.status && (
+                                                    <div className={styles.messageStatus}>Status: {msg.status}</div>
+                                                )}
+                                            </>
+                                        )}
                                     </div>
-                                    <div className={styles.messageContent}>{msg.message}</div>
-                                    {msg.status && (
-                                        <div className={styles.messageStatus}>Status: {msg.status}</div>
-                                    )}
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

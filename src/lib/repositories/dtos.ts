@@ -89,3 +89,26 @@ export interface UpdateSettingDto {
     key: string;
     value: string;
 }
+
+// ============================================================================
+// ACTIVITY DTOs - Timeline feature
+// ============================================================================
+
+export type ActivityType = 'whatsapp' | 'status_change' | 'note' | 'lead_created' | 'lead_updated';
+export type ActivitySubtype = 'sent' | 'received' | 'template' | null;
+
+export interface CreateActivityDto {
+    contact_cpf: string;
+    type: ActivityType;
+    subtype?: ActivitySubtype;
+    title: string;
+    description?: string;
+    metadata?: Record<string, unknown>;
+}
+
+export interface ActivityFilters {
+    cpf?: string;
+    type?: ActivityType;
+    limit?: number;
+    offset?: number;
+}

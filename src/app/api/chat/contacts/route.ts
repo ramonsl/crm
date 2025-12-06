@@ -1,6 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
 import db from '@/lib/db';
-import { getActiveChats } from '@/lib/whatsapp';
 
 // GET /api/chat/contacts - Get all contacts prioritizing WhatsApp active chats
 export async function GET(req: NextRequest) {
@@ -22,7 +21,7 @@ export async function GET(req: NextRequest) {
                 l.status,
                 l.tipo_ingresso,
                 l.unread_count,
-                l.profile_picture as profile_image,
+                l.profile_image,
                 m.body as last_message,
                 m.timestamp as last_message_time,
                 m.direction as last_message_direction

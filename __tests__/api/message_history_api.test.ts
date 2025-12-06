@@ -1,11 +1,9 @@
 import { GET } from '@/app/api/message-history/route';
 import { NextRequest } from 'next/server';
-import db from '@/lib/db';
+import { TemplateHistoryService } from '@/services/templateHistoryService';
 
-// Mock DB
-jest.mock('@/lib/db', () => ({
-    prepare: jest.fn(),
-}));
+// Mock service
+jest.mock('@/services/templateHistoryService');
 
 describe('Message History API', () => {
     beforeEach(() => {
@@ -17,112 +15,86 @@ describe('Message History API', () => {
             const mockHistory = [
                 {
                     id: 1,
-                    template_id: 5,
+                    phone: '51999887766',
                     template_name: 'Boas-vindas',
-                    message_content: 'Olá João! Seja bem-vindo...',
-                    sent_at: '2025-12-04T18:30:00.000Z',
-                    status: 'sent'
+                    template_content: 'Olá!',
+                    sent_at: '2025-12-06T10:00:00Z',
+                    success: true,
+                    error_message: null
                 },
                 {
                     id: 2,
-                    template_id: 3,
-                    template_name: 'Ajuda com Matrícula',
-                    message_content: 'Olá João! Precisa de ajuda?',
-                    sent_at: '2025-12-03T10:15:00.000Z',
-                    status: 'sent'
+                    phone: '51999887766',
+                    template_name: 'Follow-up',
+                    template_content: 'Como vai?',
+                    sent_at: '2025-12-06T11:00:00Z',
+                    success: true,
+                    error_message: null
                 }
             ];
 
-            (db.prepare as jest.Mock).mockReturnValue({
-                all: jest.fn().mockReturnValue(mockHistory)
-            });
+            (TemplateHistoryService as jest.Mock).mockImplementation(() => ({
+                getPhoneHistory: jest.fn().mockResolvedValue(mockHistory)
+            }));
 
-            const req = new NextRequest('http://localhost/api/message-history?cpf=12345678901');
+            const req = new NextRequest('http://localhost/api/message-history?phone=51999887766');
             const res = await GET(req);
             const data = await res.json();
 
             expect(res.status).toBe(200);
-            expect(data.history).toHaveLength(2);
-            expect(data.history[0].template_name).toBe('Boas-vindas');
-            expect(data.history[0].status).toBe('sent');
+            expect(data.messages).toHaveLength(2);
+            expect(data.messages[0].template_name).toBe('Boas-vindas');
+            expect(data.messages[0].status).toBe('delivered');
         });
 
         it('should return empty array for contact with no messages', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({
-                all: jest.fn().mockReturnValue([])
-            });
+            (TemplateHistoryService as jest.Mock).mockImplementation(() => ({
+                getPhoneHistory: jest.fn().mockResolvedValue([])
+            }));
 
-            const req = new NextRequest('http://localhost/api/message-history?cpf=99999999999');
+            const req = new NextRequest('http://localhost/api/message-history?phone=51999887766');
             const res = await GET(req);
             const data = await res.json();
 
             expect(res.status).toBe(200);
-            expect(data.history).toEqual([]);
+            expect(data.messages).toEqual([]);
         });
 
-        it('should return 400 if CPF is missing', async () => {
+        it('should return 400 if phone is missing', async () => {
             const req = new NextRequest('http://localhost/api/message-history');
             const res = await GET(req);
 
             expect(res.status).toBe(400);
             const data = await res.json();
-            expect(data.error).toBe('CPF is required');
-        });
-
-        it('should order results by sent_at DESC', async () => {
-            const mockHistory = [
-                {
-                    id: 2,
-                    template_name: 'Second',
-                    sent_at: '2025-12-04T18:30:00.000Z',
-                    status: 'sent'
-                },
-                {
-                    id: 1,
-                    template_name: 'First',
-                    sent_at: '2025-12-03T10:15:00.000Z',
-                    status: 'sent'
-                }
-            ];
-
-            (db.prepare as jest.Mock).mockReturnValue({
-                all: jest.fn().mockReturnValue(mockHistory)
-            });
-
-            const req = new NextRequest('http://localhost/api/message-history?cpf=12345678901');
-            await GET(req);
-
-            // Verify the SQL query includes ORDER BY sent_at DESC
-            const prepareCall = (db.prepare as jest.Mock).mock.calls[0][0];
-            expect(prepareCall).toContain('ORDER BY sent_at DESC');
+            expect(data.error).toBe('Phone number is required');
         });
 
         it('should include all required fields in response', async () => {
             const mockHistory = [
                 {
                     id: 1,
-                    template_id: 5,
+                    phone: '51999887766',
                     template_name: 'Test Template',
-                    message_content: 'Test message',
-                    sent_at: '2025-12-04T18:30:00.000Z',
-                    status: 'sent'
+                    template_content: 'Test message',
+                    sent_at: '2025-12-06T10:00:00Z',
+                    success: true,
+                    error_message: null
                 }
             ];
 
-            (db.prepare as jest.Mock).mockReturnValue({
-                all: jest.fn().mockReturnValue(mockHistory)
-            });
+            (TemplateHistoryService as jest.Mock).mockImplementation(() => ({
+                getPhoneHistory: jest.fn().mockResolvedValue(mockHistory)
+            }));
 
-            const req = new NextRequest('http://localhost/api/message-history?cpf=12345678901');
+            const req = new NextRequest('http://localhost/api/message-history?phone=51999887766');
             const res = await GET(req);
             const data = await res.json();
 
-            const item = data.history[0];
+            const item = data.messages[0];
             expect(item).toHaveProperty('id');
-            expect(item).toHaveProperty('template_id');
             expect(item).toHaveProperty('template_name');
-            expect(item).toHaveProperty('message_content');
-            expect(item).toHaveProperty('sent_at');
+            expect(item).toHaveProperty('message');
+            expect(item).toHaveProperty('timestamp');
             expect(item).toHaveProperty('status');
         });
 
@@ -130,35 +102,37 @@ describe('Message History API', () => {
             const mockHistory = [
                 {
                     id: 1,
+                    phone: '51999887766',
                     template_name: 'Failed Message',
-                    message_content: 'This failed',
-                    sent_at: '2025-12-04T18:30:00.000Z',
-                    status: 'failed'
+                    template_content: 'This failed',
+                    sent_at: '2025-12-06T10:00:00Z',
+                    success: false,
+                    error_message: 'Send failed'
                 }
             ];
 
-            (db.prepare as jest.Mock).mockReturnValue({
-                all: jest.fn().mockReturnValue(mockHistory)
-            });
+            (TemplateHistoryService as jest.Mock).mockImplementation(() => ({
+                getPhoneHistory: jest.fn().mockResolvedValue(mockHistory)
+            }));
 
-            const req = new NextRequest('http://localhost/api/message-history?cpf=12345678901');
+            const req = new NextRequest('http://localhost/api/message-history?phone=51999887766');
             const res = await GET(req);
             const data = await res.json();
 
-            expect(data.history[0].status).toBe('failed');
+            expect(data.messages[0].status).toBe('failed');
         });
 
         it('should handle database errors gracefully', async () => {
-            (db.prepare as jest.Mock).mockImplementation(() => {
-                throw new Error('Database error');
-            });
+            (TemplateHistoryService as jest.Mock).mockImplementation(() => ({
+                getPhoneHistory: jest.fn().mockRejectedValue(new Error('Database error'))
+            }));
 
-            const req = new NextRequest('http://localhost/api/message-history?cpf=12345678901');
+            const req = new NextRequest('http://localhost/api/message-history?phone=51999887766');
             const res = await GET(req);
 
             expect(res.status).toBe(500);
             const data = await res.json();
-            expect(data.error).toBe('Internal Server Error');
+            expect(data.error).toBe('Database error');
         });
     });
 });

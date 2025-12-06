@@ -84,6 +84,20 @@ export interface TemplateRow {
     type: 'fixed' | 'ai';
 }
 
+/**
+ * Activity table row - Timeline feature
+ */
+export interface ActivityRow {
+    id: number;
+    contact_cpf: string;
+    type: 'whatsapp' | 'status_change' | 'note' | 'lead_created' | 'lead_updated';
+    subtype: 'sent' | 'received' | 'template' | null;
+    title: string;
+    description: string | null;
+    metadata: string | null;
+    created_at: string;
+}
+
 // ============================================================================
 // WHATSAPP TYPES
 // ============================================================================

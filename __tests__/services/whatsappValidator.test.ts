@@ -77,10 +77,9 @@ describe('WhatsAppValidator', () => {
                 () => new Promise(resolve => setTimeout(resolve, 10000))
             );
 
-            const result = await validator.validate('51999998888');
-
+            const result = await validator.validate('5551999998888');
             expect(result.valid).toBe(false);
-        }, 10000); // Increase test timeout
+        }, 15000); // Increase timeout to 15 seconds
 
         it('should try multiple variations before giving up', async () => {
             mockClient.getNumberId

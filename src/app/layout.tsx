@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import AdminLayout from "@/components/AdminLayout";
 import { ToastProvider } from "@/contexts/ToastContext";
+import { StatusProvider } from "@/contexts/StatusContext";
 
 export const metadata: Metadata = {
   title: "ADS CRM",
@@ -17,9 +18,11 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body>
         <ToastProvider>
-          <AdminLayout>
-            {children}
-          </AdminLayout>
+          <StatusProvider>
+            <AdminLayout>
+              {children}
+            </AdminLayout>
+          </StatusProvider>
         </ToastProvider>
       </body>
     </html>

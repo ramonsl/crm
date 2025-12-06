@@ -1,11 +1,14 @@
 import { NextResponse, NextRequest } from 'next/server';
 import db from '@/lib/db';
-import { LeadRepository } from '@/lib/repositories';
+import { LeadRepository, ActivityRepository } from '@/lib/repositories';
 import { normalizePhone } from '@/lib/utils';
 import type { LeadFilters, CreateLeadDto, UpdateLeadDto } from '@/lib/repositories';
+import { ActivityService } from '@/services/activityService';
 
-// Initialize repository
+// Initialize repositories and services
 const leadRepository = new LeadRepository(db);
+const activityRepository = new ActivityRepository(db);
+const activityService = new ActivityService(activityRepository);
 
 export async function GET(req: NextRequest) {
     try {
@@ -228,6 +231,9 @@ export async function PUT(req: NextRequest) {
             return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
         }
 
+        // Capture old status for activity logging
+        const oldStatus = lead.status;
+
         // Use repository to update
         const updateData: UpdateLeadDto = {
             nome,
@@ -243,6 +249,16 @@ export async function PUT(req: NextRequest) {
 
         leadRepository.update(targetCpf, updateData);
         console.log('[API /api/leads PUT] Lead updated successfully');
+
+        // Log status change activity if status was changed
+        if (status && oldStatus !== status) {
+            try {
+                activityService.logStatusChange(targetCpf, oldStatus, status);
+                console.log(`[API /api/leads PUT] Status change logged: ${oldStatus} → ${status}`);
+            } catch (activityError) {
+                console.error('[API /api/leads PUT] Error logging activity:', activityError);
+            }
+        }
 
         // Return updated lead
         const updatedLead = leadRepository.findByCpf(targetCpf);

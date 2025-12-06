@@ -18,12 +18,12 @@ import { ProfileAvatar } from './ProfileAvatar';
 import { ContactEditModal } from './ContactEditModal';
 import { MessageModal } from './MessageModal';
 import { BulkMessageModal } from './BulkMessageModal';
-import { HistoryModal } from './HistoryModal';
+import { ActivityTimeline } from './ActivityTimeline';
 import TimeAgoBadge from '@/components/TimeAgoBadge';
 import WhatsAppIndicator from '@/components/WhatsAppIndicator';
 import type { ContactView, Contact } from '@/types/contacts';
 import styles from './ContactsTable.module.css';
-import { UserPlus, RefreshCw, MessageSquare, Edit2, Trash2, History, Download, Upload, Filter, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { UserPlus, RefreshCw, MessageSquare, Edit2, Trash2, Download, Upload, Filter, X, ChevronUp, ChevronDown, Clock } from 'lucide-react';
 import { ColumnSelector } from './ColumnSelector';
 import { useVisibleColumns } from '@/hooks/useVisibleColumns';
 
@@ -54,8 +54,9 @@ export function ContactsTable({
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [messageModalOpen, setMessageModalOpen] = useState(false);
     const [bulkMessageModalOpen, setBulkMessageModalOpen] = useState(false);
-    const [historyModalOpen, setHistoryModalOpen] = useState(false);
+    const [timelineModalOpen, setTimelineModalOpen] = useState(false);
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+    const [deleteConfirmContact, setDeleteConfirmContact] = useState<Contact | null>(null);
 
     // Fetch available filter options from database
     useEffect(() => {
@@ -112,18 +113,24 @@ export function ContactsTable({
         setEditModalOpen(true);
     };
 
-    const handleViewHistory = (contact: Contact) => {
+    const handleViewTimeline = (contact: Contact) => {
         setSelectedContact(contact);
-        setHistoryModalOpen(true);
+        setTimelineModalOpen(true);
     };
 
-    const handleDelete = async (contact: any) => {
-        if (!window.confirm(`Tem certeza que deseja deletar ${contact.nome}?\n\nEsta ação não pode ser desfeita.`)) {
-            return;
-        }
+    const handleDelete = (contact: any, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        e?.preventDefault();
+        setDeleteConfirmContact(contact);
+    };
+
+    const confirmDelete = async () => {
+        const contact = deleteConfirmContact;
+        if (!contact) return;
+
+        setDeleteConfirmContact(null);
 
         try {
-            // Use CPF if available, otherwise use telefone
             const identifier = contact.cpf && contact.cpf.trim() !== ''
                 ? `cpf=${encodeURIComponent(contact.cpf)}`
                 : `telefone=${encodeURIComponent(contact.telefone)}`;
@@ -143,6 +150,10 @@ export function ContactsTable({
             console.error('Delete error:', err);
             toastError('Erro ao deletar contato');
         }
+    };
+
+    const cancelDelete = () => {
+        setDeleteConfirmContact(null);
     };
 
     // Handle column sorting
@@ -353,6 +364,13 @@ export function ContactsTable({
                                                     onSyncComplete={refresh}
                                                 />
                                             </div>
+                                            {contact.last_template_sent && (
+                                                <div className={styles.templateRow}>
+                                                    <span className={styles.templateBadge}>
+                                                        📄 {contact.last_template_sent}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </td>
                                     {visibleColumns.cpf && <td>{contact.cpf}</td>}
@@ -389,15 +407,15 @@ export function ContactsTable({
                                             </button>
                                             <button
                                                 className={styles.actionButton}
-                                                title="Histórico"
-                                                onClick={() => handleViewHistory(contact)}
+                                                title="Timeline (Histórico completo)"
+                                                onClick={() => handleViewTimeline(contact)}
                                             >
-                                                <History size={16} />
+                                                <Clock size={16} />
                                             </button>
                                             <button
                                                 className={styles.actionButton}
                                                 title="Deletar"
-                                                onClick={() => handleDelete(contact)}
+                                                onClick={(e) => handleDelete(contact, e)}
                                             >
                                                 <Trash2 size={16} />
                                             </button>
@@ -462,10 +480,10 @@ export function ContactsTable({
                 }}
             />
 
-            <HistoryModal
+            <ActivityTimeline
                 contact={selectedContact}
-                isOpen={historyModalOpen}
-                onClose={() => setHistoryModalOpen(false)}
+                isOpen={timelineModalOpen}
+                onClose={() => setTimelineModalOpen(false)}
             />
 
             <BulkMessageModal
@@ -476,6 +494,63 @@ export function ContactsTable({
                     refresh();
                 }}
             />
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirmContact && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999
+                }}>
+                    <div style={{
+                        background: 'linear-gradient(145deg, #1a1a2e 0%, #16213e 100%)',
+                        borderRadius: '16px',
+                        padding: '2rem',
+                        maxWidth: '400px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                    }}>
+                        <h3 style={{ color: '#fff', marginBottom: '1rem' }}>Confirmar Exclusão</h3>
+                        <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>
+                            Tem certeza que deseja deletar <strong style={{ color: '#fff' }}>{deleteConfirmContact.nome}</strong>?
+                            <br /><br />
+                            Esta ação não pode ser desfeita.
+                        </p>
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={cancelDelete}
+                                style={{
+                                    padding: '0.75rem 1.5rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                    background: 'transparent',
+                                    color: '#fff',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                style={{
+                                    padding: '0.75rem 1.5rem',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    background: '#ef4444',
+                                    color: '#fff',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Deletar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

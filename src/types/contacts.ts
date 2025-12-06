@@ -3,22 +3,25 @@
  */
 
 export interface Contact {
+    id?: number;
     cpf: string;
     nome: string;
     telefone: string;
     email?: string;
-    status: ContactStatus;
+    status: string;
     tipo_ingresso?: string;
     curso_interesse?: string;
     escola?: string;
-    last_message?: string;
-    last_message_time?: string;
-    unread_count?: number;
-    profile_image?: string;
-    data_inscricao?: string;
-    notes?: string;
     created_at?: string;
     updated_at?: string;
+    unread_count?: number;
+    last_message?: string | null;
+    last_message_time?: string | null;
+    whatsapp_valido?: number | null;
+    profile_picture?: string | null;
+    profile_image?: string | null;
+    last_template_sent?: string | null; // Nome do último template enviado
+    last_template_sent_at?: string | null; // Data de envio do último template
     is_new?: number;
     status_changed?: number;
     last_import_date?: string;

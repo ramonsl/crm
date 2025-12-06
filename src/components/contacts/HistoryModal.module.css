@@ -124,6 +124,46 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.templateBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: none;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.headerLeft {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+}
+
+.expandIcon {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    transition: transform 0.2s;
+}
+
+.messageHeader:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    margin: -0.25rem;
+    padding: 0.25rem;
+}
+
+.messageHeader:hover .expandIcon {
+    color: rgba(255, 255, 255, 0.8);
 }
 
 .message.sent .direction {

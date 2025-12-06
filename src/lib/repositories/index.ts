@@ -14,3 +14,4 @@ export { LeadRepository } from './LeadRepository';
 export { TemplateRepository } from './TemplateRepository';
 export { MessageHistoryRepository } from './MessageHistoryRepository';
 export { SettingRepository } from './SettingRepository';
+export { ActivityRepository } from './ActivityRepository';

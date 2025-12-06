@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { removeNonDigits } from '@/lib/utils/phoneUtils';
 
 export async function GET(req: NextRequest) {
     try {
@@ -78,7 +79,8 @@ export async function GET(req: NextRequest) {
         // Format phone number for Google (remove non-digits and add country code if needed)
         const formatPhone = (phone: string): string => {
             if (!phone) return '';
-            const digits = phone.replace(/\D/g, '');
+            // Consolidate phone formatting
+            const digits = removeNonDigits(phone);
             // If it's a Brazilian number without country code, add +55
             if (digits.length === 10 || digits.length === 11) {
                 return `+55 ${digits}`;

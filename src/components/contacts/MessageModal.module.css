@@ -346,3 +346,88 @@
     transform: none;
     box-shadow: none;
 }
+
+/* Bulk Message Modal Specific Styles */
+.warningBox {
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #fbbf24;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.recipientsPreview {
+    margin-bottom: 16px;
+}
+
+.recipientsList {
+    max-height: 120px;
+    overflow-y: auto;
+    background: var(--bg-body);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.recipientItem {
+    padding: 6px 8px;
+    font-size: 13px;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.recipientItem:last-child {
+    border-bottom: none;
+}
+
+.recipientMore {
+    padding: 6px 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.progressSection {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.progressBar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-body);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progressFill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), #0ea5e9);
+    transition: width 0.3s ease;
+}
+
+.progressText {
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.aiInfo {
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 6px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #a78bfa;
+    font-size: 12px;
+    margin-bottom: 12px;
+}

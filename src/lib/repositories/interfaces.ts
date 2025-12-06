@@ -3,7 +3,7 @@
  * Define contracts for data access layer
  */
 
-import type { LeadRow, TemplateRow, MessageHistoryRow, SettingRow } from '../types';
+import type { LeadRow, TemplateRow, MessageHistoryRow, SettingRow, ActivityRow } from '../types';
 import type {
     CreateLeadDto,
     UpdateLeadDto,
@@ -13,6 +13,8 @@ import type {
     CreateMessageHistoryDto,
     MessageHistoryFilters,
     UpdateSettingDto,
+    CreateActivityDto,
+    ActivityFilters,
 } from './dtos';
 
 // ============================================================================
@@ -160,4 +162,32 @@ export interface ISettingRepository {
      * Get all settings
      */
     getAll(): Promise<SettingRow[]>;
+}
+
+// ============================================================================
+// ACTIVITY REPOSITORY - Timeline feature
+// ============================================================================
+
+export interface IActivityRepository {
+    /**
+     * Find activities by contact CPF
+     * @param cpf - Contact CPF
+     * @param limit - Optional limit (default: 50)
+     */
+    findByContact(cpf: string, limit?: number): ActivityRow[];
+
+    /**
+     * Create new activity
+     */
+    create(data: CreateActivityDto): ActivityRow;
+
+    /**
+     * Find recent activities with optional filters
+     */
+    findRecent(filters?: ActivityFilters): ActivityRow[];
+
+    /**
+     * Count activities by contact CPF
+     */
+    countByContact(cpf: string): number;
 }

@@ -162,6 +162,37 @@ Execute os testes com:
 npm test
 ```
 
+## 🗺️ Roadmap
+
+### ✅ Implementado
+
+- [x] Gerenciamento de Leads/Contatos (CRUD)
+- [x] Integração WhatsApp (envio/recebimento de mensagens)
+- [x] Chat com histórico de mensagens
+- [x] Templates de mensagem (fixos e com IA)
+- [x] Kanban board para gestão de leads
+- [x] Envio em massa de mensagens
+- [x] Importação de leads via CSV/Excel
+- [x] Exportação de contatos para Google Contacts
+- [x] Sistema de notificações
+- [x] Sincronização de fotos de perfil
+- [x] Fila de mensagens (message queue)
+- [x] Desduplicação de Dados (prevenção + merge manual)
+
+### 📋 Próximas Funcionalidades
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| 📊 Dashboard Analítico | Métricas de conversão, gráficos, funil de vendas |
+| ⏰ Automações/Follow-ups | Agendamento de mensagens, sequências automáticas |
+| 🏷️ Tags/Segmentação | Tags personalizadas, filtros avançados |
+| 📈 Relatórios | Relatórios PDF, métricas de desempenho |
+| 📅 Calendário | Agendamento de reuniões, sync Google Calendar |
+| 👥 Multi-usuários | Login, roles e permissões |
+| 🤖 Chatbot | Respostas automáticas, fluxos configuráveis |
+
+> Veja mais detalhes em [ROADMAP.md](./ROADMAP.md)
+
 ## 📝 Licença
 
 Este projeto é privado e de uso interno.

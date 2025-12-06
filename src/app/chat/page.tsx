@@ -75,12 +75,16 @@ export default function ChatPage() {
             // If polling (afterId>0), just get new ones
             const limit = afterId > 0 ? 100 : 50; // Load 50 at a time for history
             const res = await fetch(`/api/chat/messages?cpf=${cpf}&limit=${limit}&after_id=${afterId}&offset=${offset}`);
+            console.log(`[Chat] Buscando mensagens: cpf=${cpf}, afterId=${afterId}, offset=${offset}`);
             const data = await res.json();
 
             if (res.ok && data.messages) {
+                console.log(`[Chat] Recebidas ${data.messages.length} mensagens`);
+
                 if (afterId > 0) {
                     // Append new messages
                     if (data.messages.length > 0) {
+                        console.log(`[Chat] Polling encontrou ${data.messages.length} novas mensagens`);
                         setMessages(prev => {
                             // Deduplicate just in case
                             const existingIds = new Set(prev.map(m => m.id));
@@ -409,7 +413,8 @@ export default function ChatPage() {
 
     useEffect(() => {
         fetchContacts();
-        const interval = setInterval(fetchContacts, 5000);
+        // Update contacts every 2 seconds for faster updates
+        const interval = setInterval(fetchContacts, 2000);
         return () => clearInterval(interval);
     }, []);
 
@@ -471,6 +476,8 @@ export default function ChatPage() {
             setMessages([]);
             setHasMoreMessages(true);
 
+            console.log(`[Chat] Contato selecionado: ${selectedContact.nome}`);
+
             // Initial fetch from DB
             fetchMessages(selectedContact.cpf, false, 0, 0);
 
@@ -480,16 +487,26 @@ export default function ChatPage() {
             // Try to sync profile pic if missing
             syncProfilePic(selectedContact);
 
-            // Poll for new messages every 1 second for real-time updates
-            const interval = setInterval(() => {
+            // Poll for new messages every 0.5 seconds for faster real-time updates
+            const pollInterval = setInterval(() => {
                 setMessages(currentMessages => {
                     const lastId = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1].id : 0;
+                    console.log(`[Chat] Polling: buscando mensagens após ID ${lastId}`);
                     fetchMessages(selectedContact.cpf, true, lastId);
                     return currentMessages; // Return current state, fetchMessages will update it
                 });
-            }, 1000);
+            }, 500); // Reduced from 1000ms to 500ms
 
-            return () => clearInterval(interval);
+            // Periodic sync every 30 seconds to catch any missed messages
+            const syncInterval = setInterval(() => {
+                console.log(`[Chat] Sync periódico automático para ${selectedContact.nome}`);
+                handleSyncHistory(selectedContact.cpf, 50);
+            }, 30000);
+
+            return () => {
+                clearInterval(pollInterval);
+                clearInterval(syncInterval);
+            };
         }
     }, [selectedContact]);
 
@@ -642,6 +659,18 @@ export default function ChatPage() {
                                     {selectedContact.telefone}
                                 </p>
                             </div>
+                            <button
+                                className={styles.refreshButton}
+                                onClick={() => {
+                                    console.log('[Chat] Refresh manual disparado');
+                                    handleSyncHistory(selectedContact.cpf, 50);
+                                    fetchMessages(selectedContact.cpf, false, 0, 0);
+                                }}
+                                title="Atualizar mensagens"
+                                disabled={syncing}
+                            >
+                                <RefreshCw size={18} className={syncing ? styles.spin : ''} />
+                            </button>
                             {syncing && (
                                 <div className={styles.syncingIndicator} title="Sincronizando...">
                                     <RefreshCw className={styles.spin} size={16} />

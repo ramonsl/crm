@@ -23,7 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <main style={{
                     flex: 1,
                     padding: '2rem',
-                    overflowX: 'hidden'
+                    overflowX: 'auto'
                 }}>
                     {children}
                 </main>

@@ -9,7 +9,7 @@ export default function KanbanPage() {
     const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
     const [leads, setLeads] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [availableStatuses, setAvailableStatuses] = useState<string[]>(['NOVO', 'INSCRITO', 'APROVADO', 'MATRICULADO', 'PENDENTE', 'CANCELADO']);
+    const [statusConfigs, setStatusConfigs] = useState<{ id: number, name: string, color: string, display_order: number }[]>([]);
     const [waStatus, setWaStatus] = useState<'disconnected' | 'initializing' | 'ready'>('disconnected');
 
     // Message Modal State
@@ -28,11 +28,11 @@ export default function KanbanPage() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch Filters to get all statuses
-                const filterRes = await fetch('/api/filters');
-                const filterData = await filterRes.json();
-                if (filterData.statuses) {
-                    setAvailableStatuses(prev => Array.from(new Set([...prev, ...filterData.statuses])));
+                // Fetch configured statuses from the API
+                const statusRes = await fetch('/api/statuses');
+                const statusData = await statusRes.json();
+                if (statusData.data) {
+                    setStatusConfigs(statusData.data);
                 }
 
                 // Fetch All Leads (limit 1000 for now to populate board)
@@ -55,7 +55,7 @@ export default function KanbanPage() {
         };
 
         fetchData();
-    }, []);
+    }, []);;
 
     useEffect(() => {
         const checkStatus = async () => {
@@ -73,8 +73,10 @@ export default function KanbanPage() {
         return () => clearInterval(interval);
     }, []);
 
-    const getLeadsByStatus = (status: string) => {
-        let filtered = leads.filter(l => l.status?.toUpperCase() === status.toUpperCase());
+    const getLeadsByStatus = (statusName: string) => {
+        let filtered = leads.filter(l =>
+            (l.status || '').toLowerCase().trim() === statusName.toLowerCase().trim()
+        );
 
         // Apply import tracking filters
         if (showOnlyNew) {
@@ -217,64 +219,94 @@ export default function KanbanPage() {
                 </div>
             </header>
 
-            <div className={styles.boardContainer}>
-                {availableStatuses.map(status => {
-                    const statusLeads = getLeadsByStatus(status);
-                    return (
-                        <div key={status} className={`${styles.column} ${styles[status.toLowerCase()] || ''}`}>
-                            <div className={styles.columnHeader}>
-                                <div className={styles.columnTitle}>
-                                    <span className={styles.statusIndicator}></span>
-                                    {status}
-                                    <span className={styles.countBadge}>{statusLeads.length}</span>
+            {/* Horizontal Scroll Wrapper */}
+            <div style={{
+                flex: 1,
+                overflow: 'auto',
+                position: 'relative',
+                maxHeight: 'calc(100vh - 200px)'
+            }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        flexWrap: 'nowrap',
+                        gap: '1rem',
+                        paddingBottom: '20px',
+                        minWidth: 'max-content',
+                        alignItems: 'flex-start',
+                        height: '100%'
+                    }}
+                >
+                    {statusConfigs.map(statusConfig => {
+                        const statusLeads = getLeadsByStatus(statusConfig.name);
+                        return (
+                            <div
+                                key={statusConfig.id}
+                                className={styles.column}
+                                style={{
+                                    '--column-color': statusConfig.color,
+                                    '--column-color-light': `${statusConfig.color}20`,
+                                } as React.CSSProperties}
+                            >
+                                <div className={styles.columnHeader}>
+                                    <div className={styles.columnTitle}>
+                                        <span
+                                            className={styles.statusIndicator}
+                                            style={{ backgroundColor: statusConfig.color }}
+                                        />
+                                        {statusConfig.name}
+                                        <span className={styles.countBadge}>{statusLeads.length}</span>
+                                    </div>
+                                    <div className={styles.columnActions}>
+                                        <button
+                                            className={styles.actionButton}
+                                            onClick={() => setSelectedStatus(statusConfig.name)}
+                                            title={`Send message to all ${statusConfig.name} leads`}
+                                            disabled={waStatus !== 'ready' || statusLeads.length === 0}
+                                        >
+                                            <MessageSquare size={18} />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className={styles.columnActions}>
-                                    <button
-                                        className={styles.actionButton}
-                                        onClick={() => setSelectedStatus(status)}
-                                        title={`Send message to all ${status} leads`}
-                                        disabled={waStatus !== 'ready' || statusLeads.length === 0}
-                                    >
-                                        <MessageSquare size={18} />
-                                    </button>
-                                </div>
-                            </div>
-                            <div className={styles.cardList}>
-                                {statusLeads.map(lead => (
-                                    <div key={lead.cpf} className={styles.card}>
-                                        <div className={styles.cardHeader}>
-                                            <span className={styles.cardName}>{lead.nome}</span>
-                                            <div className={styles.cardBadges}>
-                                                {lead.is_new === 1 && (
-                                                    <span className={`${styles.badge} ${styles.badgeNew}`}>NOVO</span>
-                                                )}
-                                                {lead.status_changed === 1 && (
-                                                    <span className={`${styles.badge} ${styles.badgeChanged}`}>STATUS ALTERADO</span>
-                                                )}
+                                <div className={styles.cardList}>
+                                    {statusLeads.map(lead => (
+                                        <div key={lead.cpf} className={styles.card}>
+                                            <div className={styles.cardHeader}>
+                                                <span className={styles.cardName}>{lead.nome}</span>
+                                                <div className={styles.cardBadges}>
+                                                    {lead.is_new === 1 && (
+                                                        <span className={`${styles.badge} ${styles.badgeNew}`}>NOVO</span>
+                                                    )}
+                                                    {lead.status_changed === 1 && (
+                                                        <span className={`${styles.badge} ${styles.badgeChanged}`}>STATUS ALTERADO</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className={styles.cardPhone}>
+                                                <Phone size={12} />
+                                                {lead.telefone}
+                                            </div>
+                                            <div className={styles.cardFooter}>
+                                                <span className={styles.cardSemester}>{lead.tipo_ingresso}</span>
+                                                <span className={styles.cardDate}>
+                                                    {new Date(lead.created_at).toLocaleDateString()}
+                                                </span>
                                             </div>
                                         </div>
-                                        <div className={styles.cardPhone}>
-                                            <Phone size={12} />
-                                            {lead.telefone}
+                                    ))}
+                                    {statusLeads.length === 0 && (
+                                        <div style={{ textAlign: 'center', color: '#94a3b8', padding: '1rem', fontSize: '0.875rem' }}>
+                                            Sem leads
                                         </div>
-                                        <div className={styles.cardFooter}>
-                                            <span className={styles.cardSemester}>{lead.tipo_ingresso}</span>
-                                            <span className={styles.cardDate}>
-                                                {new Date(lead.created_at).toLocaleDateString()}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                                {statusLeads.length === 0 && (
-                                    <div style={{ textAlign: 'center', color: '#94a3b8', padding: '1rem', fontSize: '0.875rem' }}>
-                                        No leads
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
+                {/* End of inner scroll container */}
             </div>
+            {/* End of outer scroll wrapper */}
 
             {/* Bulk Message Modal */}
             {selectedStatus && (

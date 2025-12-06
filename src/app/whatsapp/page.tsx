@@ -12,6 +12,7 @@ export default function WhatsAppPage() {
     const [qrCode, setQrCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [queueState, setQueueState] = useState<any>(null);
+    const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
     const checkStatus = async () => {
@@ -20,6 +21,7 @@ export default function WhatsAppPage() {
             const data = await res.json();
             setStatus(data.status);
             setQrCode(data.qrCode || '');
+            setPhoneNumber(data.phoneNumber || null);
         } catch (error) {
             console.error(error);
         }
@@ -199,6 +201,11 @@ export default function WhatsAppPage() {
                                     <CheckCircle size={48} color="#10b981" />
                                 </div>
                                 <h3>WhatsApp Conectado</h3>
+                                {phoneNumber && (
+                                    <p style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                                        📱 +{phoneNumber}
+                                    </p>
+                                )}
                                 <p>O sistema está pronto para enviar mensagens.</p>
 
                                 <div className={styles.actions}>
