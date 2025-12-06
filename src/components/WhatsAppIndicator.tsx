@@ -1,3 +1,8 @@
+/**
+ * WhatsAppIndicator - Validates and syncs WhatsApp contact data
+ * Now includes profile picture and conversation sync
+ */
+
 'use client';
 
 import { useState } from 'react';
@@ -5,33 +10,62 @@ import { Check, X, Loader2, MessageCircleQuestion } from 'lucide-react';
 
 interface WhatsAppIndicatorProps {
     phone: string;
+    onSyncComplete?: () => void;
 }
 
-export default function WhatsAppIndicator({ phone }: WhatsAppIndicatorProps) {
+export default function WhatsAppIndicator({ phone, onSyncComplete }: WhatsAppIndicatorProps) {
     const [status, setStatus] = useState<'idle' | 'loading' | 'valid' | 'invalid'>('idle');
 
-    const validateNumber = async (e: React.MouseEvent) => {
+    const syncWhatsAppData = async (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent row click
         if (status === 'loading') return;
 
         setStatus('loading');
+
         try {
-            const res = await fetch(`/api/whatsapp/validate?phone=${encodeURIComponent(phone)}`);
+            const res = await fetch('/api/contacts/sync-whatsapp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone })
+            });
+
             const data = await res.json();
-            setStatus(data.valid ? 'valid' : 'invalid');
+
+            // Check for specific errors
+            if (data.error) {
+                console.error('Sync error:', data.error);
+
+                if (data.error.includes('not ready')) {
+                    alert('⚠️ WhatsApp não está conectado. Conecte primeiro em "Enviar Mensagem".');
+                    setStatus('idle');
+                } else {
+                    setStatus('invalid');
+                }
+                return;
+            }
+
+            if (data.valid) {
+                setStatus('valid');
+                // Don't refresh during validation to avoid unmounting component
+                // User can manually refresh if needed
+                // onSyncComplete?.();
+            } else {
+                setStatus('invalid');
+            }
         } catch (error) {
-            console.error('Validation error:', error);
+            console.error('Sync error:', error);
             setStatus('invalid');
         }
     };
 
     return (
         <div
-            onClick={validateNumber}
+            onClick={syncWhatsAppData}
             title={
-                status === 'idle' ? "Verificar WhatsApp" :
-                    status === 'loading' ? "Verificando..." :
-                        status === 'valid' ? "WhatsApp Válido" : "WhatsApp Inválido"
+                status === 'idle' ? "Validar e Sincronizar WhatsApp" :
+                    status === 'loading' ? "Sincronizando dados..." :
+                        status === 'valid' ? "WhatsApp Válido (Foto e conversas sincronizadas)" :
+                            "WhatsApp Inválido"
             }
             style={{
                 display: 'inline-flex',

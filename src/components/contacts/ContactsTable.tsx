@@ -17,12 +17,13 @@ import { StatusBadge } from './StatusBadge';
 import { ProfileAvatar } from './ProfileAvatar';
 import { ContactEditModal } from './ContactEditModal';
 import { MessageModal } from './MessageModal';
+import { BulkMessageModal } from './BulkMessageModal';
 import { HistoryModal } from './HistoryModal';
 import TimeAgoBadge from '@/components/TimeAgoBadge';
 import WhatsAppIndicator from '@/components/WhatsAppIndicator';
 import type { ContactView, Contact } from '@/types/contacts';
 import styles from './ContactsTable.module.css';
-import { RefreshCw, Download, MessageSquare, Edit2, Trash2, History, ChevronUp, ChevronDown, UserPlus } from 'lucide-react';
+import { UserPlus, RefreshCw, MessageSquare, Edit2, Trash2, History, Download, Upload, Filter, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { ColumnSelector } from './ColumnSelector';
 import { useVisibleColumns } from '@/hooks/useVisibleColumns';
 
@@ -38,7 +39,7 @@ export function ContactsTable({
     const { success, error: toastError } = useToast();
     const { filters, updateFilter, updateFilters, resetFilters } = useContactsFilters({ page: 1, limit: 25 });
     const { contacts, loading, error, totalPages, currentPage, refresh } = useContacts(view, filters);
-    const { selected, toggleSelect, toggleSelectAll, isSelected, isAllSelected, selectedCount } = useContactsSelection();
+    const { selected, toggleSelect, toggleSelectAll, clearSelection, isSelected, isAllSelected, selectedCount } = useContactsSelection();
     const { status: waStatus, isReady } = useWhatsAppStatus();
 
     const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
@@ -52,6 +53,7 @@ export function ContactsTable({
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [messageModalOpen, setMessageModalOpen] = useState(false);
+    const [bulkMessageModalOpen, setBulkMessageModalOpen] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
@@ -196,15 +198,33 @@ export function ContactsTable({
 
             {/* Header */}
             <div className={styles.header}>
-                <h1>Gestão de Contatos</h1>
+                <div className={styles.headerLeft}>
+                    <h2>Contatos</h2>
+                    {selectedCount > 0 && (
+                        <div
+                            className={styles.selectionInfo}
+                            onClick={clearSelection}
+                            title="Clique para desselecionar todos"
+                        >
+                            <span>{selectedCount} selecionado(s)</span>
+                            <X size={14} />
+                        </div>
+                    )}
+                </div>
                 <div className={styles.headerActions}>
-                    <button
-                        onClick={() => setCreateModalOpen(true)}
-                        className={styles.primaryButton}
-                        title="Adicionar Contato"
-                    >
+                    {selectedCount > 0 && (
+                        <button
+                            className={styles.bulkActionButton}
+                            onClick={() => setBulkMessageModalOpen(true)}
+                            title="Enviar mensagem para selecionados"
+                        >
+                            <MessageSquare size={18} />
+                            Enviar Mensagem ({selectedCount})
+                        </button>
+                    )}
+                    <button onClick={() => setCreateModalOpen(true)} className={styles.newContactButton}>
                         <UserPlus size={18} />
-                        <span>Adicionar</span>
+                        Novo Contato
                     </button>
                     <button onClick={refresh} className={styles.iconButton} title="Atualizar">
                         <RefreshCw size={18} className={loading ? styles.spinning : ''} />
@@ -328,7 +348,10 @@ export function ContactsTable({
                                             </div>
                                             <div className={styles.phoneRow}>
                                                 <span className={styles.phoneNumber}>{contact.telefone}</span>
-                                                <WhatsAppIndicator phone={contact.telefone} />
+                                                <WhatsAppIndicator
+                                                    phone={contact.telefone}
+                                                    onSyncComplete={refresh}
+                                                />
                                             </div>
                                         </div>
                                     </td>
@@ -443,6 +466,15 @@ export function ContactsTable({
                 contact={selectedContact}
                 isOpen={historyModalOpen}
                 onClose={() => setHistoryModalOpen(false)}
+            />
+
+            <BulkMessageModal
+                contacts={contacts.filter(c => isSelected(c.cpf))}
+                isOpen={bulkMessageModalOpen}
+                onClose={() => setBulkMessageModalOpen(false)}
+                onComplete={() => {
+                    refresh();
+                }}
             />
         </div>
     );
