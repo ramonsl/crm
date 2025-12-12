@@ -9,6 +9,7 @@
 import { useState, useEffect } from 'react';
 import type { AutoReply } from '@/types/autoReply';
 import { X } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
 import styles from './AutoReplies.module.css';
 
 interface AutoReplyFormProps {
@@ -17,6 +18,7 @@ interface AutoReplyFormProps {
 }
 
 export function AutoReplyForm({ reply, onClose }: AutoReplyFormProps) {
+    const { success, error: toastError } = useToast();
     const [formData, setFormData] = useState({
         name: '',
         intent_description: '',
@@ -58,13 +60,15 @@ export function AutoReplyForm({ reply, onClose }: AutoReplyFormProps) {
             });
 
             if (res.ok) {
+                success(reply ? 'Resposta automática atualizada!' : 'Resposta automática criada!');
                 onClose();
             } else {
-                alert('Erro ao salvar resposta automática');
+                const errorData = await res.json();
+                toastError(`Erro: ${errorData.error || 'Falha ao salvar'}`);
             }
         } catch (error) {
             console.error('Error saving auto-reply:', error);
-            alert('Erro ao salvar resposta automática');
+            toastError('Erro ao salvar resposta automática. Verifique se o banco de dados está configurado.');
         } finally {
             setIsSubmitting(false);
         }
