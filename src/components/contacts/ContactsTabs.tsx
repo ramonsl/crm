@@ -5,7 +5,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Users, Target, GraduationCap, UserX } from 'lucide-react';
 import type { ContactView } from '@/types/contacts';
 import styles from './ContactsTabs.module.css';
@@ -50,10 +50,9 @@ interface ContactsTabsProps {
 
 export function ContactsTabs({ activeView = 'all' }: ContactsTabsProps) {
     const pathname = usePathname();
-    const searchParams = useSearchParams();
 
-    // Get current view from URL or use activeView prop
-    const currentView = (searchParams.get('view') as ContactView) || activeView;
+    // Use activeView directly, parent handles the URL param
+    const currentView = activeView;
 
     return (
         <div className={styles.tabsContainer}>
