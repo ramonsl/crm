@@ -1124,20 +1124,45 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
 
     if (!phone) return;
 
-    // --- AUTO REPLY LOGIC ---
-    if (direction === 'incoming') {
-        const lowerBody = msg.body.toLowerCase();
-        if (lowerBody.includes('tem aula hoje?') || lowerBody.includes('tem aula hoje')) {
-            console.log(`🤖 Auto-reply triggered for ${phone}`);
-            try {
-                await msg.reply?.('Por qual motivo não teriamos?');
-                messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone}`, 'success');
-            } catch (e) {
-                console.error('Error sending auto-reply:', e);
+    // --- AI-POWERED AUTO REPLY INTEGRATION ---
+    if (direction === 'incoming' && msg.body && msg.body.trim()) {
+        try {
+            // Import auto-reply service dynamically to avoid circular dependencies
+            const { autoReplyService } = await import('../services/autoReplyService');
+
+            console.log(`🤖 Processing auto-reply for message from ${phone}: "${msg.body}"`);
+
+            // Process the message and get the response if applicable
+            const response = await autoReplyService.processIncomingMessage(phone, msg.body);
+
+            // If we got a response, send it
+            if (response && typeof response === 'string') {
+                console.log(`🤖 Sending auto-reply to ${phone}: "${response}"`);
+
+                // Add a small delay to seem more human
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                // Send the auto-reply
+                if (msg.reply) {
+                    await msg.reply(response);
+                    messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone}`, 'success');
+                    console.log(`✅ Auto-reply sent successfully to ${phone}`);
+                } else {
+                    // Fallback: send as new message
+                    await sendMessage(phone, response);
+                    messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone} (fallback)`, 'success');
+                    console.log(`✅ Auto-reply sent successfully to ${phone} (via fallback)`);
+                }
+            } else {
+                console.log(`ℹ️ No auto-reply triggered for message from ${phone}`);
             }
+        } catch (error) {
+            console.error('[WhatsApp] Error processing auto-reply:', error);
+            // Don't throw - continue processing the message normally
         }
     }
     // ------------------------
+
 
     console.log('='.repeat(60));
     console.log(`📱 MENSAGEM ${direction.toUpperCase()} ${direction === 'outgoing' ? 'para' : 'de'} ${phone}`);
