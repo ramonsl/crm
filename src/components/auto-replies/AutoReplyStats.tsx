@@ -3,10 +3,13 @@
 /**
  * Auto-Reply Stats Component
  * Display usage statistics and analytics
+ * Following system UI patterns
  */
 
 import { useState, useEffect } from 'react';
 import type { AutoReplyStats as StatsType } from '@/types/autoReply';
+import { TrendingUp, MessageSquare, Calendar, BarChart3 } from 'lucide-react';
+import styles from './AutoReplies.module.css';
 
 export function AutoReplyStats() {
     const [stats, setStats] = useState<StatsType | null>(null);
@@ -33,103 +36,159 @@ export function AutoReplyStats() {
 
     if (isLoading) {
         return (
-            <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600"></div>
-                <p className="mt-2 text-gray-600">Carregando estatísticas...</p>
+            <div className={styles.tableContainer}>
+                <div className={styles.loading}>Carregando estatísticas...</div>
             </div>
         );
     }
 
     if (!stats) {
         return (
-            <div className="text-center py-12 text-gray-500">
-                Erro ao carregar estatísticas
+            <div className={styles.tableContainer}>
+                <div className={styles.empty}>Erro ao carregar estatísticas</div>
             </div>
         );
     }
 
+    const StatCard = ({ icon: Icon, title, value, subtitle }: any) => (
+        <div
+            style={{
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+            }}
+        >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div
+                    style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'rgba(0, 144, 231, 0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary)'
+                    }}
+                >
+                    <Icon size={20} />
+                </div>
+                <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                        {title}
+                    </div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                        {value}
+                    </div>
+                    {subtitle && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                            {subtitle}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+
     return (
-        <div className="space-y-6">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <div className="text-sm font-medium text-gray-500 mb-1">Hoje</div>
-                    <div className="text-3xl font-bold text-gray-900">{stats.total_sent_today}</div>
-                    <div className="text-sm text-gray-600 mt-1">respostas enviadas</div>
-                </div>
-
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <div className="text-sm font-medium text-gray-500 mb-1">Esta Semana</div>
-                    <div className="text-3xl font-bold text-gray-900">{stats.total_sent_week}</div>
-                    <div className="text-sm text-gray-600 mt-1">respostas enviadas</div>
-                </div>
-
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <div className="text-sm font-medium text-gray-500 mb-1">Este Mês</div>
-                    <div className="text-3xl font-bold text-gray-900">{stats.total_sent_month}</div>
-                    <div className="text-sm text-gray-600 mt-1">respostas enviadas</div>
-                </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                <StatCard
+                    icon={MessageSquare}
+                    title="Hoje"
+                    value={stats.total_sent_today}
+                    subtitle="respostas enviadas"
+                />
+                <StatCard
+                    icon={Calendar}
+                    title="Esta Semana"
+                    value={stats.total_sent_week}
+                    subtitle="respostas enviadas"
+                />
+                <StatCard
+                    icon={TrendingUp}
+                    title="Este Mês"
+                    value={stats.total_sent_month}
+                    subtitle="respostas enviadas"
+                />
             </div>
 
             {/* Average Confidence */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Confiança Média
-                </h3>
-                <div className="flex items-center">
-                    <div className="flex-1">
-                        <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+            <div className={styles.tableContainer}>
+                <div style={{ padding: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <BarChart3 size={20} style={{ color: 'var(--primary)' }} />
+                        <h3 style={{ color: 'var(--text-main)', fontSize: '1.1rem', margin: 0 }}>
+                            Confiança Média
+                        </h3>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ flex: 1, height: '8px', background: 'var(--bg-body)', borderRadius: '9999px', overflow: 'hidden' }}>
                             <div
-                                className="h-full bg-blue-600 rounded-full"
-                                style={{ width: `${stats.avg_confidence * 100}%` }}
+                                style={{
+                                    height: '100%',
+                                    width: `${stats.avg_confidence * 100}%`,
+                                    background: 'var(--primary)',
+                                    borderRadius: '9999px'
+                                }}
                             />
                         </div>
-                    </div>
-                    <div className="ml-4 text-2xl font-bold text-gray-900">
-                        {(stats.avg_confidence * 100).toFixed(1)}%
+                        <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-main)', minWidth: '80px', textAlign: 'right' }}>
+                            {(stats.avg_confidence * 100).toFixed(1)}%
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* By Intent */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Respostas por Intenção
-                </h3>
+            <div className={styles.tableContainer}>
+                <div style={{ padding: '1.5rem' }}>
+                    <h3 style={{ color: 'var(--text-main)', marginBottom: '1.5rem', fontSize: '1.1rem' }}>
+                        Respostas por Intenção
+                    </h3>
 
-                {stats.by_intent.length === 0 ? (
-                    <p className="text-gray-500 text-center py-4">
-                        Nenhuma resposta enviada ainda
-                    </p>
-                ) : (
-                    <div className="space-y-3">
-                        {stats.by_intent.map((item, index) => (
-                            <div key={index} className="flex items-center">
-                                <div className="flex-1">
-                                    <div className="flex justify-between mb-1">
-                                        <span className="text-sm font-medium text-gray-700">
-                                            {item.name}
-                                        </span>
-                                        <span className="text-sm text-gray-500">
-                                            {item.count} {item.count === 1 ? 'vez' : 'vezes'}
-                                        </span>
+                    {stats.by_intent.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                            Nenhuma resposta enviada ainda
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {stats.by_intent.map((item, index) => {
+                                const maxCount = Math.max(...stats.by_intent.map(i => i.count));
+                                const percentage = (item.count / maxCount) * 100;
+
+                                return (
+                                    <div key={index}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                            <span style={{ color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 500 }}>
+                                                {item.name}
+                                            </span>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                                {item.count} {item.count === 1 ? 'vez' : 'vezes'}
+                                            </span>
+                                        </div>
+                                        <div style={{ height: '6px', background: 'var(--bg-body)', borderRadius: '9999px', overflow: 'hidden' }}>
+                                            <div
+                                                style={{
+                                                    height: '100%',
+                                                    width: `${percentage}%`,
+                                                    background: 'var(--primary)',
+                                                    borderRadius: '9999px',
+                                                    transition: 'width 0.3s ease'
+                                                }}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-blue-600 rounded-full"
-                                            style={{
-                                                width: `${stats.by_intent.length > 0
-                                                        ? (item.count / Math.max(...stats.by_intent.map(i => i.count))) * 100
-                                                        : 0
-                                                    }%`,
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
