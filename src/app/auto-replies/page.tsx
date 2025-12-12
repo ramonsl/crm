@@ -12,10 +12,12 @@ import { AutoReplyForm } from '@/components/auto-replies/AutoReplyForm';
 import { AutoReplyTester } from '@/components/auto-replies/AutoReplyTester';
 import { AutoReplyStats } from '@/components/auto-replies/AutoReplyStats';
 import type { AutoReply } from '@/types/autoReply';
+import { useToast } from '@/contexts/ToastContext';
 import { Plus, RefreshCw } from 'lucide-react';
 import styles from '@/components/auto-replies/AutoReplies.module.css';
 
 export default function AutoRepliesPage() {
+    const { success, error: toastError } = useToast();
     const [replies, setReplies] = useState<AutoReply[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -33,9 +35,12 @@ export default function AutoRepliesPage() {
             if (res.ok) {
                 const data = await res.json();
                 setReplies(data);
+            } else {
+                toastError('Erro ao carregar respostas automáticas');
             }
         } catch (error) {
             console.error('Error loading auto-replies:', error);
+            toastError('Erro ao carregar respostas automáticas');
         } finally {
             setIsLoading(false);
         }
@@ -61,10 +66,15 @@ export default function AutoRepliesPage() {
                 method: 'DELETE',
             });
             if (res.ok) {
+                success('Resposta automática deletada com sucesso!');
                 loadReplies();
+            } else {
+                const errorData = await res.json();
+                toastError(`Erro ao deletar: ${errorData.error || 'Erro desconhecido'}`);
             }
         } catch (error) {
             console.error('Error deleting auto-reply:', error);
+            toastError('Erro ao deletar resposta automática');
         }
     };
 
@@ -74,10 +84,15 @@ export default function AutoRepliesPage() {
                 method: 'POST',
             });
             if (res.ok) {
+                success('Status atualizado!');
                 loadReplies();
+            } else {
+                const errorData = await res.json();
+                toastError(`Erro ao atualizar: ${errorData.error || 'Erro desconhecido'}`);
             }
         } catch (error) {
             console.error('Error toggling auto-reply:', error);
+            toastError('Erro ao atualizar status');
         }
     };
 
