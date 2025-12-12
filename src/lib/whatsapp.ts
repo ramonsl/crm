@@ -1126,18 +1126,23 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
 
     // --- AI-POWERED AUTO REPLY INTEGRATION ---
     if (direction === 'incoming' && msg.body && msg.body.trim()) {
+        console.log(`🔵 [AutoReply] Checking auto-reply for incoming message from ${phone}`);
+        console.log(`🔵 [AutoReply] Message content: "${msg.body}"`);
+
         try {
             // Import auto-reply service dynamically to avoid circular dependencies
             const { autoReplyService } = await import('../services/autoReplyService');
 
-            console.log(`🤖 Processing auto-reply for message from ${phone}: "${msg.body}"`);
+            console.log(`🤖 [AutoReply] Processing auto-reply for message from ${phone}: "${msg.body}"`);
 
             // Process the message and get the response if applicable
             const response = await autoReplyService.processIncomingMessage(phone, msg.body);
 
+            console.log(`🔍 [AutoReply] Response received:`, response);
+
             // If we got a response, send it
             if (response && typeof response === 'string') {
-                console.log(`🤖 Sending auto-reply to ${phone}: "${response}"`);
+                console.log(`🤖 [AutoReply] Sending auto-reply to ${phone}: "${response}"`);
 
                 // Add a small delay to seem more human
                 await new Promise(resolve => setTimeout(resolve, 1500));
@@ -1146,20 +1151,23 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
                 if (msg.reply) {
                     await msg.reply(response);
                     messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone}`, 'success');
-                    console.log(`✅ Auto-reply sent successfully to ${phone}`);
+                    console.log(`✅ [AutoReply] Auto-reply sent successfully to ${phone}`);
                 } else {
                     // Fallback: send as new message
                     await sendMessage(phone, response);
                     messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone} (fallback)`, 'success');
-                    console.log(`✅ Auto-reply sent successfully to ${phone} (via fallback)`);
+                    console.log(`✅ [AutoReply] Auto-reply sent successfully to ${phone} (via fallback)`);
                 }
             } else {
-                console.log(`ℹ️ No auto-reply triggered for message from ${phone}`);
+                console.log(`ℹ️ [AutoReply] No auto-reply triggered for message from ${phone} (response was: ${response})`);
             }
         } catch (error) {
-            console.error('[WhatsApp] Error processing auto-reply:', error);
+            console.error('[AutoReply] ❌ Error processing auto-reply:', error);
+            console.error('[AutoReply] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
             // Don't throw - continue processing the message normally
         }
+    } else {
+        console.log(`⏭️ [AutoReply] Skipping auto-reply check - direction: ${direction}, hasBody: ${!!msg.body}`);
     }
     // ------------------------
 
