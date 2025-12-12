@@ -223,6 +223,12 @@ npm test
 
 > Veja mais detalhes em [ROADMAP.md](./ROADMAP.md)
 
+## 🧹 Melhores Práticas e Refatorações Necessárias (Dívida Técnica)
+
+- [ ] **Refatorar `src/lib/whatsapp.ts`**: O arquivo é um "God Object" com muitas responsabilidades. Quebrar em serviços: `ConnectionService`, `MessageService`, `ContactService`.
+- [ ] **Unificar Utilitários de Telefone**: Centralizar lógica de formatação de telefone e remover regex soltas (`replace(/\D/g, '')`).
+- [ ] **Unificar Hooks de Socket**: Fundir `useSocketMessages.ts` e `useSocketMessagesPhone.ts` em um único hook flexível.
+
 ## 📝 Licença
 
 Este projeto é privado e de uso interno.
