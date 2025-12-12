@@ -1314,10 +1314,9 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
                 const updateResult = await pool.query(`
                     UPDATE leads 
                     SET last_message = $1,
-                        last_message_time = $2,
-                        last_message_direction = $3
-                    WHERE cpf = $4
-                `, [msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, direction, contact.cpf]);
+                        last_message_time = $2
+                    WHERE cpf = $3
+                `, [msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, contact.cpf]);
 
                 console.log(`✅ Lead ${contact.cpf} UPDATE executado! Changes: ${updateResult.rowCount}`);
 
