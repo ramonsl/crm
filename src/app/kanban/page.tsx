@@ -219,24 +219,22 @@ export default function KanbanPage() {
                 </div>
             </header>
 
-            {/* Horizontal Scroll Wrapper */}
+            {/* Scroll Wrapper - takes remaining height and allows horizontal scroll */}
             <div style={{
                 flex: 1,
-                overflow: 'auto',
-                position: 'relative',
-                maxHeight: 'calc(100vh - 200px)'
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                minHeight: 0,
+                paddingBottom: '16px'
             }}>
-                <div
-                    style={{
-                        display: 'flex',
-                        flexWrap: 'nowrap',
-                        gap: '1rem',
-                        paddingBottom: '20px',
-                        minWidth: 'max-content',
-                        alignItems: 'flex-start',
-                        height: '100%'
-                    }}
-                >
+                {/* Inner container - forces horizontal layout */}
+                <div style={{
+                    display: 'inline-flex',
+                    gap: '1rem',
+                    height: '100%',
+                    padding: '0.5rem',
+                    minWidth: 'max-content'
+                }}>
                     {statusConfigs.map(statusConfig => {
                         const statusLeads = getLeadsByStatus(statusConfig.name);
                         return (
@@ -304,9 +302,7 @@ export default function KanbanPage() {
                         );
                     })}
                 </div>
-                {/* End of inner scroll container */}
             </div>
-            {/* End of outer scroll wrapper */}
 
             {/* Bulk Message Modal */}
             {selectedStatus && (
@@ -364,7 +360,8 @@ export default function KanbanPage() {
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 }

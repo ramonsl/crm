@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
-import { Users, CheckCircle, TrendingUp, PieChart as PieChartIcon } from 'lucide-react';
+import { Users, CheckCircle, TrendingUp, PieChart as PieChartIcon, Send } from 'lucide-react';
 import {
   PieChart, Pie, Cell,
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -59,6 +59,11 @@ export default function Dashboard() {
     { name: 'Leads/Matrícula', value: parseFloat(stats.leadToMatriculaRatio || '0') },
     { name: 'Inscritos/Matrícula', value: parseFloat(stats.inscritoToMatriculaRatio || '0') }
   ] : [];
+
+  const comercialConversionData = [
+    { name: 'Converted', value: parseFloat(stats?.taxaConversaoComercial || '0') },
+    { name: 'Remaining', value: Math.max(0, 100 - parseFloat(stats?.taxaConversaoComercial || '0')) }
+  ];
 
   return (
     <div className={styles.container}>
@@ -194,6 +199,63 @@ export default function Dashboard() {
           <div className={styles.kpiContent}>
             <span className={styles.kpiValue}>{stats?.inscritoToMatriculaRatio}</span>
             <span className={styles.kpiTrend}>Inscritos / Matrículas</span>
+          </div>
+        </div>
+
+        {/* NEW: Encaminhados ao Comercial */}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiHeader}>
+            <span className={styles.kpiLabel}>Encaminhados ao Comercial</span>
+            <div className={`${styles.iconBox} ${styles.purpleIcon}`}>
+              <Send size={20} />
+            </div>
+          </div>
+          <div className={styles.kpiContent}>
+            <span className={styles.kpiValue}>{stats?.encaminhadosComercial || 0}</span>
+            <span className={styles.kpiTrend}>Leads enviados para o comercial</span>
+          </div>
+        </div>
+
+        {/* NEW: Conversão Comercial */}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiHeader}>
+            <span className={styles.kpiLabel}>Conversão Comercial</span>
+            <div className={`${styles.iconBox} ${styles.greenIcon}`}>
+              <CheckCircle size={20} />
+            </div>
+          </div>
+          <div className={styles.kpiContent} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span className={styles.kpiValue}>
+                {stats?.encaminhadosMatriculados || 0}
+                <span style={{ fontSize: '0.5em', color: '#94a3b8', marginLeft: '8px' }}>
+                  / {stats?.encaminhadosComercial || 0}
+                </span>
+              </span>
+              <span className={styles.kpiTrend}>
+                {stats?.taxaConversaoComercial || '0.0'}% de conversão
+              </span>
+            </div>
+            <div style={{ width: 60, height: 60 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={comercialConversionData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={20}
+                    outerRadius={30}
+                    startAngle={90}
+                    endAngle={-270}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    <Cell fill="#10b981" />
+                    <Cell fill="#e2e8f0" />
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </div>

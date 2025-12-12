@@ -1,13 +1,19 @@
 import { POST } from '@/app/api/upload/route';
 import { NextRequest } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 import * as XLSX from 'xlsx';
 
 // Mock DB
 jest.mock('@/lib/db', () => ({
-    prepare: jest.fn(),
-    transaction: jest.fn((fn) => fn)
+    pool: {
+        query: jest.fn()
+    },
+    transaction: jest.fn(async (fn) => fn({
+        query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 })
+    }))
 }));
+
+const mockPoolQuery = pool.query as jest.Mock;
 
 // Mock XLSX
 jest.mock('xlsx', () => ({
@@ -20,6 +26,7 @@ jest.mock('xlsx', () => ({
 describe('Upload API', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 0 });
     });
 
     it('should process uploaded leads file', async () => {
@@ -46,21 +53,15 @@ describe('Upload API', () => {
             ['Test User', '5511999999999', 'ADS', '12345678900'] // Data
         ]);
 
-        // Mock DB
-        const mockRun = jest.fn();
-        const mockGet = jest.fn().mockReturnValue(null); // No existing lead
-
-        (db.prepare as jest.Mock).mockImplementation((query) => {
-            if (query.includes('SELECT cpf')) return { get: mockGet };
-            return { run: mockRun };
-        });
+        // Mock pool.query - return null for existing lead check
+        mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 0 });
 
         const res = await POST(req);
         const data = await res.json();
 
         expect(res.status).toBe(200);
         expect(data.created).toBe(1);
-        expect(mockRun).toHaveBeenCalled();
+        expect(mockPoolQuery).toHaveBeenCalled();
     });
 
     it('should return 400 if no file', async () => {

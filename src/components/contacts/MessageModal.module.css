@@ -24,15 +24,14 @@
 }
 
 .modal {
-    background: linear-gradient(135deg, #1e1e1e 0%, #1a1a1a 100%);
-    border: 1px solid rgba(76, 175, 80, 0.2);
-    border-radius: 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
     width: 90%;
     max-width: 700px;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7),
-        0 0 0 1px rgba(76, 175, 80, 0.1);
+    box-shadow: var(--shadow-lg);
     animation: slideUp 0.3s ease-out;
 }
 
@@ -53,31 +52,28 @@
     justify-content: space-between;
     align-items: flex-start;
     padding: 2rem;
-    border-bottom: 1px solid rgba(76, 175, 80, 0.15);
-    background: linear-gradient(to bottom, rgba(76, 175, 80, 0.03), transparent);
+    border-bottom: 1px solid var(--border-color);
+    background: linear-gradient(to bottom, rgba(59, 130, 246, 0.03), transparent);
 }
 
 .header h2 {
     margin: 0;
     font-size: 1.75rem;
     font-weight: 600;
-    background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--primary);
 }
 
 .subtitle {
     margin: 0.5rem 0 0 0;
     font-size: 0.95rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
 }
 
 .closeButton {
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
     cursor: pointer;
     padding: 0.5rem;
     display: flex;
@@ -88,8 +84,8 @@
 
 .closeButton:hover {
     background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #fff;
+    border-color: var(--border-color);
+    color: var(--text-main);
     transform: rotate(90deg);
 }
 
@@ -105,7 +101,7 @@
 .modeLabel {
     display: block;
     margin-bottom: 1rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-main);
     font-size: 0.95rem;
     font-weight: 600;
 }
@@ -120,21 +116,21 @@
     align-items: center;
     gap: 0.625rem;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-secondary);
     font-size: 0.95rem;
     font-weight: 500;
     transition: color 0.2s;
 }
 
 .radioOption:hover {
-    color: #fff;
+    color: var(--text-main);
 }
 
 .radioOption input[type="radio"] {
     width: 20px;
     height: 20px;
     cursor: pointer;
-    accent-color: #4CAF50;
+    accent-color: var(--primary);
 }
 
 .radioOption span {
@@ -149,7 +145,7 @@
 .fieldLabel {
     display: block;
     margin-bottom: 1rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-main);
     font-size: 0.95rem;
     font-weight: 600;
 }
@@ -157,10 +153,10 @@
 .selectBox {
     width: 100%;
     padding: 0.875rem 1rem;
-    background: linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.3) 100%);
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    color: #fff;
+    background: var(--bg-body);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    color: var(--text-main);
     font-size: 0.95rem;
     font-family: inherit;
     cursor: pointer;
@@ -168,18 +164,18 @@
 }
 
 .selectBox:hover {
-    border-color: rgba(76, 175, 80, 0.3);
+    border-color: rgba(59, 130, 246, 0.3);
 }
 
 .selectBox:focus {
     outline: none;
-    border-color: #4CAF50;
-    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .selectBox option {
-    background: #1a1a1a;
-    color: #fff;
+    background: var(--bg-surface);
+    color: var(--text-main);
     padding: 0.5rem;
 }
 
@@ -203,10 +199,10 @@
 
 .previewBox {
     padding: 1.25rem;
-    background: linear-gradient(135deg, rgba(76, 175, 80, 0.08) 0%, rgba(76, 175, 80, 0.05) 100%);
-    border: 1px solid rgba(76, 175, 80, 0.25);
-    border-radius: 10px;
-    color: rgba(255, 255, 255, 0.95);
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: var(--radius-lg);
+    color: var(--text-main);
     font-size: 0.95rem;
     line-height: 1.6;
     white-space: pre-wrap;
@@ -225,12 +221,12 @@
 }
 
 .previewBox::-webkit-scrollbar-thumb {
-    background: rgba(76, 175, 80, 0.4);
+    background: rgba(59, 130, 246, 0.4);
     border-radius: 4px;
 }
 
 .previewBox::-webkit-scrollbar-thumb:hover {
-    background: rgba(76, 175, 80, 0.6);
+    background: rgba(59, 130, 246, 0.6);
 }
 
 /* Custom Message */
@@ -241,10 +237,10 @@
 .textarea {
     width: 100%;
     padding: 1rem;
-    background: linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.3) 100%);
-    border: 2px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    color: #fff;
+    background: var(--bg-body);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    color: var(--text-main);
     font-size: 0.95rem;
     font-family: inherit;
     line-height: 1.6;
@@ -254,21 +250,20 @@
 
 .textarea:focus {
     outline: none;
-    border-color: #4CAF50;
-    background: linear-gradient(135deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.4) 100%);
-    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1),
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1),
         inset 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .textarea::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-muted);
 }
 
 .charCount {
     margin-top: 0.75rem;
     text-align: right;
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     font-weight: 500;
 }
 
@@ -276,7 +271,7 @@
 .emptyState {
     text-align: center;
     padding: 2rem 1rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
 }
 
 .emptyState p {
@@ -285,7 +280,7 @@
 
 .emptyStateHint {
     font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-muted);
 }
 
 .actions {
@@ -293,14 +288,14 @@
     gap: 1rem;
     justify-content: flex-end;
     padding-top: 2rem;
-    border-top: 1px solid rgba(76, 175, 80, 0.15);
+    border-top: 1px solid var(--border-color);
     margin-top: 2rem;
 }
 
 .cancelButton,
 .sendButton {
     padding: 0.875rem 2rem;
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
@@ -312,28 +307,28 @@
 
 .cancelButton {
     background: rgba(255, 255, 255, 0.05);
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    color: #fff;
+    border: 2px solid var(--border-color);
+    color: var(--text-main);
 }
 
 .cancelButton:hover {
     background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--border-color);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .sendButton {
-    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    background: var(--primary);
     border: 2px solid transparent;
     color: #fff;
-    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .sendButton:hover:not(:disabled) {
-    background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
+    background: var(--primary-hover);
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
 }
 
 .sendButton:active:not(:disabled) {
@@ -351,12 +346,12 @@
 .warningBox {
     background: rgba(251, 191, 36, 0.1);
     border: 1px solid rgba(251, 191, 36, 0.3);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 12px;
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #fbbf24;
+    color: var(--warning);
     font-size: 13px;
     margin-bottom: 16px;
 }
@@ -370,7 +365,7 @@
     overflow-y: auto;
     background: var(--bg-body);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 8px;
 }
 
@@ -422,7 +417,7 @@
 .aiInfo {
     background: rgba(139, 92, 246, 0.1);
     border: 1px solid rgba(139, 92, 246, 0.3);
-    border-radius: 6px;
+    border-radius: var(--radius-md);
     padding: 8px 12px;
     display: flex;
     align-items: center;

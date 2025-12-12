@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 
 interface OpenAIResponse {
     choices?: Array<{
@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
         }
 
         // Get OpenAI API Key from settings
-        const stmt = db.prepare('SELECT value FROM settings WHERE key = ?');
-        const apiKey = (stmt.get('openai_api_key') as { value: string } | undefined)?.value;
+        const result = await pool.query('SELECT value FROM settings WHERE key = $1', ['openai_api_key']);
+        const apiKey = result.rows[0]?.value;
 
         if (!apiKey) {
             return NextResponse.json(

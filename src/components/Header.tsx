@@ -4,7 +4,12 @@ import { Bell, Search, User, Menu } from 'lucide-react';
 import styles from './Header.module.css';
 import { useState, useEffect } from 'react';
 
-export default function Header({ toggleSidebar }: { toggleSidebar?: () => void }) {
+interface HeaderProps {
+    toggleSidebar: () => void;
+    sidebarCollapsed: boolean;
+}
+
+export default function Header({ toggleSidebar, sidebarCollapsed }: HeaderProps) {
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifications, setNotifications] = useState<any[]>([]);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -63,14 +68,7 @@ export default function Header({ toggleSidebar }: { toggleSidebar?: () => void }
                 <button className={styles.menuButton} onClick={toggleSidebar}>
                     <Menu size={24} />
                 </button>
-                <div className={styles.searchContainer}>
-                    <Search size={18} className={styles.searchIcon} />
-                    <input
-                        type="text"
-                        placeholder="Pesquisar..."
-                        className={styles.searchInput}
-                    />
-                </div>
+
             </div>
 
             <div className={styles.rightSection}>

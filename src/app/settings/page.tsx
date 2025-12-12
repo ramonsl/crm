@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
-import { Trash2, AlertTriangle, RefreshCw, Image, MessageSquare, Plus, Palette, GripVertical, Save, X, Users } from 'lucide-react';
+import { Trash2, AlertTriangle, RefreshCw, Image, MessageSquare, Plus, Palette, GripVertical, Save, X, Users, Phone } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 
 export default function SettingsPage() {
@@ -17,6 +17,11 @@ export default function SettingsPage() {
 
     const [metaMatriculas, setMetaMatriculas] = useState(0);
     const [savingMeta, setSavingMeta] = useState(false);
+
+    // Commercial team settings
+    const [comercialPhone, setComercialPhone] = useState('');
+    const [comercialName, setComercialName] = useState('');
+    const [savingComercial, setSavingComercial] = useState(false);
 
     // WhatsApp sync states
     const [syncingPics, setSyncingPics] = useState(false);
@@ -63,6 +68,8 @@ export default function SettingsPage() {
                 if (data.minDelay) setMinDelay(Number(data.minDelay));
                 if (data.maxDelay) setMaxDelay(Number(data.maxDelay));
                 if (data.metaMatriculas) setMetaMatriculas(Number(data.metaMatriculas));
+                if (data.comercialPhone) setComercialPhone(data.comercialPhone);
+                if (data.comercialName) setComercialName(data.comercialName);
             });
 
         // Fetch statuses
@@ -265,6 +272,32 @@ export default function SettingsPage() {
         }
     };
 
+    const handleSaveComercial = async () => {
+        if (!comercialName.trim() || !comercialPhone.trim()) {
+            toastWarning('Preencha o nome e telefone do comercial.');
+            return;
+        }
+
+        setSavingComercial(true);
+        try {
+            const res = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ comercialName, comercialPhone })
+            });
+            if (res.ok) {
+                toastSuccess('Dados do comercial salvos!');
+            } else {
+                toastError('Erro ao salvar dados do comercial.');
+            }
+        } catch (error) {
+            console.error(error);
+            toastError('Erro ao salvar.');
+        } finally {
+            setSavingComercial(false);
+        }
+    };
+
     const handleSyncProfilePics = async () => {
         setSyncingPics(true);
         setPicsResults(null);
@@ -397,6 +430,47 @@ export default function SettingsPage() {
                             style={{ width: '100%' }}
                         >
                             {savingDelays ? 'Salvar Intervalos' : 'Salvar Intervalos'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Commercial Team */}
+                <div className={styles.section}>
+                    <h2 className={styles.sectionTitle}>
+                        <Phone size={20} />
+                        Equipe Comercial
+                    </h2>
+                    <p className={styles.description}>
+                        Configure o contato do comercial para encaminhamento de leads.
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div>
+                            <label className={styles.label}>Nome do Comercial</label>
+                            <input
+                                type="text"
+                                placeholder="Ex: João - Comercial"
+                                value={comercialName}
+                                onChange={(e) => setComercialName(e.target.value)}
+                                className={styles.input}
+                            />
+                        </div>
+                        <div>
+                            <label className={styles.label}>Telefone (WhatsApp)</label>
+                            <input
+                                type="text"
+                                placeholder="Ex: 5511999999999"
+                                value={comercialPhone}
+                                onChange={(e) => setComercialPhone(e.target.value)}
+                                className={styles.input}
+                            />
+                        </div>
+                        <button
+                            onClick={handleSaveComercial}
+                            disabled={savingComercial}
+                            className={styles.button}
+                        >
+                            {savingComercial ? 'Salvando...' : 'Salvar Comercial'}
                         </button>
                     </div>
                 </div>

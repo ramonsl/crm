@@ -1,0 +1,19 @@
+.container {
+    height: 100%;
+    /* Use parent height from AdminLayout */
+    max-height: calc(100vh - 100px);
+    /* Fallback for safety */
+    display: flex;
+    flex-direction: column;
+    background: #111b21;
+    overflow: hidden;
+    /* Prevent scroll on container */
+}
+
+.chatLayout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+    /* Important for flex children with overflow */
+}

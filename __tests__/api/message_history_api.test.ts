@@ -4,6 +4,9 @@ import { TemplateHistoryService } from '@/services/templateHistoryService';
 
 // Mock service
 jest.mock('@/services/templateHistoryService');
+jest.mock('@/lib/db', () => ({
+    pool: { query: jest.fn() }
+}));
 
 describe('Message History API', () => {
     beforeEach(() => {

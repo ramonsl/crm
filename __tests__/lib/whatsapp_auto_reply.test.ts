@@ -18,13 +18,17 @@ jest.mock('whatsapp-web.js', () => {
 });
 
 import { handleMessageCreate } from '@/lib/whatsapp';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 import { messageQueue } from '@/lib/messageQueue';
 
 // Mock dependencies
 jest.mock('@/lib/db', () => ({
-    prepare: jest.fn()
+    pool: {
+        query: jest.fn()
+    }
 }));
+
+const mockPoolQuery = pool.query as jest.Mock;
 
 jest.mock('@/lib/messageQueue', () => ({
     messageQueue: {
@@ -52,19 +56,14 @@ jest.mock('uuid', () => ({
 
 describe('Auto-Reply Feature', () => {
     let mockMsg: any;
-    let mockDbPrepare: jest.Mock;
-    let mockDbGet: jest.Mock;
-    let mockDbRun: jest.Mock;
 
     beforeEach(() => {
         jest.clearAllMocks();
 
-        mockDbRun = jest.fn().mockReturnValue({ lastInsertRowid: 1 });
-        mockDbGet = jest.fn().mockReturnValue({ cpf: '123', nome: 'Test User', telefone: '5551999999999' });
-        mockDbPrepare = db.prepare as jest.Mock;
-        mockDbPrepare.mockReturnValue({
-            get: mockDbGet,
-            run: mockDbRun
+        // Mock pool.query to return lead data
+        mockPoolQuery.mockResolvedValue({
+            rows: [{ cpf: '123', nome: 'Test User', telefone: '5551999999999' }],
+            rowCount: 1
         });
 
         mockMsg = {
@@ -124,8 +123,10 @@ describe('Auto-Reply Feature', () => {
 
         expect(mockMsg.reply).toHaveBeenCalled();
 
-        // Verify message was saved to DB
-        expect(mockDbPrepare).toHaveBeenCalledWith(expect.stringContaining('INSERT OR IGNORE INTO messages'));
-        expect(mockDbRun).toHaveBeenCalled();
+        // Verify message was saved to DB via pool.query
+        const insertCalls = mockPoolQuery.mock.calls.filter(
+            (call: any[]) => call[0]?.includes('INSERT')
+        );
+        expect(insertCalls.length).toBeGreaterThan(0);
     });
 });

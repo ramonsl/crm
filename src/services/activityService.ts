@@ -15,7 +15,7 @@ export class ActivityService {
     /**
      * Log a WhatsApp message sent
      */
-    logWhatsAppSent(cpf: string, message: string, templateName?: string): ActivityRow {
+    async logWhatsAppSent(cpf: string, message: string, templateName?: string): Promise<ActivityRow> {
         return this.activityRepo.create({
             contact_cpf: cpf,
             type: 'whatsapp',
@@ -29,7 +29,7 @@ export class ActivityService {
     /**
      * Log a WhatsApp message received
      */
-    logWhatsAppReceived(cpf: string, message: string): ActivityRow {
+    async logWhatsAppReceived(cpf: string, message: string): Promise<ActivityRow> {
         return this.activityRepo.create({
             contact_cpf: cpf,
             type: 'whatsapp',
@@ -42,7 +42,7 @@ export class ActivityService {
     /**
      * Log a status change
      */
-    logStatusChange(cpf: string, fromStatus: string, toStatus: string): ActivityRow {
+    async logStatusChange(cpf: string, fromStatus: string, toStatus: string): Promise<ActivityRow> {
         return this.activityRepo.create({
             contact_cpf: cpf,
             type: 'status_change',
@@ -55,7 +55,7 @@ export class ActivityService {
     /**
      * Log a manual note
      */
-    logNote(cpf: string, note: string): ActivityRow {
+    async logNote(cpf: string, note: string): Promise<ActivityRow> {
         return this.activityRepo.create({
             contact_cpf: cpf,
             type: 'note',
@@ -67,7 +67,7 @@ export class ActivityService {
     /**
      * Log lead creation
      */
-    logLeadCreated(cpf: string, nome: string, source?: string): ActivityRow {
+    async logLeadCreated(cpf: string, nome: string, source?: string): Promise<ActivityRow> {
         return this.activityRepo.create({
             contact_cpf: cpf,
             type: 'lead_created',
@@ -80,7 +80,7 @@ export class ActivityService {
     /**
      * Log lead update
      */
-    logLeadUpdated(cpf: string, changes: Record<string, unknown>): ActivityRow {
+    async logLeadUpdated(cpf: string, changes: Record<string, unknown>): Promise<ActivityRow> {
         const changedFields = Object.keys(changes).join(', ');
         return this.activityRepo.create({
             contact_cpf: cpf,
@@ -88,6 +88,19 @@ export class ActivityService {
             title: 'Dados atualizados',
             description: `Campos: ${changedFields}`,
             metadata: { changes },
+        });
+    }
+
+    /**
+     * Log lead forwarded to commercial team
+     */
+    async logForwarded(cpf: string, comercialName: string): Promise<ActivityRow> {
+        return this.activityRepo.create({
+            contact_cpf: cpf,
+            type: 'forwarded',
+            title: 'Encaminhado ao Comercial',
+            description: `Encaminhado para ${comercialName}`,
+            metadata: { comercialName },
         });
     }
 }

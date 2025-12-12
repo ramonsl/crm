@@ -1,41 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 import { ActivityRepository } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
 
 // Initialize activity service for logging
-const activityRepository = new ActivityRepository(db);
+const activityRepository = new ActivityRepository();
 const activityService = new ActivityService(activityRepository);
 
 interface MergeRequest {
-    primaryCpf: string;      // CPF do registro que será mantido
-    secondaryCpfs: string[]; // CPFs dos registros que serão mesclados e deletados
+    primaryCpf: string;
+    secondaryCpfs: string[];
 }
 
-/**
- * Prioridade dos status (maior = mais avançado)
- */
 const STATUS_PRIORITY: Record<string, number> = {
-    'NOVO': 1,
-    'LEAD': 2,
-    'EM_CONTATO': 3,
-    'INSCRITO': 4,
-    'Inscrito Confirmado': 5,
-    'Aprovado': 6,
-    'APROVADO': 6,
-    'Pagamento da Matrícula Iniciado': 7,
-    'Matricula Confirmada': 8,
-    'MATRICULADO': 8,
-    'Reprovado': 0,
-    'REPROVADO': 0,
-    'Desistente': 0,
-    'DESISTENTE': 0,
+    'NOVO': 1, 'LEAD': 2, 'EM_CONTATO': 3, 'INSCRITO': 4,
+    'Inscrito Confirmado': 5, 'Aprovado': 6, 'APROVADO': 6,
+    'Pagamento da Matrícula Iniciado': 7, 'Matricula Confirmada': 8, 'MATRICULADO': 8,
+    'Reprovado': 0, 'REPROVADO': 0, 'Desistente': 0, 'DESISTENTE': 0,
 };
 
-/**
- * POST /api/duplicates/merge
- * Mescla registros duplicados em um único registro
- */
 export async function POST(req: NextRequest) {
     try {
         const body: MergeRequest = await req.json();
@@ -49,9 +32,8 @@ export async function POST(req: NextRequest) {
         }
 
         // Buscar registro principal
-        console.log('[Merge API] Buscando primaryCpf:', primaryCpf);
-        const primary = db.prepare('SELECT * FROM leads WHERE cpf = ?').get(primaryCpf) as any;
-        console.log('[Merge API] Primary encontrado:', primary ? 'sim' : 'não');
+        const primaryResult = await pool.query('SELECT * FROM leads WHERE cpf = $1', [primaryCpf]);
+        const primary = primaryResult.rows[0];
 
         if (!primary) {
             return NextResponse.json(
@@ -61,14 +43,13 @@ export async function POST(req: NextRequest) {
         }
 
         // Buscar registros secundários
-        console.log('[Merge API] Buscando secondaryCpfs:', secondaryCpfs);
-        const secondaries = secondaryCpfs.map(cpf => {
-            const found = db.prepare('SELECT * FROM leads WHERE cpf = ?').get(cpf) as any;
-            console.log(`[Merge API] Secundário ${cpf}:`, found ? 'encontrado' : 'não encontrado');
-            return found;
-        }).filter(Boolean);
-
-        console.log('[Merge API] Total secundários encontrados:', secondaries.length);
+        const secondaries = [];
+        for (const cpf of secondaryCpfs) {
+            const result = await pool.query('SELECT * FROM leads WHERE cpf = $1', [cpf]);
+            if (result.rows[0]) {
+                secondaries.push(result.rows[0]);
+            }
+        }
 
         if (secondaries.length === 0) {
             return NextResponse.json(
@@ -77,14 +58,19 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const transaction = db.transaction(() => {
-            let mergedData = { ...primary };
+        // Execute merge in a transaction
+        const client = await pool.connect();
+        let mergedData: any;
+
+        try {
+            await client.query('BEGIN');
+
+            mergedData = { ...primary };
             const date = new Date().toLocaleDateString('pt-BR');
             let mergeNotes = primary.notes || '';
 
-            // Mesclar dados de cada registro secundário
             for (const secondary of secondaries) {
-                // Preencher campos vazios do principal com dados do secundário
+                // Preencher campos vazios
                 if (!mergedData.nome && secondary.nome) mergedData.nome = secondary.nome;
                 if (!mergedData.email && secondary.email) mergedData.email = secondary.email;
                 if (!mergedData.telefone && secondary.telefone) mergedData.telefone = secondary.telefone;
@@ -100,61 +86,45 @@ export async function POST(req: NextRequest) {
                     mergedData.status = secondary.status;
                 }
 
-                // Acumular notas
                 if (secondary.notes) {
                     mergeNotes = mergeNotes ? mergeNotes + '\n' + secondary.notes : secondary.notes;
                 }
-
-                // Adicionar nota sobre o merge
                 mergeNotes += `\n[${date}] Merge manual: CPF ${secondary.cpf} mesclado neste registro`;
 
-                // Transferir mensagens do secundário para o principal
-                db.prepare(`
-                    UPDATE messages SET contact_cpf = ? WHERE contact_cpf = ?
-                `).run(primaryCpf, secondary.cpf);
-
-                // Transferir histórico de mensagens
-                db.prepare(`
-                    UPDATE message_history SET contact_cpf = ? WHERE contact_cpf = ?
-                `).run(primaryCpf, secondary.cpf);
+                // Transferir mensagens
+                await client.query(
+                    'UPDATE messages SET contact_phone = $1 WHERE contact_phone = $2',
+                    [primaryCpf, secondary.cpf]
+                );
 
                 // Deletar registro secundário
-                db.prepare('DELETE FROM leads WHERE cpf = ?').run(secondary.cpf);
+                await client.query('DELETE FROM leads WHERE cpf = $1', [secondary.cpf]);
             }
 
-            // Atualizar registro principal com dados mesclados
-            db.prepare(`
+            // Atualizar registro principal
+            await client.query(`
                 UPDATE leads SET
-                    nome = ?,
-                    email = ?,
-                    status = ?,
-                    tipo_ingresso = ?,
-                    curso_interesse = ?,
-                    escola = ?,
-                    profile_image = ?,
-                    notes = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE cpf = ?
-            `).run(
-                mergedData.nome,
-                mergedData.email,
-                mergedData.status,
-                mergedData.tipo_ingresso,
-                mergedData.curso_interesse,
-                mergedData.escola,
-                mergedData.profile_image,
-                mergeNotes,
-                primaryCpf
-            );
+                    nome = $1, email = $2, status = $3, tipo_ingresso = $4,
+                    curso_interesse = $5, escola = $6, profile_image = $7,
+                    notes = $8, updated_at = NOW()
+                WHERE cpf = $9
+            `, [
+                mergedData.nome, mergedData.email, mergedData.status,
+                mergedData.tipo_ingresso, mergedData.curso_interesse,
+                mergedData.escola, mergedData.profile_image, mergeNotes, primaryCpf
+            ]);
 
-            return mergedData;
-        });
+            await client.query('COMMIT');
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
 
-        const result = transaction();
-
-        // Log atividade de merge
+        // Log atividade
         try {
-            activityService.logLeadUpdated(
+            await activityService.logLeadUpdated(
                 primaryCpf,
                 { action: 'merge', mergedCpfs: secondaryCpfs, count: secondaryCpfs.length }
             );
@@ -165,7 +135,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             success: true,
             message: `${secondaryCpfs.length} registro(s) mesclado(s) com sucesso`,
-            mergedRecord: result
+            mergedRecord: mergedData
         });
     } catch (error) {
         console.error('[API /api/duplicates/merge POST] Error:', error);

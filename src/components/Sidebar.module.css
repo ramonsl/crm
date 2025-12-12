@@ -10,15 +10,63 @@
     top: 0;
     z-index: 50;
     transition: transform 0.3s ease;
+    transform: translateX(-100%);
+    /* Default hidden (mobile behavior) or rely on isOpen prop class */
 }
+
+/* 
+   Logic change: Sidebar is now hidden by default on mobile (translateX -100%)
+   and visible by default on desktop (translateX 0).
+   The .open class will toggle this.
+   
+   However, AdminLayout logic is:
+   isOpen = !sidebarCollapsed.
+   
+   If isOpen is FALSE:
+     Sidebar should be hidden (translateX -100%).
+     MarginLeft in layout becomes 0.
+     
+   If isOpen is TRUE:
+     Sidebar should be visible (translateX 0).
+     MarginLeft in layout becomes 260px.
+*/
+
+.sidebar {
+    transform: translateX(-100%);
+}
+
+.sidebar.open {
+    transform: translateX(0);
+}
+
+/* Desktop overrides if needed, but the logic seems universal now with the new layout */
+/* The layout component handles the margin-left, so sidebar just needs to slide in/out */
+
 
 .logoContainer {
     height: 64px;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    justify-content: space-between;
+    /* Changed from gap to space-between to push close button */
     padding: 0 1.5rem;
     border-bottom: 1px solid var(--border-color);
+}
+
+.closeButton {
+    display: none;
+    /* Hidden on desktop */
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+}
+
+@media (max-width: 768px) {
+    .closeButton {
+        display: flex;
+    }
 }
 
 .logoIcon {
@@ -99,6 +147,23 @@
     height: 8px;
     border-radius: 50%;
     border: 2px solid var(--bg-sidebar);
+}
+
+.linkLabel {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.badge {
+    font-size: 10px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .footer {

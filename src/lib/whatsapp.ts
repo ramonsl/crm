@@ -1,5 +1,5 @@
 import { Client, LocalAuth, MessageMedia } from 'whatsapp-web.js';
-import db from './db';
+import { pool } from './db';
 import { messageQueue } from './messageQueue';
 import { WHATSAPP_CONFIG } from './constants';
 import type { WhatsAppMessage, WhatsAppContact, WhatsAppMedia } from './types';
@@ -8,9 +8,10 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { ActivityRepository } from './repositories/ActivityRepository';
 import { ActivityService } from '@/services/activityService';
+import { emitNewMessage, emitContactUpdated, emitNewMessageToPhone } from './socket/emitter';
 
 // Activity service for logging timeline events
-const activityRepository = new ActivityRepository(db);
+const activityRepository = new ActivityRepository();
 const activityService = new ActivityService(activityRepository);
 
 // Define a global type to prevent TypeScript errors
@@ -39,10 +40,12 @@ if (!global.whatsappStatus) {
     global.whatsappRestartHistory = [];
 }
 
-const addSystemAlert = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
+const addSystemAlert = async (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
     try {
-        const stmt = db.prepare('INSERT INTO system_notifications (title, message, type) VALUES (?, ?, ?)');
-        stmt.run(title, message, type);
+        await pool.query(
+            'INSERT INTO system_notifications (title, message, type) VALUES ($1, $2, $3)',
+            [title, message, type]
+        );
     } catch (e) {
         console.error('Error adding system alert:', e);
     }
@@ -397,21 +400,16 @@ export const getClient = () => {
             console.log(`[WhatsApp] ACK received for message ${msg.id.id}: ${ack}`);
 
             let status = 'sent';
-            // ACK_SERVER = 1 (Sent)
-            // ACK_DEVICE = 2 (Delivered)
-            // ACK_READ = 3 (Read)
-            // ACK_PLAYED = 4 (Played - audio)
-
             if (ack === 1) status = 'sent';
             else if (ack === 2) status = 'delivered';
             else if (ack >= 3) status = 'read';
             else if (ack === -1) status = 'failed';
 
             try {
-                const stmt = db.prepare('UPDATE messages SET status = ? WHERE message_id = ?');
-                const result = stmt.run(status, msg.id.id);
+                // Note: Using id column instead of message_id for PostgreSQL schema
+                const result = await pool.query('UPDATE messages SET type = $1 WHERE id = $2', [status, msg.id.id]);
 
-                if (result.changes > 0) {
+                if (result.rowCount && result.rowCount > 0) {
                     console.log(`[WhatsApp] Message ${msg.id.id} updated to status: ${status}`);
                 } else {
                     // Sometimes we might not have the message yet (race condition), or it's an old message
@@ -830,10 +828,10 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
                     // Log success and update DB
                     const usedNumber = chatId12.replace('@c.us', '');
                     try {
-                        const stmt = db.prepare(`
-                            UPDATE leads SET last_message_time = CURRENT_TIMESTAMP, last_message = ? WHERE telefone = ? OR telefone = ?
-                        `);
-                        stmt.run(`(Enviada) ${message}`, phone, usedNumber);
+                        await pool.query(
+                            'UPDATE leads SET last_message_time = NOW(), last_message = $1 WHERE telefone = $2 OR telefone = $3',
+                            [`(Enviada) ${message}`, phone, usedNumber]
+                        );
                     } catch (e) {
                         console.error('[WhatsApp] Error updating DB after force send (13-digit):', e);
                     }
@@ -841,8 +839,18 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
                     return { success: true, id: msg.id.id };
 
                 } catch (error1) {
-                    console.warn(`[WhatsApp] Force Send 12-digit failed: ${error1}`);
-                    messageQueue.addLog(`❌ Falha na tentativa 1: ${error1}`, 'error');
+                    const error1Message = error1 instanceof Error ? error1.message : String(error1);
+                    console.warn(`[WhatsApp] Force Send 12-digit failed: ${error1Message}`);
+
+                    // Check if it's a LID error already
+                    if (error1Message.includes('No LID for user')) {
+                        const friendlyMessage = `Número ${phone} não é WhatsApp`;
+                        console.error(`[WhatsApp] ❌ ${friendlyMessage}`);
+                        messageQueue.addLog(`❌ ${friendlyMessage}`, 'error');
+                        throw new Error(friendlyMessage);
+                    }
+
+                    messageQueue.addLog(`❌ Falha na tentativa 1: ${error1Message}`, 'error');
 
                     // Priority 2: Try 13-digit (New/9th digit)
                     const chatId13 = `${phone13}@c.us`;
@@ -877,13 +885,12 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
                         console.log(`[WhatsApp] Force Send 13-digit SUCCESS. ID: ${msg.id.id}`);
                         messageQueue.addLog(`✅ Envio forçado (com 9) aceito!`, 'success');
 
-                        // Log success and update DB
                         const usedNumber = chatId13.replace('@c.us', '');
                         try {
-                            const stmt = db.prepare(`
-                                UPDATE leads SET last_message_time = CURRENT_TIMESTAMP, last_message = ? WHERE telefone = ? OR telefone = ?
-                            `);
-                            stmt.run(`(Enviada) ${message}`, phone, usedNumber);
+                            await pool.query(
+                                'UPDATE leads SET last_message_time = NOW(), last_message = $1 WHERE telefone = $2 OR telefone = $3',
+                                [`(Enviada) ${message}`, phone, usedNumber]
+                            );
                         } catch (e) {
                             console.error('[WhatsApp] Error updating DB after force send (12-digit):', e);
                         }
@@ -891,9 +898,19 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
                         return { success: true, id: msg.id.id };
 
                     } catch (error2) {
-                        console.error(`[WhatsApp] Force Send 13-digit failed: ${error2}`);
-                        messageQueue.addLog(`❌ Falha na tentativa 2: ${error2}`, 'error');
-                        throw error2; // Throw the last error
+                        const error2Message = error2 instanceof Error ? error2.message : String(error2);
+                        console.error(`[WhatsApp] Force Send 13-digit failed: ${error2Message}`);
+
+                        // Check if it's a LID error
+                        if (error2Message.includes('No LID for user')) {
+                            const friendlyMessage = `Número ${phone} não é WhatsApp`;
+                            console.error(`[WhatsApp] ❌ ${friendlyMessage}`);
+                            messageQueue.addLog(`❌ ${friendlyMessage}`, 'error');
+                            throw new Error(friendlyMessage);
+                        }
+
+                        messageQueue.addLog(`❌ Falha na tentativa 2: ${error2Message}`, 'error');
+                        throw error2;
                     }
                 }
             } else {
@@ -927,9 +944,17 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
             }
         }
 
+        // Verificar se o cliente está realmente disponível antes de enviar
+        if (!global.whatsappClient) {
+            const errorMsg = 'WhatsApp client is null - initialization may have failed';
+            console.error(`[WhatsApp] ${errorMsg}`);
+            messageQueue.addLog(`❌ ${errorMsg}`, 'error');
+            throw new Error(errorMsg);
+        }
+
         // Send message with timeout (15s)
         const msg = await withTimeout(
-            global.whatsappClient!.sendMessage(chatId, content, { caption: mediaUrl ? message : undefined }),
+            global.whatsappClient.sendMessage(chatId, content, { caption: mediaUrl ? message : undefined }),
             15000,
             'Timeout sending message'
         );
@@ -943,14 +968,11 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
 
         // Update last_message_time in DB
         try {
-            const stmt = db.prepare(`
-                UPDATE leads 
-                SET last_message_time = CURRENT_TIMESTAMP, 
-                    last_message = ? 
-                WHERE telefone = ? OR telefone = ?
-            `);
             const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
-            stmt.run(`(Enviada) ${message}`, phone, phoneWithoutCountry);
+            await pool.query(
+                'UPDATE leads SET last_message_time = NOW(), last_message = $1 WHERE telefone = $2 OR telefone = $3',
+                [`(Enviada) ${message}`, phone, phoneWithoutCountry]
+            );
         } catch (dbError) {
             console.error('[WhatsApp] Error updating last_message_time:', dbError);
         }
@@ -961,7 +983,18 @@ export const sendMessage = async (phone: string, message: string, mediaUrl?: str
 
         const errorMessage = error instanceof Error ? error.message : String(error);
 
-        // Check for session closed, protocol errors, OR TIMEOUT, OR Evaluation failed
+        // LID errors are NOT critical - they just mean the number is invalid
+        // These should NOT trigger a restart
+        if (errorMessage.includes('No LID for user')) {
+            const friendlyMessage = `Número ${phone} não é WhatsApp`;
+            console.error(`[WhatsApp] ❌ ${friendlyMessage}`);
+            console.error(`[WhatsApp] Original phone: ${phone}`);
+            console.error(`[WhatsApp] Tried chatId: ${chatId}`);
+            messageQueue.addLog(`❌ ${friendlyMessage}`, 'error');
+            throw new Error(friendlyMessage);
+        }
+
+        // Check for critical errors that require client restart
         if (errorMessage.includes('Session closed') ||
             errorMessage.includes('Protocol error') ||
             errorMessage.includes('Target closed') ||
@@ -1119,24 +1152,26 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
 
         console.log(`🔍 Buscando no banco por variações: ${variations.join(', ')}`);
 
-        // Create placeholders for the IN clause (?, ?, ?, ...)
-        // Prioritize leads where CPF differs from telefone (real imported leads)
-        const placeholders = variations.map(() => '?').join(',');
-        const checkStmt = db.prepare(`
+        // Create placeholders for PostgreSQL ($1, $2, etc)
+        const placeholders = variations.map((_, i) => `$${i + 1}`).join(',');
+        const result = await pool.query(`
             SELECT cpf, nome, telefone FROM leads 
             WHERE telefone IN (${placeholders})
             ORDER BY CASE WHEN cpf != telefone THEN 0 ELSE 1 END, cpf
             LIMIT 1
-        `);
-        let contact = checkStmt.get(...variations) as any;
+        `, variations);
+        let contact = result.rows[0] as any;
 
-        // Fallback: Try matching by last 8 digits (ignoring DDD and 9th digit)
+        // Fallback: Try matching by last 8 digits
         if (!contact && phone.length >= 8) {
             const last8 = phone.slice(-8);
             console.log(`⚠️ Contato não encontrado por variações exatas. Tentando fallback pelos últimos 8 dígitos: ${last8}`);
 
-            const fallbackStmt = db.prepare('SELECT cpf, nome, telefone FROM leads WHERE telefone LIKE ?');
-            const potentialMatch = fallbackStmt.get(`%${last8}`) as any;
+            const fallbackResult = await pool.query(
+                'SELECT cpf, nome, telefone FROM leads WHERE telefone LIKE $1',
+                [`%${last8}`]
+            );
+            const potentialMatch = fallbackResult.rows[0];
 
             if (potentialMatch) {
                 console.log(`✅ Contato encontrado via fallback (últimos 8 dígitos): ${potentialMatch.nome}`);
@@ -1182,26 +1217,113 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
                 }
             }
 
-            const insertStmt = db.prepare(`
-                INSERT OR IGNORE INTO messages (contact_cpf, message_id, direction, body, timestamp, media_url, media_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            `);
+            const insertResult = await pool.query(`
+                INSERT INTO messages (contact_phone, id, content, from_me, timestamp, type)
+                VALUES ($1, $2, $3, $4, $5, 'text')
+                ON CONFLICT (id) DO NOTHING
+                RETURNING id
+            `, [contact.cpf, msg.id.id, msg.body, direction === 'outgoing', messageTime]);
 
-            const result = insertStmt.run(contact.cpf, msg.id.id, direction, msg.body, messageTime, mediaUrl, mediaType);
-            console.log(`💾 Mensagem ${direction} salva no banco! ID: ${result.lastInsertRowid}`);
-            messageQueue.addLog(`💾 Mensagem salva! ID: ${result.lastInsertRowid}`, 'success');
+            const insertedId = insertResult.rows[0]?.id || 0;
+            console.log(`💾 Mensagem ${direction} salva no banco! ID: ${insertedId}`);
+            messageQueue.addLog(`💾 Mensagem salva! ID: ${insertedId}`, 'success');
 
-            // Update lead's last message
-            // Only increment unread_count for incoming messages
+            // Emit Socket.io event for real-time update (ONLY for incoming messages)
+            // Don't emit for outgoing messages to avoid notification spam
             if (direction === 'incoming') {
-                const updateStmt = db.prepare(`
+                try {
+                    // Extract phone number from WhatsApp message
+                    const whatsappPhone = msg.from.replace('@c.us', '');
+
+                    // Emit to CPF room (for existing chat page)
+                    const emittedToCpf = emitNewMessage({
+                        contactCpf: contact.cpf,
+                        contactName: contact.nome || contact.telefone,
+                        message: {
+                            id: insertedId,
+                            message_id: msg.id.id,
+                            direction,
+                            body: msg.body,
+                            media_url: mediaUrl,
+                            media_type: mediaType as any,
+                            timestamp: messageTime,
+                            status: 'sent'
+                        }
+                    });
+
+                    // ALSO emit to phone room (for WhatsApp POC) - using different prefix to avoid collision
+                    const emittedToPhone = emitNewMessageToPhone(whatsappPhone, {
+                        contactName: contact.nome || contact.telefone,
+                        message: {
+                            id: insertedId,
+                            message_id: msg.id.id,
+                            direction,
+                            body: msg.body,
+                            media_url: mediaUrl,
+                            media_type: mediaType as any,
+                            timestamp: messageTime,
+                            status: 'sent'
+                        }
+                    });
+
+                    if (emittedToCpf || emittedToPhone) {
+                        console.log(`[Socket] ✅ Event emitted for INCOMING message from CPF:${contact.cpf} Phone:${whatsappPhone}`);
+                    } else {
+                        console.error(`[Socket] ❌ FAILED to emit - Socket.io not ready!`);
+                    }
+                } catch (socketError) {
+                    // Don't fail if Socket.io is not available
+                    console.warn('[Socket] Could not emit message event:', socketError);
+                }
+            } else {
+                console.log(`[Socket] ⏭️ Skipping emit for OUTGOING message (no notification needed)`);
+            }
+
+            // Update lead's last message (ALWAYS update, regardless of direction)
+            console.log(`[WhatsApp] 🔄 Tentando atualizar last_message para CPF: ${contact.cpf}`);
+            console.log(`[WhatsApp] 📝 Mensagem: "${msg.body?.substring(0, 50)}"`);
+            console.log(`[WhatsApp] ⏰ Timestamp: ${messageTime}`);
+            console.log(`[WhatsApp] ➡️ Direction: ${direction}`);
+
+            try {
+                const updateResult = await pool.query(`
+                    UPDATE leads 
+                    SET last_message = $1,
+                        last_message_time = $2,
+                        last_message_direction = $3
+                    WHERE cpf = $4
+                `, [msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, direction, contact.cpf]);
+
+                console.log(`✅ Lead ${contact.cpf} UPDATE executado! Changes: ${updateResult.rowCount}`);
+
+                if (updateResult.rowCount === 0) {
+                    console.warn(`⚠️ UPDATE não afetou nenhuma linha! CPF ${contact.cpf} pode não existir na tabela leads`);
+                }
+            } catch (updateError) {
+                console.error('[WhatsApp] ❌ Error updating lead last_message:', updateError);
+            }
+
+            if (direction === 'incoming') {
+                await pool.query(`
                     UPDATE leads
-                    SET last_message = ?, 
-                        last_message_time = ?,
-                        unread_count = COALESCE(unread_count, 0) + 1
-                    WHERE cpf = ?
-                `);
-                updateStmt.run(msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, contact.cpf);
+                    SET unread_count = COALESCE(unread_count, 0) + 1
+                    WHERE cpf = $1
+                `, [contact.cpf]);
+
+                // Emit contact update event
+                try {
+                    emitContactUpdated({
+                        cpf: contact.cpf,
+                        updates: {
+                            last_message: msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'),
+                            last_message_time: messageTime,
+                            last_message_direction: 'incoming',
+                            unread_count: -1 // Signal to increment on client side
+                        }
+                    });
+                } catch (socketError) {
+                    console.warn('[Socket] Could not emit contact update:', socketError);
+                }
 
                 // Log activity: WhatsApp received
                 try {
@@ -1209,34 +1331,15 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
                 } catch (activityError) {
                     console.error('[WhatsApp] Error logging activity:', activityError);
                 }
-            } else {
-                // For outgoing messages, just update last message without incrementing unread
-                const updateStmt = db.prepare(`
-                    UPDATE leads
-                    SET last_message = ?, 
-                        last_message_time = ?
-                    WHERE cpf = ?
-                `);
-                updateStmt.run(msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, contact.cpf);
-
-                // Log activity: WhatsApp sent
-                try {
-                    activityService.logWhatsAppSent(contact.cpf, msg.body || `[${mediaType || 'mídia'}]`);
-                } catch (activityError) {
-                    console.error('[WhatsApp] Error logging activity:', activityError);
-                }
             }
 
-            // Fetch and update profile picture asynchronously (don't wait)
-            getContactProfilePicture(contact.telefone).then(profilePicUrl => {
+            getContactProfilePicture(contact.telefone).then(async (profilePicUrl) => {
                 if (profilePicUrl) {
                     try {
-                        const updatePicStmt = db.prepare(`
-                            UPDATE leads
-                            SET profile_image = ?
-                            WHERE cpf = ?
-                        `);
-                        updatePicStmt.run(profilePicUrl, contact.cpf);
+                        await pool.query(
+                            'UPDATE leads SET profile_image = $1 WHERE cpf = $2',
+                            [profilePicUrl, contact.cpf]
+                        );
                         console.log(`[WhatsApp] ✓ Profile picture updated for ${contact.nome}`);
                     } catch (err) {
                         console.error('[WhatsApp] Error updating profile picture:', err);
@@ -1264,11 +1367,10 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
             const tempCpf = phone; // Use phone as temporary CPF
 
             try {
-                const insertLeadStmt = db.prepare(`
+                await pool.query(`
                     INSERT INTO leads (cpf, nome, telefone, status, created_at)
-                    VALUES (?, ?, ?, 'LEAD', CURRENT_TIMESTAMP)
-                `);
-                insertLeadStmt.run(tempCpf, contactName, phone);
+                    VALUES ($1, $2, $3, 'LEAD', NOW())
+                `, [tempCpf, contactName, phone]);
 
                 // Now we have the contact, proceed to save message
                 contact = { cpf: tempCpf, nome: contactName, telefone: phone };
@@ -1305,31 +1407,30 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
                     }
                 }
 
-                const insertMsgStmt = db.prepare(`
-                    INSERT OR IGNORE INTO messages (contact_cpf, message_id, direction, body, timestamp, media_url, media_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                `);
-                const result = insertMsgStmt.run(contact.cpf, msg.id.id, direction, msg.body, messageTime, mediaUrl, mediaType);
-                console.log(`💾 Mensagem ${direction} salva para novo lead! ID: ${result.lastInsertRowid}`);
+                const insertMsgResult = await pool.query(`
+                    INSERT INTO messages (contact_phone, id, content, from_me, timestamp, type)
+                    VALUES ($1, $2, $3, $4, $5, 'text')
+                    ON CONFLICT (id) DO NOTHING
+                    RETURNING id
+                `, [contact.cpf, msg.id.id, msg.body, direction === 'outgoing', messageTime]);
+                const msgId = insertMsgResult.rows[0]?.id || 0;
+                console.log(`💾 Mensagem ${direction} salva para novo lead! ID: ${msgId}`);
 
                 // Update lead's last message
                 if (direction === 'incoming') {
-                    const updateStmt = db.prepare(`
+                    await pool.query(`
                         UPDATE leads
-                        SET last_message = ?, 
-                            last_message_time = ?,
+                        SET last_message = $1, 
+                            last_message_time = $2,
                             unread_count = 1
-                        WHERE cpf = ?
-                    `);
-                    updateStmt.run(msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, contact.cpf);
+                        WHERE cpf = $3
+                    `, [msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, contact.cpf]);
                 }
 
-                // Try to get profile pic
-                getContactProfilePicture(contact.telefone).then(profilePicUrl => {
+                getContactProfilePicture(contact.telefone).then(async (profilePicUrl) => {
                     if (profilePicUrl) {
                         try {
-                            const updatePicStmt = db.prepare('UPDATE leads SET profile_image = ? WHERE cpf = ?');
-                            updatePicStmt.run(profilePicUrl, contact.cpf);
+                            await pool.query('UPDATE leads SET profile_image = $1 WHERE cpf = $2', [profilePicUrl, contact.cpf]);
                         } catch (err) {
                             console.error('[WhatsApp] Error updating profile picture:', err);
                         }
@@ -1349,3 +1450,26 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
 
     console.log('='.repeat(60));
 };
+
+// ============================================================================
+// AUTO-INITIALIZATION
+// ============================================================================
+
+/**
+ * Automatically initialize WhatsApp client when the module loads (server-side only)
+ * This ensures the client is ready before any API calls are made
+ */
+if (typeof window === 'undefined') {
+    // Only run on server-side (Node.js environment)
+    console.log('[WhatsApp] 🚀 Inicializando cliente automaticamente no carregamento do módulo...');
+
+    // Small delay to ensure database and other dependencies are ready
+    setTimeout(() => {
+        try {
+            getClient();
+            console.log('[WhatsApp] ✅ Cliente inicializado com sucesso');
+        } catch (error) {
+            console.error('[WhatsApp] ❌ Erro ao inicializar cliente automaticamente:', error);
+        }
+    }, 1000);
+}

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 
 interface DuplicateGroup {
     telefone: string;
@@ -21,14 +21,15 @@ interface DuplicateGroup {
 export async function GET() {
     try {
         // Encontrar telefones duplicados
-        const duplicatePhones = db.prepare(`
+        const duplicateResult = await pool.query(`
             SELECT telefone, COUNT(*) as count
             FROM leads
             WHERE telefone IS NOT NULL AND telefone != ''
             GROUP BY telefone
             HAVING COUNT(*) > 1
             ORDER BY count DESC
-        `).all() as Array<{ telefone: string; count: number }>;
+        `);
+        const duplicatePhones = duplicateResult.rows as Array<{ telefone: string; count: string }>;
 
         if (duplicatePhones.length === 0) {
             return NextResponse.json({
@@ -43,16 +44,16 @@ export async function GET() {
         const groups: DuplicateGroup[] = [];
 
         for (const { telefone } of duplicatePhones) {
-            const registros = db.prepare(`
+            const registrosResult = await pool.query(`
                 SELECT cpf, nome, email, status, tipo_ingresso, created_at, updated_at
                 FROM leads
-                WHERE telefone = ?
+                WHERE telefone = $1
                 ORDER BY updated_at DESC
-            `).all(telefone) as DuplicateGroup['registros'];
+            `, [telefone]);
 
             groups.push({
                 telefone,
-                registros
+                registros: registrosResult.rows
             });
         }
 

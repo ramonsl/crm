@@ -2,7 +2,10 @@
  * BrazilianPhoneFormatter - Formats Brazilian phone numbers for WhatsApp
  * 
  * Follows SRP: Only responsible for phone number formatting
+ * Uses phoneUtils for shared utilities (DRY principle)
  */
+
+import { removeNonDigits as removeNonDigitsUtil, normalizePhoneNumber } from '@/lib/utils/phoneUtils';
 
 export interface PhoneVariation {
     formatted: string;
@@ -22,18 +25,11 @@ export class BrazilianPhoneFormatter {
      * // ]
      */
     format(phone: string): PhoneVariation[] {
-        const cleaned = this.removeNonDigits(phone);
+        const cleaned = removeNonDigitsUtil(phone);
         const withoutLeadingZero = this.removeLeadingZero(cleaned);
         const withCountryCode = this.ensureCountryCode(withoutLeadingZero);
 
         return this.generateVariations(withCountryCode);
-    }
-
-    /**
-     * Removes all non-digit characters
-     */
-    private removeNonDigits(phone: string): string {
-        return phone.replace(/\D/g, '');
     }
 
     /**
@@ -112,3 +108,4 @@ export class BrazilianPhoneFormatter {
         return { formatted, type: '13-digit' };
     }
 }
+

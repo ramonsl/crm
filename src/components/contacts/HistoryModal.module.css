@@ -13,15 +13,15 @@
 }
 
 .modal {
-    background: #1a1a1a;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
     width: 90%;
     max-width: 700px;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
 }
 
 .header {
@@ -29,25 +29,25 @@
     justify-content: space-between;
     align-items: flex-start;
     padding: 1.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .header h2 {
     margin: 0;
     font-size: 1.5rem;
-    color: #fff;
+    color: var(--text-main);
 }
 
 .subtitle {
     margin: 0.25rem 0 0 0;
     font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
 }
 
 .closeButton {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-muted);
     cursor: pointer;
     padding: 0.5rem;
     display: flex;
@@ -57,7 +57,7 @@
 }
 
 .closeButton:hover {
-    color: #fff;
+    color: var(--text-main);
 }
 
 .content {
@@ -69,7 +69,7 @@
 .loading {
     text-align: center;
     padding: 3rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
 }
 
 .empty {
@@ -78,7 +78,7 @@
     align-items: center;
     justify-content: center;
     padding: 3rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-muted);
     gap: 1rem;
 }
 
@@ -94,13 +94,13 @@
 
 .message {
     padding: 1rem;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
 .message.sent {
-    background: rgba(76, 175, 80, 0.1);
-    border-color: rgba(76, 175, 80, 0.3);
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
     margin-left: 2rem;
 }
 
@@ -139,7 +139,7 @@
     font-size: 0.75rem;
     font-weight: 500;
     text-transform: none;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-secondary);
 }
 
 .headerLeft {
@@ -151,7 +151,7 @@
 
 .expandIcon {
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     transition: transform 0.2s;
 }
 
@@ -163,11 +163,11 @@
 }
 
 .messageHeader:hover .expandIcon {
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-secondary);
 }
 
 .message.sent .direction {
-    color: #4CAF50;
+    color: var(--primary);
 }
 
 .message.received .direction {
@@ -175,7 +175,7 @@
 }
 
 .messageContent {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-main);
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
@@ -184,5 +184,5 @@
 .messageStatus {
     margin-top: 0.5rem;
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
 }

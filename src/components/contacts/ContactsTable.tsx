@@ -23,7 +23,7 @@ import TimeAgoBadge from '@/components/TimeAgoBadge';
 import WhatsAppIndicator from '@/components/WhatsAppIndicator';
 import type { ContactView, Contact } from '@/types/contacts';
 import styles from './ContactsTable.module.css';
-import { UserPlus, RefreshCw, MessageSquare, Edit2, Trash2, Download, Upload, Filter, X, ChevronUp, ChevronDown, Clock } from 'lucide-react';
+import { UserPlus, RefreshCw, MessageSquare, Edit2, Trash2, Download, Upload, Filter, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clock, Forward } from 'lucide-react';
 import { ColumnSelector } from './ColumnSelector';
 import { useVisibleColumns } from '@/hooks/useVisibleColumns';
 
@@ -38,7 +38,7 @@ export function ContactsTable({
 }: ContactsTableProps) {
     const { success, error: toastError } = useToast();
     const { filters, updateFilter, updateFilters, resetFilters } = useContactsFilters({ page: 1, limit: 25 });
-    const { contacts, loading, error, totalPages, currentPage, refresh } = useContacts(view, filters);
+    const { contacts, loading, error, totalPages, totalCount, currentPage, refresh } = useContacts(view, filters);
     const { selected, toggleSelect, toggleSelectAll, clearSelection, isSelected, isAllSelected, selectedCount } = useContactsSelection();
     const { status: waStatus, isReady } = useWhatsAppStatus();
 
@@ -57,6 +57,10 @@ export function ContactsTable({
     const [timelineModalOpen, setTimelineModalOpen] = useState(false);
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
     const [deleteConfirmContact, setDeleteConfirmContact] = useState<Contact | null>(null);
+
+    // Commercial team settings
+    const [comercialPhone, setComercialPhone] = useState('');
+    const [comercialName, setComercialName] = useState('');
 
     // Fetch available filter options from database
     useEffect(() => {
@@ -80,6 +84,14 @@ export function ContactsTable({
         };
 
         fetchFilters();
+
+        // Load commercial settings
+        fetch('/api/settings')
+            .then(res => res.json())
+            .then(data => {
+                if (data.comercialPhone) setComercialPhone(data.comercialPhone);
+                if (data.comercialName) setComercialName(data.comercialName);
+            });
     }, []);
 
     const handleExport = async () => {
@@ -122,6 +134,37 @@ export function ContactsTable({
         e?.stopPropagation();
         e?.preventDefault();
         setDeleteConfirmContact(contact);
+    };
+
+    const handleForwardToComercial = async (contact: Contact) => {
+        if (!comercialPhone) return;
+
+        try {
+            // API forward agora envia mensagem e registra na timeline
+            const res = await fetch('/api/forward', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cpf: contact.cpf,
+                    comercialPhone: comercialPhone,
+                    comercialName: comercialName || 'Comercial'
+                })
+            });
+
+            if (res.ok) {
+                success('Lead encaminhado para o comercial!');
+            } else {
+                const errorData = await res.json();
+                if (errorData.needsConnection) {
+                    toastError(`⚠️ ${errorData.error}`);
+                } else {
+                    toastError(`Erro ao encaminhar: ${errorData.error || 'Erro desconhecido'}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error forwarding to commercial:', error);
+            toastError('Erro ao encaminhar lead. Verifique sua conexão.');
+        }
     };
 
     const confirmDelete = async () => {
@@ -398,6 +441,15 @@ export function ContactsTable({
                                             >
                                                 <MessageSquare size={16} />
                                             </button>
+                                            {comercialPhone && (
+                                                <button
+                                                    className={styles.actionButton}
+                                                    title={`Encaminhar para ${comercialName || 'Comercial'}`}
+                                                    onClick={() => handleForwardToComercial(contact)}
+                                                >
+                                                    <Forward size={16} />
+                                                </button>
+                                            )}
                                             <button
                                                 className={styles.actionButton}
                                                 title="Editar"
@@ -429,25 +481,109 @@ export function ContactsTable({
             </div>
 
             {/* Pagination */}
-            {totalPages > 1 && (
-                <div className={styles.pagination}>
+            <div className={styles.pagination}>
+                {/* Left: Page size selector */}
+                <div className={styles.paginationLeft}>
+                    <label>Mostrar:</label>
+                    <select
+                        className={styles.pageSizeSelect}
+                        value={filters.limit || 25}
+                        onChange={(e) => {
+                            updateFilters({
+                                limit: Number(e.target.value),
+                                page: 1 // Reset to first page when changing page size
+                            });
+                        }}
+                    >
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                    </select>
+                    <span>por página</span>
+                </div>
+
+                {/* Center: Page navigation */}
+                <div className={styles.paginationCenter}>
                     <button
                         onClick={() => updateFilter('page', Math.max(1, currentPage - 1))}
                         disabled={currentPage === 1}
+                        title="Página anterior"
                     >
-                        Anterior
+                        <ChevronLeft size={18} />
                     </button>
-                    <span>
-                        Página {currentPage} de {totalPages}
-                    </span>
+
+                    <div className={styles.pageNumbers}>
+                        {(() => {
+                            const pages: (number | string)[] = [];
+                            const maxVisiblePages = 5;
+
+                            if (totalPages <= maxVisiblePages) {
+                                // Show all pages
+                                for (let i = 1; i <= totalPages; i++) {
+                                    pages.push(i);
+                                }
+                            } else {
+                                // Always show first page
+                                pages.push(1);
+
+                                if (currentPage > 3) {
+                                    pages.push('...');
+                                }
+
+                                // Show pages around current
+                                const start = Math.max(2, currentPage - 1);
+                                const end = Math.min(totalPages - 1, currentPage + 1);
+
+                                for (let i = start; i <= end; i++) {
+                                    pages.push(i);
+                                }
+
+                                if (currentPage < totalPages - 2) {
+                                    pages.push('...');
+                                }
+
+                                // Always show last page
+                                if (totalPages > 1) {
+                                    pages.push(totalPages);
+                                }
+                            }
+
+                            return pages.map((page, index) => (
+                                typeof page === 'number' ? (
+                                    <button
+                                        key={index}
+                                        className={`${styles.pageButton} ${currentPage === page ? styles.activePageButton : ''}`}
+                                        onClick={() => updateFilter('page', page)}
+                                    >
+                                        {page}
+                                    </button>
+                                ) : (
+                                    <span key={index} className={styles.pageEllipsis}>{page}</span>
+                                )
+                            ));
+                        })()}
+                    </div>
+
                     <button
                         onClick={() => updateFilter('page', Math.min(totalPages, currentPage + 1))}
-                        disabled={currentPage === totalPages}
+                        disabled={currentPage === totalPages || totalPages === 0}
+                        title="Próxima página"
                     >
-                        Próxima
+                        <ChevronRight size={18} />
                     </button>
                 </div>
-            )}
+
+                {/* Right: Total count info */}
+                <div className={styles.paginationRight}>
+                    {totalCount > 0 ? (
+                        <span>
+                            {((currentPage - 1) * (filters.limit || 25)) + 1} - {Math.min(currentPage * (filters.limit || 25), totalCount)} de {totalCount} contatos
+                        </span>
+                    ) : (
+                        <span>0 contatos</span>
+                    )}
+                </div>
+            </div>
 
             {/* Modals */}
             <ContactEditModal
@@ -496,61 +632,63 @@ export function ContactsTable({
             />
 
             {/* Delete Confirmation Modal */}
-            {deleteConfirmContact && (
-                <div style={{
-                    position: 'fixed',
-                    inset: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 9999
-                }}>
+            {
+                deleteConfirmContact && (
                     <div style={{
-                        background: 'linear-gradient(145deg, #1a1a2e 0%, #16213e 100%)',
-                        borderRadius: '16px',
-                        padding: '2rem',
-                        maxWidth: '400px',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                        position: 'fixed',
+                        inset: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999
                     }}>
-                        <h3 style={{ color: '#fff', marginBottom: '1rem' }}>Confirmar Exclusão</h3>
-                        <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>
-                            Tem certeza que deseja deletar <strong style={{ color: '#fff' }}>{deleteConfirmContact.nome}</strong>?
-                            <br /><br />
-                            Esta ação não pode ser desfeita.
-                        </p>
-                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={cancelDelete}
-                                style={{
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: '8px',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                                    background: 'transparent',
-                                    color: '#fff',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={confirmDelete}
-                                style={{
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    background: '#ef4444',
-                                    color: '#fff',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Deletar
-                            </button>
+                        <div style={{
+                            background: 'linear-gradient(145deg, #1a1a2e 0%, #16213e 100%)',
+                            borderRadius: '16px',
+                            padding: '2rem',
+                            maxWidth: '400px',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                        }}>
+                            <h3 style={{ color: '#fff', marginBottom: '1rem' }}>Confirmar Exclusão</h3>
+                            <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>
+                                Tem certeza que deseja deletar <strong style={{ color: '#fff' }}>{deleteConfirmContact.nome}</strong>?
+                                <br /><br />
+                                Esta ação não pode ser desfeita.
+                            </p>
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={cancelDelete}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: '8px',
+                                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                                        background: 'transparent',
+                                        color: '#fff',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmDelete}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        background: '#ef4444',
+                                        color: '#fff',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Deletar
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }

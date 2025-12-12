@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './page.module.css';
-import { MessageCircle, Send, Search, RefreshCw, Check, CheckCheck, Paperclip, FileText, Play, Pause, Mic, Square, X } from 'lucide-react';
+import { MessageCircle, Send, Search, RefreshCw, Check, CheckCheck, Paperclip, FileText, Play, Pause, Mic, Square, X, Filter, Forward } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
+import { useStatuses } from '@/contexts/StatusContext';
+import { useSocket } from '@/contexts/SocketContext';
+import { useSocketMessages } from '@/hooks/useSocketMessages';
+import { useSocketContacts } from '@/hooks/useSocketContacts';
 
 interface Contact {
     cpf: string;
@@ -20,16 +24,18 @@ interface Contact {
 
 interface Message {
     id: number;
+    message_id?: string;
     direction: 'incoming' | 'outgoing';
     body: string;
     timestamp: string;
     status: string;
     media_url: string | null;
-    media_type?: 'image' | 'video' | 'audio' | 'document';
+    media_type?: string | null;
 }
 
 export default function ChatPage() {
     const { error: toastError, success: toastSuccess } = useToast();
+    const { isConnected: socketConnected } = useSocket();
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -52,6 +58,19 @@ export default function ChatPage() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Status Context for dynamic statuses
+    const { statuses } = useStatuses();
+
+    // Filter States
+    const [showUnanswered, setShowUnanswered] = useState(false);
+    const [showUnread, setShowUnread] = useState(false);
+    const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+
+    // Commercial team settings
+    const [comercialPhone, setComercialPhone] = useState('');
+    const [comercialName, setComercialName] = useState('');
+    const [forwarding, setForwarding] = useState(false);
 
     // Fetch contacts
     const fetchContacts = async () => {
@@ -178,7 +197,7 @@ export default function ChatPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    cpf: selectedContact.cpf,
+                    telefone: selectedContact.telefone,
                     message: messageToSend
                 })
             });
@@ -203,8 +222,9 @@ export default function ChatPage() {
                     return c;
                 }));
             } else {
-                console.error('Failed to send message');
-                toastError('Falha ao enviar mensagem');
+                const errorData = await res.json();
+                console.error('Failed to send message. Status:', res.status, 'Error:', errorData);
+                toastError(errorData.error || 'Falha ao enviar mensagem');
             }
         } catch (error) {
             console.error('Error sending message:', error);
@@ -235,7 +255,7 @@ export default function ChatPage() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        cpf: selectedContact.cpf,
+                        telefone: selectedContact.telefone,
                         message: file.name, // Use filename as caption/message
                         mediaUrl: uploadData.url,
                         mediaType: uploadData.type
@@ -339,7 +359,7 @@ export default function ChatPage() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            cpf: selectedContact.cpf,
+                            telefone: selectedContact.telefone,
                             message: 'Áudio gravado',
                             mediaUrl: uploadData.url,
                             mediaType: 'audio'
@@ -412,10 +432,18 @@ export default function ChatPage() {
     }, [messages]);
 
     useEffect(() => {
+        // Initial fetch only - WebSocket handles real-time updates
         fetchContacts();
-        // Update contacts every 2 seconds for faster updates
-        const interval = setInterval(fetchContacts, 2000);
-        return () => clearInterval(interval);
+
+        // Load commercial settings
+        fetch('/api/settings')
+            .then(res => res.json())
+            .then(data => {
+                if (data.comercialPhone) setComercialPhone(data.comercialPhone);
+                if (data.comercialName) setComercialName(data.comercialName);
+            });
+
+        // No periodic polling - WebSocket handles updates
     }, []);
 
     const syncProfilePic = async (contact: Contact) => {
@@ -471,6 +499,58 @@ export default function ChatPage() {
     // Removed useEffect for scrollToBottom on messages change to avoid auto-scrolling when loading more
     // We only scroll to bottom on initial load or new message sent/received (handled in fetchMessages)
 
+    // Handle new messages via WebSocket
+    const handleNewSocketMessage = useCallback((message: Message) => {
+        console.log('[Chat] WebSocket: Nova mensagem recebida', message);
+
+        setMessages(prev => {
+            // Check if message already exists (deduplication)
+            const exists = prev.some(m => m.id === message.id);
+            if (exists) return prev;
+
+            const updated = [...prev, message];
+
+            // Play sound for incoming messages
+            if (message.direction === 'incoming') {
+                playNotificationSound();
+            }
+
+            return updated;
+        });
+
+        scrollToBottom();
+    }, []);
+
+    // Use WebSocket for real-time messages
+    useSocketMessages({
+        contactCpf: selectedContact?.cpf || null,
+        onNewMessage: handleNewSocketMessage,
+        enabled: !!selectedContact
+    });
+
+    // Use WebSocket for contact updates (unread count, last message, etc)
+    const handleContactUpdate = useCallback((data: any) => {
+        console.log('[Chat] Contact update received via Socket:', data);
+        setContacts(prev => prev.map(c => {
+            if (c.cpf === data.cpf) {
+                return {
+                    ...c,
+                    ...data.updates,
+                    // Handle special case for unread_count increment
+                    unread_count: data.updates.unread_count === -1
+                        ? (c.unread_count || 0) + 1
+                        : (data.updates.unread_count ?? c.unread_count)
+                };
+            }
+            return c;
+        }));
+    }, []);
+
+    useSocketContacts({
+        onContactUpdated: handleContactUpdate,
+        enabled: true
+    });
+
     useEffect(() => {
         if (selectedContact) {
             setMessages([]);
@@ -487,33 +567,105 @@ export default function ChatPage() {
             // Try to sync profile pic if missing
             syncProfilePic(selectedContact);
 
-            // Poll for new messages every 0.5 seconds for faster real-time updates
-            const pollInterval = setInterval(() => {
-                setMessages(currentMessages => {
-                    const lastId = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1].id : 0;
-                    console.log(`[Chat] Polling: buscando mensagens após ID ${lastId}`);
-                    fetchMessages(selectedContact.cpf, true, lastId);
-                    return currentMessages; // Return current state, fetchMessages will update it
-                });
-            }, 500); // Reduced from 1000ms to 500ms
+            // WebSocket handles real-time updates now
+            // Only use polling as fallback if WebSocket is not connected
+            let fallbackInterval: NodeJS.Timeout | null = null;
 
-            // Periodic sync every 30 seconds to catch any missed messages
+            if (!socketConnected) {
+                console.log('[Chat] WebSocket not connected, using fallback polling');
+                fallbackInterval = setInterval(() => {
+                    setMessages(currentMessages => {
+                        const lastId = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1].id : 0;
+                        fetchMessages(selectedContact.cpf, true, lastId);
+                        return currentMessages;
+                    });
+                }, 5000); // 5 seconds fallback (less aggressive than before)
+            }
+
+            // Safety net: Periodic sync every 5 minutes to catch any edge cases
             const syncInterval = setInterval(() => {
-                console.log(`[Chat] Sync periódico automático para ${selectedContact.nome}`);
+                console.log(`[Chat] Safety sync para ${selectedContact.nome}`);
                 handleSyncHistory(selectedContact.cpf, 50);
-            }, 30000);
+            }, 300000); // 5 minutes
 
             return () => {
-                clearInterval(pollInterval);
+                if (fallbackInterval) clearInterval(fallbackInterval);
                 clearInterval(syncInterval);
             };
         }
-    }, [selectedContact]);
+    }, [selectedContact, socketConnected, handleNewSocketMessage]);
 
-    const filteredContacts = contacts.filter(c =>
-        c.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.telefone.includes(searchQuery)
-    );
+    // Calculate filter counts
+    const unansweredCount = contacts.filter(c => c.last_message_direction === 'incoming').length;
+    const unreadCount = contacts.filter(c => c.unread_count > 0).length;
+    const statusCounts = statuses.reduce((acc, s) => {
+        acc[s.name] = contacts.filter(c => c.status?.toLowerCase() === s.name.toLowerCase()).length;
+        return acc;
+    }, {} as Record<string, number>);
+
+    // Filtered contacts with all filters applied
+    const filteredContacts = contacts.filter(c => {
+        // Text search
+        const matchesSearch = searchQuery === '' ||
+            c.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            c.telefone.includes(searchQuery);
+
+        // Unanswered filter
+        const matchesUnanswered = !showUnanswered || c.last_message_direction === 'incoming';
+
+        // Unread filter
+        const matchesUnread = !showUnread || c.unread_count > 0;
+
+        // Status filter
+        const matchesStatus = selectedStatuses.length === 0 ||
+            selectedStatuses.some(s => s.toLowerCase() === c.status?.toLowerCase());
+
+        return matchesSearch && matchesUnanswered && matchesUnread && matchesStatus;
+    });
+
+    const hasActiveFilters = showUnanswered || showUnread || selectedStatuses.length > 0;
+
+    const clearFilters = () => {
+        setShowUnanswered(false);
+        setShowUnread(false);
+        setSelectedStatuses([]);
+    };
+
+    const handleForwardToComercial = async () => {
+        if (!selectedContact || !comercialPhone) {
+            return;
+        }
+
+        setForwarding(true);
+        try {
+            // API forward agora envia mensagem e registra na timeline
+            const res = await fetch('/api/forward', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cpf: selectedContact.cpf,
+                    comercialPhone: comercialPhone,
+                    comercialName: comercialName || 'Comercial'
+                })
+            });
+
+            if (res.ok) {
+                toastSuccess('Lead encaminhado para o comercial!');
+            } else {
+                const errorData = await res.json();
+                if (errorData.needsConnection) {
+                    toastError(`⚠️ ${errorData.error}`);
+                } else {
+                    toastError(`Erro ao encaminhar: ${errorData.error || 'Erro desconhecido'}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error forwarding to commercial:', error);
+            toastError('Erro ao encaminhar lead. Verifique sua conexão.');
+        } finally {
+            setForwarding(false);
+        }
+    };
 
     const formatTime = (timestamp: string) => {
         // SQLite timestamps are in format "YYYY-MM-DD HH:MM:SS" without timezone info
@@ -582,6 +734,68 @@ export default function ChatPage() {
                             className={styles.searchInput}
                         />
                     </div>
+                </div>
+
+                {/* Filter Area */}
+                <div className={styles.filterArea}>
+                    {/* Quick Filters */}
+                    <div className={styles.quickFilters}>
+                        <button
+                            className={`${styles.filterTab} ${showUnread ? styles.active : ''}`}
+                            onClick={() => setShowUnread(!showUnread)}
+                        >
+                            <span>Novas</span>
+                            {unreadCount > 0 && (
+                                <span className={styles.filterBadge}>{unreadCount}</span>
+                            )}
+                        </button>
+                        <button
+                            className={`${styles.filterTab} ${showUnanswered ? styles.active : ''} ${styles.urgent}`}
+                            onClick={() => setShowUnanswered(!showUnanswered)}
+                        >
+                            <span>Não Respondidas</span>
+                            {unansweredCount > 0 && (
+                                <span className={`${styles.filterBadge} ${styles.urgentBadge}`}>
+                                    {unansweredCount}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Status Chips */}
+                    <div className={styles.statusChips}>
+                        {statuses.map(status => (
+                            <button
+                                key={status.id}
+                                className={`${styles.statusChip} ${selectedStatuses.includes(status.name) ? styles.active : ''}`}
+                                onClick={() => {
+                                    setSelectedStatuses(prev =>
+                                        prev.includes(status.name)
+                                            ? prev.filter(s => s !== status.name)
+                                            : [...prev, status.name]
+                                    );
+                                }}
+                                style={{
+                                    '--chip-color': status.color,
+                                    '--chip-bg': `${status.color}20`,
+                                } as React.CSSProperties}
+                            >
+                                <span className={styles.chipDot} style={{ backgroundColor: status.color }} />
+                                <span>{status.name}</span>
+                                {statusCounts[status.name] > 0 && (
+                                    <span className={styles.chipCount}>{statusCounts[status.name]}</span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Clear Filters */}
+                    {hasActiveFilters && (
+                        <button className={styles.clearFilters} onClick={clearFilters}>
+                            <X size={14} />
+                            <span>Limpar filtros</span>
+                        </button>
+                    )}
                 </div>
 
                 <div className={styles.contactList}>
@@ -659,6 +873,17 @@ export default function ChatPage() {
                                     {selectedContact.telefone}
                                 </p>
                             </div>
+                            {comercialPhone && (
+                                <button
+                                    className={styles.refreshButton}
+                                    onClick={handleForwardToComercial}
+                                    title={`Encaminhar para ${comercialName || 'Comercial'}`}
+                                    disabled={forwarding}
+                                    style={{ marginRight: '0.25rem' }}
+                                >
+                                    <Forward size={18} className={forwarding ? styles.spin : ''} />
+                                </button>
+                            )}
                             <button
                                 className={styles.refreshButton}
                                 onClick={() => {

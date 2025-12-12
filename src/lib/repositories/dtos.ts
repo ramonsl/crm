@@ -94,7 +94,7 @@ export interface UpdateSettingDto {
 // ACTIVITY DTOs - Timeline feature
 // ============================================================================
 
-export type ActivityType = 'whatsapp' | 'status_change' | 'note' | 'lead_created' | 'lead_updated';
+export type ActivityType = 'whatsapp' | 'status_change' | 'note' | 'lead_created' | 'lead_updated' | 'forwarded';
 export type ActivitySubtype = 'sent' | 'received' | 'template' | null;
 
 export interface CreateActivityDto {
@@ -112,3 +112,23 @@ export interface ActivityFilters {
     limit?: number;
     offset?: number;
 }
+
+// ============================================================================
+// USER DTOs - Authentication
+// ============================================================================
+
+export interface CreateUserDto {
+    email: string;
+    password_hash: string;
+    name: string;
+    role?: string;
+}
+
+export interface UpdateUserDto {
+    email?: string;
+    password_hash?: string;
+    name?: string;
+    role?: string;
+    active?: number;
+}
+

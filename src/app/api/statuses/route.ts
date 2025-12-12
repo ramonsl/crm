@@ -8,10 +8,7 @@
  */
 
 import { NextResponse, NextRequest } from 'next/server';
-import db from '@/lib/db';
-
-// Ensure migration runs
-import '@/lib/migrations/addStatusTable';
+import { pool } from '@/lib/db';
 
 interface StatusRow {
     id: number;
@@ -25,15 +22,15 @@ interface StatusRow {
 
 export async function GET() {
     try {
-        const statuses = db.prepare(`
+        const result = await pool.query(`
             SELECT * FROM statuses 
             WHERE active = 1 
             ORDER BY display_order ASC
-        `).all() as StatusRow[];
+        `);
 
         return NextResponse.json({
-            data: statuses,
-            total: statuses.length
+            data: result.rows as StatusRow[],
+            total: result.rows.length
         });
     } catch (error) {
         console.error('[API /api/statuses GET] Error:', error);
@@ -57,25 +54,25 @@ export async function POST(req: NextRequest) {
         }
 
         // Get max order
-        const maxOrder = db.prepare(`
+        const maxOrderResult = await pool.query(`
             SELECT COALESCE(MAX(display_order), 0) as max_order FROM statuses
-        `).get() as { max_order: number };
-
-        const stmt = db.prepare(`
-            INSERT INTO statuses (name, color, display_order, active)
-            VALUES (?, ?, ?, 1)
         `);
+        const maxOrder = maxOrderResult.rows[0].max_order;
 
-        const result = stmt.run(name.trim(), color || '#6b7280', maxOrder.max_order + 1);
+        const result = await pool.query(`
+            INSERT INTO statuses (name, color, display_order, active)
+            VALUES ($1, $2, $3, 1)
+            RETURNING id
+        `, [name.trim(), color || '#6b7280', maxOrder + 1]);
 
         return NextResponse.json({
             success: true,
-            id: result.lastInsertRowid
+            id: result.rows[0].id
         });
     } catch (error: any) {
         console.error('[API /api/statuses POST] Error:', error);
 
-        if (error.message?.includes('UNIQUE constraint failed')) {
+        if (error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
             return NextResponse.json(
                 { error: 'Status já existe' },
                 { status: 409 }
@@ -103,30 +100,29 @@ export async function PUT(req: NextRequest) {
 
         const updates: string[] = [];
         const values: any[] = [];
+        let paramIndex = 1;
 
         if (name) {
-            updates.push('name = ?');
+            updates.push(`name = $${paramIndex++}`);
             values.push(name.trim());
         }
         if (color) {
-            updates.push('color = ?');
+            updates.push(`color = $${paramIndex++}`);
             values.push(color);
         }
         if (display_order !== undefined) {
-            updates.push('display_order = ?');
+            updates.push(`display_order = $${paramIndex++}`);
             values.push(display_order);
         }
 
-        updates.push('updated_at = CURRENT_TIMESTAMP');
+        updates.push('updated_at = NOW()');
         values.push(id);
 
-        const stmt = db.prepare(`
+        await pool.query(`
             UPDATE statuses 
             SET ${updates.join(', ')}
-            WHERE id = ?
-        `);
-
-        stmt.run(...values);
+            WHERE id = $${paramIndex}
+        `, values);
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -151,13 +147,11 @@ export async function DELETE(req: NextRequest) {
         }
 
         // Soft delete - just mark as inactive
-        const stmt = db.prepare(`
+        await pool.query(`
             UPDATE statuses 
-            SET active = 0, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `);
-
-        stmt.run(id);
+            SET active = 0, updated_at = NOW()
+            WHERE id = $1
+        `, [id]);
 
         return NextResponse.json({ success: true });
     } catch (error) {

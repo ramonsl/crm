@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import AdminLayout from "@/components/AdminLayout";
+import ConditionalLayout from "@/components/ConditionalLayout";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { StatusProvider } from "@/contexts/StatusContext";
+import { SocketProvider } from "@/contexts/SocketContext";
+import { WhatsAppNotificationManager } from '@/components/WhatsAppNotificationManager';
 
 export const metadata: Metadata = {
-  title: "ADS CRM",
+  title: "Coordena+",
   description: "Gerenciamento de Candidatos",
 };
 
@@ -19,9 +21,12 @@ export default function RootLayout({
       <body>
         <ToastProvider>
           <StatusProvider>
-            <AdminLayout>
-              {children}
-            </AdminLayout>
+            <SocketProvider>
+              <WhatsAppNotificationManager />
+              <ConditionalLayout>
+                {children}
+              </ConditionalLayout>
+            </SocketProvider>
           </StatusProvider>
         </ToastProvider>
       </body>

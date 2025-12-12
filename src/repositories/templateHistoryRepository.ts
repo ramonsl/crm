@@ -2,13 +2,11 @@
  * Template History Repository - Data access layer
  * 
  * Follows DIP: Interface segregation, allows different implementations
+ * Uses Neon PostgreSQL for data persistence.
  */
 
-import db from '@/lib/db';
+import { pool, query, queryOne } from '@/lib/db';
 import { removeNonDigits, getPhoneVariations } from '@/lib/utils/phoneUtils';
-
-// Run migration to ensure table exists
-import '@/lib/migrations/addTemplateHistory';
 
 export interface TemplateHistoryEntry {
     id: number;
@@ -27,26 +25,27 @@ export interface ITemplateHistoryRepository {
     getLastTemplateSent(phone: string): Promise<string | null>;
 }
 
-export class SQLiteTemplateHistoryRepository implements ITemplateHistoryRepository {
+/**
+ * PostgreSQL implementation of template history repository
+ */
+export class NeonTemplateHistoryRepository implements ITemplateHistoryRepository {
 
     /**
      * Save template send history
      */
     async saveHistory(entry: Omit<TemplateHistoryEntry, 'id'>): Promise<void> {
-        const stmt = db.prepare(`
+        await pool.query(`
             INSERT INTO template_history 
             (phone, template_name, template_content, sent_at, success, error_message)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `);
-
-        stmt.run(
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
             entry.phone,
             entry.template_name,
             entry.template_content,
             entry.sent_at,
-            entry.success ? 1 : 0,
+            entry.success,
             entry.error_message || null
-        );
+        ]);
     }
 
     /**
@@ -56,7 +55,7 @@ export class SQLiteTemplateHistoryRepository implements ITemplateHistoryReposito
         // Get phone variations for query
         const phoneVariations = getPhoneVariations(phone);
 
-        const stmt = db.prepare(`
+        const result = await pool.query(`
             SELECT 
                 id,
                 phone,
@@ -66,20 +65,18 @@ export class SQLiteTemplateHistoryRepository implements ITemplateHistoryReposito
                 success,
                 error_message
             FROM template_history
-            WHERE phone = ? OR phone = ?
+            WHERE phone = $1 OR phone = $2
             ORDER BY sent_at DESC
-            LIMIT ?
-        `);
+            LIMIT $3
+        `, [...phoneVariations, limit]);
 
-        const results = stmt.all(...phoneVariations, limit) as any[];
-
-        return results.map(row => ({
+        return result.rows.map((row: any) => ({
             id: row.id,
             phone: row.phone,
             template_name: row.template_name,
             template_content: row.template_content,
             sent_at: row.sent_at,
-            success: row.success === 1,
+            success: row.success === true || row.success === 1,
             error_message: row.error_message
         }));
     }
@@ -90,14 +87,12 @@ export class SQLiteTemplateHistoryRepository implements ITemplateHistoryReposito
     async updateLastTemplate(phone: string, templateName: string): Promise<void> {
         const phoneVariations = getPhoneVariations(phone);
 
-        const stmt = db.prepare(`
+        await pool.query(`
             UPDATE leads
-            SET last_template_sent = ?,
+            SET last_template_sent = $1,
                 last_template_sent_at = CURRENT_TIMESTAMP
-            WHERE telefone = ? OR telefone = ?
-        `);
-
-        stmt.run(templateName, ...phoneVariations);
+            WHERE telefone = $2 OR telefone = $3
+        `, [templateName, ...phoneVariations]);
     }
 
     /**
@@ -106,14 +101,16 @@ export class SQLiteTemplateHistoryRepository implements ITemplateHistoryReposito
     async getLastTemplateSent(phone: string): Promise<string | null> {
         const phoneVariations = getPhoneVariations(phone);
 
-        const stmt = db.prepare(`
+        const result = await pool.query(`
             SELECT last_template_sent
             FROM leads
-            WHERE telefone = ? OR telefone = ?
+            WHERE telefone = $1 OR telefone = $2
             LIMIT 1
-        `);
+        `, phoneVariations);
 
-        const result = stmt.get(...phoneVariations) as any;
-        return result?.last_template_sent || null;
+        return result.rows[0]?.last_template_sent || null;
     }
 }
+
+// Alias for backward compatibility
+export const SQLiteTemplateHistoryRepository = NeonTemplateHistoryRepository;

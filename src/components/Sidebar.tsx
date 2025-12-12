@@ -2,11 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, MessageSquare, MessageCircle, Settings, LogOut, Upload, Columns, FileText, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, MessageCircle, Settings, LogOut, Upload, Columns, FileText, UserPlus, X } from 'lucide-react';
 import styles from './Sidebar.module.css';
 import { useEffect, useState } from 'react';
 
-export default function Sidebar({ isOpen }: { isOpen?: boolean }) {
+interface SidebarProps {
+    isOpen?: boolean;
+    onToggle?: () => void;
+}
+
+export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     const pathname = usePathname();
     const [waStatus, setWaStatus] = useState<'disconnected' | 'initializing' | 'ready'>('disconnected');
 
@@ -31,6 +36,7 @@ export default function Sidebar({ isOpen }: { isOpen?: boolean }) {
         { href: '/contacts', label: 'Inscritos', icon: Users },
         { href: '/kanban', label: 'Kanban', icon: Columns },
         { href: '/chat', label: 'Chat', icon: MessageCircle },
+        { href: '/whatsapp-chat', label: 'WhatsApp Chat', icon: MessageSquare, badge: 'POC' },
         { href: '/templates', label: 'Modelos', icon: FileText },
         { href: '/import', label: 'Importar', icon: Upload },
         { href: '/whatsapp', label: 'WhatsApp', icon: MessageSquare, showStatus: true },
@@ -40,8 +46,18 @@ export default function Sidebar({ isOpen }: { isOpen?: boolean }) {
     return (
         <aside className={`${styles.sidebar} ${isOpen ? styles.open : ''}`}>
             <div className={styles.logoContainer}>
-                <div className={styles.logoIcon}>A</div>
-                <span className={styles.logoText}>ADS CRM</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div className={styles.logoIcon}>C</div>
+                    <span className={styles.logoText}>Coordena+</span>
+                </div>
+                {/* Mobile Close Button */}
+                <button
+                    className={styles.closeButton}
+                    onClick={onToggle}
+                    aria-label="Close sidebar"
+                >
+                    <X size={20} />
+                </button>
             </div>
 
             <nav className={styles.nav}>
@@ -65,7 +81,12 @@ export default function Sidebar({ isOpen }: { isOpen?: boolean }) {
                                     }} />
                                 )}
                             </div>
-                            <span className={styles.linkLabel}>{link.label}</span>
+                            <span className={styles.linkLabel}>
+                                {link.label}
+                                {link.badge && (
+                                    <span className={styles.badge}>{link.badge}</span>
+                                )}
+                            </span>
                         </Link>
                     );
                 })}

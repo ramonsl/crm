@@ -2,12 +2,16 @@ import { GET as GET_DASHBOARD } from '@/app/api/dashboard/route';
 import { GET as GET_SETTINGS, POST as POST_SETTINGS } from '@/app/api/settings/route';
 import { GET as GET_TEMPLATES, POST as POST_TEMPLATES, PUT as PUT_TEMPLATES, DELETE as DELETE_TEMPLATES } from '@/app/api/templates/route';
 import { NextRequest } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 
 // Mock DB
 jest.mock('@/lib/db', () => ({
-    prepare: jest.fn()
+    pool: {
+        query: jest.fn()
+    }
 }));
+
+const mockPoolQuery = pool.query as jest.Mock;
 
 describe('General APIs', () => {
     beforeEach(() => {
@@ -16,11 +20,17 @@ describe('General APIs', () => {
 
     describe('Dashboard API', () => {
         it('should return dashboard stats', async () => {
-            (db.prepare as jest.Mock).mockImplementation((query) => {
-                if (query.includes('SELECT COUNT(*) as count FROM leads')) return { get: jest.fn().mockReturnValue({ count: 100 }) };
-                if (query.includes('GROUP BY status')) return { all: jest.fn().mockReturnValue([{ status: 'LEAD', count: 50 }, { status: 'MATRICULADO', count: 10 }]) };
-                if (query.includes('FROM settings')) return { get: jest.fn().mockReturnValue({ value: '100' }) };
-                return { get: jest.fn(), all: jest.fn() };
+            mockPoolQuery.mockImplementation((queryStr: string) => {
+                if (queryStr.includes('SELECT COUNT(*) as count FROM leads')) {
+                    return Promise.resolve({ rows: [{ count: '100' }], rowCount: 1 });
+                }
+                if (queryStr.includes('GROUP BY status')) {
+                    return Promise.resolve({ rows: [{ status: 'LEAD', count: '50' }, { status: 'MATRICULADO', count: '10' }], rowCount: 2 });
+                }
+                if (queryStr.includes('FROM settings')) {
+                    return Promise.resolve({ rows: [{ value: '100' }], rowCount: 1 });
+                }
+                return Promise.resolve({ rows: [], rowCount: 0 });
             });
 
             const res = await GET_DASHBOARD();
@@ -33,10 +43,9 @@ describe('General APIs', () => {
 
     describe('Settings API', () => {
         it('GET should return settings', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({
-                all: jest.fn().mockReturnValue([
-                    { key: 'openai_api_key', value: 'sk-123' }
-                ])
+            mockPoolQuery.mockResolvedValue({
+                rows: [{ key: 'openai_api_key', value: 'sk-123' }],
+                rowCount: 1
             });
 
             const res = await GET_SETTINGS();
@@ -46,9 +55,7 @@ describe('General APIs', () => {
         });
 
         it('POST should update settings', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({
-                run: jest.fn()
-            });
+            mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 1 });
 
             const req = new NextRequest('http://localhost/api/settings', {
                 method: 'POST',
@@ -64,8 +71,9 @@ describe('General APIs', () => {
 
     describe('Templates API', () => {
         it('GET should return templates', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({
-                all: jest.fn().mockReturnValue([{ id: 1, title: 'T1' }])
+            mockPoolQuery.mockResolvedValue({
+                rows: [{ id: 1, title: 'T1' }],
+                rowCount: 1
             });
 
             const res = await GET_TEMPLATES();
@@ -75,8 +83,9 @@ describe('General APIs', () => {
         });
 
         it('POST should create template', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({
-                run: jest.fn().mockReturnValue({ lastInsertRowid: 1 })
+            mockPoolQuery.mockResolvedValue({
+                rows: [{ id: 1, name: 'T1', message: 'C1' }],
+                rowCount: 1
             });
 
             const req = new NextRequest('http://localhost/api/templates', {
@@ -92,9 +101,7 @@ describe('General APIs', () => {
         });
 
         it('PUT should update template', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({
-                run: jest.fn().mockReturnValue({ changes: 1 })
-            });
+            mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 1 });
 
             const req = new NextRequest('http://localhost/api/templates', {
                 method: 'PUT',
@@ -108,9 +115,7 @@ describe('General APIs', () => {
         });
 
         it('DELETE should delete template', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({
-                run: jest.fn().mockReturnValue({ changes: 1 })
-            });
+            mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 1 });
 
             const req = new NextRequest('http://localhost/api/templates?id=1');
             const res = await DELETE_TEMPLATES(req);

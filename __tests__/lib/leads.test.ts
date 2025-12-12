@@ -1,19 +1,15 @@
 import { POST, PUT, DELETE } from '@/app/api/leads/route';
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 
 // Mock DB
 jest.mock('@/lib/db', () => ({
-    prepare: jest.fn().mockReturnValue({
-        run: jest.fn().mockReturnValue({ lastInsertRowid: 1 }),
-        get: jest.fn().mockReturnValue({
-            id: 1,
-            cpf: '12345678900',
-            nome: 'Test User',
-            telefone: '5551999999999',
-        }),
-    }),
+    pool: {
+        query: jest.fn(),
+    },
 }));
+
+const mockPoolQuery = pool.query as jest.Mock;
 
 // Mock NextResponse
 jest.mock('next/server', () => ({
@@ -29,20 +25,16 @@ describe('Leads API', () => {
     });
 
     it('should create a lead (POST)', async () => {
-        const mockRun = jest.fn().mockReturnValue({ lastInsertRowid: 1 });
-        const mockGet = jest.fn().mockReturnValue({
+        const mockLead = {
             id: 1,
             cpf: '12345678900',
             nome: 'Test User',
             telefone: '5551999999999',
             email: 'test@example.com',
             status: 'Novo'
-        });
+        };
 
-        (db.prepare as jest.Mock).mockReturnValue({
-            run: mockRun,
-            get: mockGet,
-        });
+        mockPoolQuery.mockResolvedValue({ rows: [mockLead], rowCount: 1 });
 
         const req = {
             json: jest.fn().mockResolvedValue({
@@ -57,10 +49,10 @@ describe('Leads API', () => {
 
         const res = await POST(req);
 
-        // Verify repository was used (INSERT query called)
-        expect(db.prepare).toHaveBeenCalled();
-        const calls = (db.prepare as jest.Mock).mock.calls;
-        const hasInsert = calls.some(call => call[0].includes('INSERT INTO leads'));
+        // Verify pool.query was called
+        expect(mockPoolQuery).toHaveBeenCalled();
+        const calls = mockPoolQuery.mock.calls;
+        const hasInsert = calls.some((call: any[]) => call[0]?.includes('INSERT INTO leads'));
         expect(hasInsert).toBe(true);
         expect(NextResponse.json).toHaveBeenCalledWith({
             success: true,
@@ -69,18 +61,18 @@ describe('Leads API', () => {
     });
 
     it('should update a lead (PUT)', async () => {
-        const mockGet = jest.fn().mockReturnValue({
+        const mockLead = {
             id: 1,
             cpf: '12345678900',
             nome: 'Test User',
             telefone: '5551999999999',
-        });
-        const mockRun = jest.fn().mockReturnValue({ changes: 1 });
+        };
 
-        (db.prepare as jest.Mock).mockReturnValue({
-            run: mockRun,
-            get: mockGet,
-        });
+        // First call returns the existing lead, second call updates
+        mockPoolQuery
+            .mockResolvedValueOnce({ rows: [mockLead], rowCount: 1 }) // find existing
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // update
+            .mockResolvedValueOnce({ rows: [{ ...mockLead, nome: 'Updated User' }], rowCount: 1 }); // return updated
 
         const req = {
             json: jest.fn().mockResolvedValue({
@@ -95,8 +87,8 @@ describe('Leads API', () => {
 
         const res = await PUT(req);
 
-        // Verify repository was used (SELECT and UPDATE queries called)
-        expect(db.prepare).toHaveBeenCalled();
+        // Verify pool.query was called
+        expect(mockPoolQuery).toHaveBeenCalled();
         expect(NextResponse.json).toHaveBeenCalledWith({
             success: true,
             data: expect.objectContaining({ id: 1 })
@@ -104,16 +96,14 @@ describe('Leads API', () => {
     });
 
     it('should delete a lead (DELETE)', async () => {
-        const mockGet = jest.fn().mockReturnValue({
+        const mockLead = {
             id: 1,
             cpf: '12345678900',
-        });
-        const mockRun = jest.fn().mockReturnValue({ changes: 1 });
+        };
 
-        (db.prepare as jest.Mock).mockReturnValue({
-            run: mockRun,
-            get: mockGet,
-        });
+        mockPoolQuery
+            .mockResolvedValueOnce({ rows: [mockLead], rowCount: 1 }) // find existing
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // delete
 
         const req = {
             url: 'http://localhost/api/leads?cpf=12345678900'
@@ -121,8 +111,8 @@ describe('Leads API', () => {
 
         const res = await DELETE(req);
 
-        // Verify repository was used (SELECT and DELETE queries called)
-        expect(db.prepare).toHaveBeenCalled();
+        // Verify pool.query was called
+        expect(mockPoolQuery).toHaveBeenCalled();
         expect(NextResponse.json).toHaveBeenCalledWith({ success: true });
     });
 });

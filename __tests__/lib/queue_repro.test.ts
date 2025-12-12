@@ -1,4 +1,3 @@
-
 import { messageQueue } from '@/lib/messageQueue';
 import * as whatsapp from '@/lib/whatsapp';
 
@@ -16,36 +15,22 @@ jest.mock('whatsapp-web.js', () => {
     };
 });
 
-// Mock DB
+// Mock DB - PostgreSQL async
 jest.mock('@/lib/db', () => ({
-    prepare: jest.fn().mockReturnValue({
-        run: jest.fn(),
-        get: jest.fn(),
-        all: jest.fn().mockImplementation((...args) => {
-            if (args.includes('queue_min_delay')) {
-                return [
-                    { key: 'queue_min_delay', value: '0' },
-                    { key: 'queue_max_delay', value: '0' }
-                ];
-            }
-            return [];
-        }),
-    }),
-    default: {
-        prepare: jest.fn().mockReturnValue({
-            run: jest.fn(),
-            get: jest.fn(),
-            all: jest.fn().mockImplementation((...args) => {
-                if (args.includes('queue_min_delay')) {
-                    return [
+    pool: {
+        query: jest.fn().mockImplementation((queryStr: string) => {
+            if (queryStr?.includes('settings')) {
+                return Promise.resolve({
+                    rows: [
                         { key: 'queue_min_delay', value: '0' },
                         { key: 'queue_max_delay', value: '0' }
-                    ];
-                }
-                return [];
-            }),
+                    ],
+                    rowCount: 2
+                });
+            }
+            return Promise.resolve({ rows: [], rowCount: 0 });
         }),
-    }
+    },
 }));
 
 // Spy on sendMessage
@@ -72,7 +57,6 @@ describe('Message Queue Reproduction', () => {
         }]);
 
         // Wait for processing (it's async)
-        // We can't easily await the private process method, but we can wait a bit
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Check if sendMessage was called

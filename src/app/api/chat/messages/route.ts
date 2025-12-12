@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 
 // GET /api/chat/messages?cpf=xxx&limit=50&offset=0
 export async function GET(req: NextRequest) {
@@ -8,48 +8,53 @@ export async function GET(req: NextRequest) {
         const cpf = searchParams.get('cpf');
         const limit = parseInt(searchParams.get('limit') || '50');
         const offset = parseInt(searchParams.get('offset') || '0');
-        const afterId = parseInt(searchParams.get('after_id') || '0');
+        const afterId = searchParams.get('after_id');
 
         if (!cpf) {
             return NextResponse.json({ error: 'CPF is required' }, { status: 400 });
         }
 
         // Verify contact exists
-        const contact = db.prepare('SELECT cpf FROM leads WHERE cpf = ?').get(cpf);
-        if (!contact) {
+        const contactResult = await pool.query('SELECT cpf FROM leads WHERE cpf = $1', [cpf]);
+        if (contactResult.rows.length === 0) {
             return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
         }
 
         let messages;
-        if (afterId > 0) {
-            // Fetch only new messages
-            messages = db.prepare(`
-                SELECT id, message_id, direction, body, media_url, media_type, timestamp, status
+        if (afterId) {
+            // Fetch only new messages after a specific timestamp or ID
+            const result = await pool.query(`
+                SELECT id, id as message_id, from_me, content as body, media_url, type as media_type, timestamp, 'sent' as status,
+                       CASE WHEN from_me THEN 'outgoing' ELSE 'incoming' END as direction
                 FROM messages
-                WHERE contact_cpf = ? AND id > ?
+                WHERE contact_phone = $1 AND timestamp > (SELECT timestamp FROM messages WHERE id = $2)
                 ORDER BY timestamp ASC
-            `).all(cpf, afterId);
+            `, [cpf, afterId]);
+            messages = result.rows;
         } else {
             // Fetch initial history (reversed for UI)
-            messages = db.prepare(`
-                SELECT id, message_id, direction, body, media_url, media_type, timestamp, status
+            const result = await pool.query(`
+                SELECT id, id as message_id, from_me, content as body, media_url, type as media_type, timestamp, 'sent' as status,
+                       CASE WHEN from_me THEN 'outgoing' ELSE 'incoming' END as direction
                 FROM messages
-                WHERE contact_cpf = ?
+                WHERE contact_phone = $1
                 ORDER BY timestamp DESC
-                LIMIT ? OFFSET ?
-            `).all(cpf, limit, offset);
-
-            // Reverse to show oldest first if it's the initial load
-            messages = messages.reverse();
+                LIMIT $2 OFFSET $3
+            `, [cpf, limit, offset]);
+            messages = result.rows.reverse();
         }
 
         // Get total count
-        const totalResult = db.prepare('SELECT COUNT(*) as total FROM messages WHERE contact_cpf = ?').get(cpf) as { total: number };
+        const totalResult = await pool.query(
+            'SELECT COUNT(*) as total FROM messages WHERE contact_phone = $1',
+            [cpf]
+        );
+        const total = parseInt(totalResult.rows[0].total);
 
         return NextResponse.json({
-            messages: messages, // Order is already handled above
-            total: totalResult.total,
-            hasMore: offset + limit < totalResult.total
+            messages,
+            total,
+            hasMore: offset + limit < total
         });
     } catch (error) {
         console.error('Error fetching messages:', error);

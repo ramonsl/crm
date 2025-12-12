@@ -1,9 +1,10 @@
 /**
- * LeadRepository - Implementation
+ * LeadRepository - PostgreSQL Implementation
  * Handles all database operations for leads/contacts
  */
 
-import type { DatabaseInstance, LeadRow } from '../types';
+import { pool } from '../db';
+import type { LeadRow } from '../types';
 import type {
     CreateLeadDto,
     UpdateLeadDto,
@@ -12,32 +13,34 @@ import type {
 import type { ILeadRepository } from './interfaces';
 
 export class LeadRepository implements ILeadRepository {
-    constructor(private db: DatabaseInstance) { }
+    // Pool is imported directly, no need for constructor injection
 
-    findAll(filters?: LeadFilters): LeadRow[] {
+    async findAll(filters?: LeadFilters): Promise<LeadRow[]> {
         let query = 'SELECT * FROM leads WHERE 1=1';
         const params: any[] = [];
+        let paramIndex = 1;
 
         // Apply filters
         if (filters?.status && filters.status !== 'all') {
-            query += ' AND status = ?';
+            query += ` AND status = $${paramIndex++}`;
             params.push(filters.status);
         }
 
         if (filters?.curso && filters.curso !== 'all') {
-            query += ' AND curso_interesse = ?';
+            query += ` AND curso_interesse = $${paramIndex++}`;
             params.push(filters.curso);
         }
 
         if (filters?.escola && filters.escola !== 'all') {
-            query += ' AND escola = ?';
+            query += ` AND escola = $${paramIndex++}`;
             params.push(filters.escola);
         }
 
         if (filters?.search) {
-            query += ' AND (nome LIKE ? OR cpf LIKE ? OR telefone LIKE ? OR email LIKE ?)';
             const searchParam = `%${filters.search}%`;
-            params.push(searchParam, searchParam, searchParam, searchParam);
+            query += ` AND (nome ILIKE $${paramIndex} OR cpf ILIKE $${paramIndex} OR telefone ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`;
+            paramIndex++;
+            params.push(searchParam);
         }
 
         if (filters?.hasUnread) {
@@ -45,141 +48,126 @@ export class LeadRepository implements ILeadRepository {
         }
 
         // Order by
-        query += ' ORDER BY id DESC';
+        query += ' ORDER BY created_at DESC';
 
         // Pagination
         if (filters?.pageSize) {
-            query += ' LIMIT ?';
+            query += ` LIMIT $${paramIndex++}`;
             params.push(filters.pageSize);
 
             if (filters?.page && filters.page > 1) {
-                query += ' OFFSET ?';
+                query += ` OFFSET $${paramIndex++}`;
                 params.push((filters.page - 1) * filters.pageSize);
             }
         }
 
-        const stmt = this.db.prepare(query);
-        return stmt.all(...params) as LeadRow[];
+        const result = await pool.query(query, params);
+        return result.rows as LeadRow[];
     }
 
-    findById(id: number): LeadRow | null {
-        const stmt = this.db.prepare('SELECT * FROM leads WHERE id = ?');
-        const result = stmt.get(id) as LeadRow | undefined;
-        return result || null;
+    async findById(id: number): Promise<LeadRow | null> {
+        const result = await pool.query('SELECT * FROM leads WHERE id = $1', [id]);
+        return result.rows[0] || null;
     }
 
-    findByCpf(cpf: string): LeadRow | null {
-        const stmt = this.db.prepare('SELECT * FROM leads WHERE cpf = ?');
-        const result = stmt.get(cpf) as LeadRow | undefined;
-        return result || null;
+    async findByCpf(cpf: string): Promise<LeadRow | null> {
+        const result = await pool.query('SELECT * FROM leads WHERE cpf = $1', [cpf]);
+        return result.rows[0] || null;
     }
 
-    findByPhone(phone: string): LeadRow | null {
+    async findByPhone(phone: string): Promise<LeadRow | null> {
         // Try exact match first
-        let stmt = this.db.prepare('SELECT * FROM leads WHERE telefone = ?');
-        let result = stmt.get(phone) as LeadRow | undefined;
+        let result = await pool.query('SELECT * FROM leads WHERE telefone = $1', [phone]);
+        if (result.rows[0]) return result.rows[0];
 
-        if (result) return result;
-
-        // Try with variations (remove country code, add/remove 9th digit for Brazilian numbers)
+        // Try with variations (remove country code)
         const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
-
-        stmt = this.db.prepare('SELECT * FROM leads WHERE telefone = ?');
-        result = stmt.get(phoneWithoutCountry) as LeadRow | undefined;
-
-        if (result) return result;
+        result = await pool.query('SELECT * FROM leads WHERE telefone = $1', [phoneWithoutCountry]);
+        if (result.rows[0]) return result.rows[0];
 
         // Try last 8 digits match (fallback)
         if (phone.length >= 8) {
             const last8 = phone.slice(-8);
-            stmt = this.db.prepare('SELECT * FROM leads WHERE telefone LIKE ?');
-            result = stmt.get(`%${last8}`) as LeadRow | undefined;
-
-            if (result) return result;
+            result = await pool.query('SELECT * FROM leads WHERE telefone LIKE $1', [`%${last8}`]);
+            if (result.rows[0]) return result.rows[0];
         }
 
         return null;
     }
 
-    create(data: CreateLeadDto): LeadRow {
-        const stmt = this.db.prepare(`
+    async create(data: CreateLeadDto): Promise<LeadRow> {
+        const result = await pool.query(`
             INSERT INTO leads (cpf, nome, telefone, email, status, tipo_ingresso, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        `);
-
-        const result = stmt.run(
+            VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+            RETURNING *
+        `, [
             data.cpf,
             data.nome,
             data.telefone || null,
             data.email || null,
             data.status || 'NOVO',
             data.tipo_ingresso || null
-        );
+        ]);
 
-        // Use CPF to find the created lead since CPF is PRIMARY KEY
-        const createdLead = this.findByCpf(data.cpf);
-        if (!createdLead) {
-            throw new Error('Failed to create lead');
-        }
-
-        return createdLead;
+        return result.rows[0] as LeadRow;
     }
 
-    update(cpf: string, data: UpdateLeadDto): void {
+    async update(cpf: string, data: UpdateLeadDto): Promise<void> {
         const fields: string[] = [];
         const params: any[] = [];
+        let paramIndex = 1;
 
         // Build dynamic UPDATE query
         if (data.nome !== undefined) {
-            fields.push('nome = ?');
+            fields.push(`nome = $${paramIndex++}`);
             params.push(data.nome);
         }
         if (data.telefone !== undefined) {
-            fields.push('telefone = ?');
+            fields.push(`telefone = $${paramIndex++}`);
             params.push(data.telefone);
         }
         if (data.email !== undefined) {
-            fields.push('email = ?');
+            fields.push(`email = $${paramIndex++}`);
             params.push(data.email);
         }
         if (data.status !== undefined) {
-            fields.push('status = ?');
+            fields.push(`status = $${paramIndex++}`);
             params.push(data.status);
         }
         if (data.notes !== undefined) {
-            fields.push('notes = ?');
+            fields.push(`notes = $${paramIndex++}`);
             params.push(data.notes);
         }
         if (data.curso_interesse !== undefined) {
-            fields.push('curso_interesse = ?');
+            fields.push(`curso_interesse = $${paramIndex++}`);
             params.push(data.curso_interesse);
         }
         if (data.escola !== undefined) {
-            fields.push('escola = ?');
+            fields.push(`escola = $${paramIndex++}`);
             params.push(data.escola);
         }
         if (data.tipo_ingresso !== undefined) {
-            fields.push('tipo_ingresso = ?');
+            fields.push(`tipo_ingresso = $${paramIndex++}`);
             params.push(data.tipo_ingresso);
         }
         if (data.last_message !== undefined) {
-            fields.push('last_message = ?');
+            fields.push(`last_message = $${paramIndex++}`);
             params.push(data.last_message);
         }
         if (data.last_message_time !== undefined) {
-            fields.push('last_message_time = ?');
+            fields.push(`last_message_time = $${paramIndex++}`);
             params.push(data.last_message_time);
         }
         if (data.unread_count !== undefined) {
-            fields.push('unread_count = ?');
+            fields.push(`unread_count = $${paramIndex++}`);
             params.push(data.unread_count);
         }
         if (data.profile_image !== undefined) {
-            fields.push('profile_image = ?');
+            fields.push(`profile_image = $${paramIndex++}`);
             params.push(data.profile_image);
         }
         if (data.last_template_name !== undefined) {
-            fields.push('last_template_name = ?');
+            fields.push(`last_template_name = $${paramIndex++}`);
             params.push(data.last_template_name);
         }
 
@@ -187,77 +175,91 @@ export class LeadRepository implements ILeadRepository {
             return; // Nothing to update
         }
 
+        fields.push('updated_at = NOW()');
         params.push(cpf); // Add CPF for WHERE clause
 
-        const query = `UPDATE leads SET ${fields.join(', ')} WHERE cpf = ?`;
-        const stmt = this.db.prepare(query);
-        stmt.run(...params);
+        const query = `UPDATE leads SET ${fields.join(', ')} WHERE cpf = $${paramIndex}`;
+        await pool.query(query, params);
     }
 
-    delete(cpf: string): void {
-        const stmt = this.db.prepare('DELETE FROM leads WHERE cpf = ?');
-        stmt.run(cpf);
+    async delete(cpf: string): Promise<void> {
+        await pool.query('DELETE FROM leads WHERE cpf = $1', [cpf]);
     }
 
-    updateLastMessage(cpf: string, message: string, time: string): void {
-        const stmt = this.db.prepare(`
+    async updateLastMessage(cpf: string, message: string, time: string): Promise<void> {
+        await pool.query(`
             UPDATE leads 
-            SET last_message = ?, last_message_time = ? 
-            WHERE cpf = ?
-        `);
-        stmt.run(message, time, cpf);
+            SET last_message = $1, last_message_time = $2 
+            WHERE cpf = $3
+        `, [message, time, cpf]);
     }
 
-    incrementUnreadCount(cpf: string): void {
-        const stmt = this.db.prepare(`
+    async incrementUnreadCount(cpf: string): Promise<void> {
+        await pool.query(`
             UPDATE leads 
             SET unread_count = COALESCE(unread_count, 0) + 1 
-            WHERE cpf = ?
-        `);
-        stmt.run(cpf);
+            WHERE cpf = $1
+        `, [cpf]);
     }
 
-    resetUnreadCount(cpf: string): void {
-        const stmt = this.db.prepare(`
+    async resetUnreadCount(cpf: string): Promise<void> {
+        await pool.query(`
             UPDATE leads 
             SET unread_count = 0 
-            WHERE cpf = ?
-        `);
-        stmt.run(cpf);
+            WHERE cpf = $1
+        `, [cpf]);
     }
 
-    count(filters?: LeadFilters): number {
+    async count(filters?: LeadFilters): Promise<number> {
         let query = 'SELECT COUNT(*) as count FROM leads WHERE 1=1';
         const params: any[] = [];
+        let paramIndex = 1;
 
         // Apply same filters as findAll
         if (filters?.status && filters.status !== 'all') {
-            query += ' AND status = ?';
+            query += ` AND status = $${paramIndex++}`;
             params.push(filters.status);
         }
 
         if (filters?.curso && filters.curso !== 'all') {
-            query += ' AND curso_interesse = ?';
+            query += ` AND curso_interesse = $${paramIndex++}`;
             params.push(filters.curso);
         }
 
         if (filters?.escola && filters.escola !== 'all') {
-            query += ' AND escola = ?';
+            query += ` AND escola = $${paramIndex++}`;
             params.push(filters.escola);
         }
 
         if (filters?.search) {
-            query += ' AND (nome LIKE ? OR cpf LIKE ? OR telefone LIKE ? OR email LIKE ?)';
             const searchParam = `%${filters.search}%`;
-            params.push(searchParam, searchParam, searchParam, searchParam);
+            query += ` AND (nome ILIKE $${paramIndex} OR cpf ILIKE $${paramIndex} OR telefone ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`;
+            paramIndex++;
+            params.push(searchParam);
         }
 
         if (filters?.hasUnread) {
             query += ' AND unread_count > 0';
         }
 
-        const stmt = this.db.prepare(query);
-        const result = stmt.get(...params) as { count: number };
-        return result.count;
+        const result = await pool.query(query, params);
+        return parseInt(result.rows[0].count);
+    }
+
+    // Synchronous wrappers for backward compatibility (deprecated - use async versions)
+    findAllSync(filters?: LeadFilters): LeadRow[] {
+        console.warn('[LeadRepository] findAllSync is deprecated. Use findAll() instead.');
+        // Return empty array - callers need to migrate to async
+        return [];
+    }
+
+    findByIdSync(id: number): LeadRow | null {
+        console.warn('[LeadRepository] findByIdSync is deprecated. Use findById() instead.');
+        return null;
+    }
+
+    findByCpfSync(cpf: string): LeadRow | null {
+        console.warn('[LeadRepository] findByCpfSync is deprecated. Use findByCpf() instead.');
+        return null;
     }
 }

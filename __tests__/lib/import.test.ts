@@ -1,16 +1,19 @@
 import { POST } from '@/app/api/upload/route';
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 import * as XLSX from 'xlsx';
 
 // Mock DB
 jest.mock('@/lib/db', () => ({
-    prepare: jest.fn().mockReturnValue({
-        run: jest.fn(),
-        get: jest.fn(), // for checkStmt
-    }),
-    transaction: jest.fn((fn) => fn), // Execute immediately
+    pool: {
+        query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+    },
+    transaction: jest.fn(async (fn) => fn({
+        query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+    })),
 }));
+
+const mockPoolQuery = pool.query as jest.Mock;
 
 // Mock XLSX
 jest.mock('xlsx', () => ({
@@ -34,6 +37,7 @@ jest.mock('next/server', () => ({
 describe('Import API', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 0 });
     });
 
     it('should process upload and insert leads', async () => {
@@ -55,18 +59,16 @@ describe('Import API', () => {
             ['Test User', 'test@example.com', '51999999999', '12345678900', 'Novo']
         ]);
 
+        // Mock pool.query to return no existing lead
+        mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+
         await POST(req);
 
         // Verify DB calls
-        // We expect:
-        // 1. prepare INSERT
-        // 2. prepare UPDATE
-        // 3. prepare SELECT (check)
-        // 4. transaction execution
-        // 5. checkStmt.get()
-        // 6. insertStmt.run() (since checkStmt returns null by default mock)
-
-        expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO leads'));
+        expect(mockPoolQuery).toHaveBeenCalled();
+        const calls = mockPoolQuery.mock.calls;
+        const hasInsert = calls.some((call: any[]) => call[0]?.includes('INSERT INTO leads'));
+        expect(hasInsert).toBe(true);
         expect(NextResponse.json).toHaveBeenCalledWith(
             expect.objectContaining({ message: 'Success', created: 1 })
         );

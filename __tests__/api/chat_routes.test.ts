@@ -1,13 +1,17 @@
 import { GET as GET_CONTACTS } from '@/app/api/chat/contacts/route';
 import { POST as POST_SEND } from '@/app/api/chat/send/route';
 import { NextRequest } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 import { sendMessage } from '@/lib/whatsapp';
 
 // Mock DB
 jest.mock('@/lib/db', () => ({
-    prepare: jest.fn()
+    pool: {
+        query: jest.fn()
+    }
 }));
+
+const mockPoolQuery = pool.query as jest.Mock;
 
 // Mock WhatsApp
 jest.mock('@/lib/whatsapp', () => ({
@@ -22,12 +26,21 @@ describe('Chat Routes API', () => {
     describe('GET /api/chat/contacts', () => {
         it('should return contacts list', async () => {
             const mockContacts = [
-                { cpf: '123', nome: 'Test', last_message: 'Hello' }
+                {
+                    cpf: '12345678901',
+                    nome: 'Test',
+                    telefone: '5511999999999',  // Valid phone number
+                    last_message: 'Hello',
+                    last_message_time: null,
+                    last_message_direction: null,
+                    unread_count: 0,
+                    status: 'Novo',
+                    tipo_ingresso: 'Vestibular',
+                    profile_image: null
+                }
             ];
 
-            (db.prepare as jest.Mock).mockReturnValue({
-                all: jest.fn().mockReturnValue(mockContacts)
-            });
+            mockPoolQuery.mockResolvedValue({ rows: mockContacts, rowCount: 1 });
 
             const req = new NextRequest('http://localhost/api/chat/contacts');
             const res = await GET_CONTACTS(req);
@@ -35,18 +48,19 @@ describe('Chat Routes API', () => {
 
             expect(res.status).toBe(200);
             expect(data.contacts).toHaveLength(1);
-            expect(data.contacts[0].cpf).toBe('123');
+            expect(data.contacts[0].cpf).toBe('12345678901');
+            expect(data.contacts[0].telefone).toBe('5511999999999');
         });
     });
 
     describe('POST /api/chat/send', () => {
         it('should send message successfully', async () => {
             // Mock DB to find contact
-            (db.prepare as jest.Mock).mockImplementation((query) => {
-                if (query.includes('SELECT telefone')) {
-                    return { get: jest.fn().mockReturnValue({ telefone: '5511999999999' }) };
+            mockPoolQuery.mockImplementation((queryStr: string) => {
+                if (queryStr.includes('SELECT') && queryStr.includes('telefone')) {
+                    return Promise.resolve({ rows: [{ telefone: '5511999999999' }], rowCount: 1 });
                 }
-                return { run: jest.fn() }; // Insert message
+                return Promise.resolve({ rows: [], rowCount: 1 }); // Insert message
             });
 
             // Mock WhatsApp success
@@ -70,9 +84,7 @@ describe('Chat Routes API', () => {
         });
 
         it('should return 404 if contact not found', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({
-                get: jest.fn().mockReturnValue(undefined)
-            });
+            mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 0 });
 
             const req = new NextRequest('http://localhost/api/chat/send', {
                 method: 'POST',

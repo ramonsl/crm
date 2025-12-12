@@ -1,9 +1,10 @@
 /**
  * Repository interfaces
  * Define contracts for data access layer
+ * All methods are async for PostgreSQL compatibility
  */
 
-import type { LeadRow, TemplateRow, MessageHistoryRow, SettingRow, ActivityRow } from '../types';
+import type { LeadRow, TemplateRow, MessageHistoryRow, SettingRow, ActivityRow, UserRow, SessionRow } from '../types';
 import type {
     CreateLeadDto,
     UpdateLeadDto,
@@ -15,6 +16,8 @@ import type {
     UpdateSettingDto,
     CreateActivityDto,
     ActivityFilters,
+    CreateUserDto,
+    UpdateUserDto,
 } from './dtos';
 
 // ============================================================================
@@ -25,60 +28,60 @@ export interface ILeadRepository {
     /**
      * Find all leads with optional filters
      */
-    findAll(filters?: LeadFilters): LeadRow[];
+    findAll(filters?: LeadFilters): Promise<LeadRow[]>;
 
     /**
      * Find lead by ID
      */
-    findById(id: number): LeadRow | null;
+    findById(id: number): Promise<LeadRow | null>;
 
     /**
      * Find lead by CPF
      */
-    findByCpf(cpf: string): LeadRow | null;
+    findByCpf(cpf: string): Promise<LeadRow | null>;
 
     /**
      * Find lead by phone number (tries multiple variations)
      */
-    findByPhone(phone: string): LeadRow | null;
+    findByPhone(phone: string): Promise<LeadRow | null>;
 
     /**
      * Create new lead
      */
-    create(lead: CreateLeadDto): LeadRow;
+    create(lead: CreateLeadDto): Promise<LeadRow>;
 
     /**
      * Update a lead by CPF
      * @param cpf - CPF of the lead to update
      * @param data - Partial lead data to update
      */
-    update(cpf: string, data: UpdateLeadDto): void;
+    update(cpf: string, data: UpdateLeadDto): Promise<void>;
 
     /**
      * Delete a lead by CPF
      * @param cpf - CPF of the lead to delete
      */
-    delete(cpf: string): void;
+    delete(cpf: string): Promise<void>;
 
     /**
      * Update last message info
      */
-    updateLastMessage(cpf: string, message: string, time: string): void;
+    updateLastMessage(cpf: string, message: string, time: string): Promise<void>;
 
     /**
      * Increment unread message count
      */
-    incrementUnreadCount(cpf: string): void;
+    incrementUnreadCount(cpf: string): Promise<void>;
 
     /**
      * Reset unread message count to 0
      */
-    resetUnreadCount(cpf: string): void;
+    resetUnreadCount(cpf: string): Promise<void>;
 
     /**
      * Count total leads with optional filters
      */
-    count(filters?: LeadFilters): number;
+    count(filters?: LeadFilters): Promise<number>;
 }
 
 // ============================================================================
@@ -174,20 +177,97 @@ export interface IActivityRepository {
      * @param cpf - Contact CPF
      * @param limit - Optional limit (default: 50)
      */
-    findByContact(cpf: string, limit?: number): ActivityRow[];
+    findByContact(cpf: string, limit?: number): Promise<ActivityRow[]>;
 
     /**
      * Create new activity
      */
-    create(data: CreateActivityDto): ActivityRow;
+    create(data: CreateActivityDto): Promise<ActivityRow>;
 
     /**
      * Find recent activities with optional filters
      */
-    findRecent(filters?: ActivityFilters): ActivityRow[];
+    findRecent(filters?: ActivityFilters): Promise<ActivityRow[]>;
 
     /**
      * Count activities by contact CPF
      */
-    countByContact(cpf: string): number;
+    countByContact(cpf: string): Promise<number>;
+}
+
+// ============================================================================
+// USER REPOSITORY - Authentication
+// ============================================================================
+
+export interface IUserRepository {
+    /**
+     * Find all users
+     */
+    findAll(): Promise<UserRow[]>;
+
+    /**
+     * Find user by ID
+     */
+    findById(id: number): Promise<UserRow | null>;
+
+    /**
+     * Find user by email
+     */
+    findByEmail(email: string): Promise<UserRow | null>;
+
+    /**
+     * Create new user
+     */
+    create(data: CreateUserDto): Promise<UserRow>;
+
+    /**
+     * Update user
+     */
+    update(id: number, data: UpdateUserDto): Promise<void>;
+
+    /**
+     * Delete user
+     */
+    delete(id: number): Promise<void>;
+
+    /**
+     * Count total users
+     */
+    count(): Promise<number>;
+}
+
+// ============================================================================
+// SESSION REPOSITORY - Authentication
+// ============================================================================
+
+export interface ISessionRepository {
+    /**
+     * Create new session
+     */
+    create(userId: number, expiresAt: string): Promise<SessionRow>;
+
+    /**
+     * Find session by ID
+     */
+    findById(sessionId: string): Promise<SessionRow | null>;
+
+    /**
+     * Find sessions by user ID
+     */
+    findByUserId(userId: number): Promise<SessionRow[]>;
+
+    /**
+     * Delete session
+     */
+    delete(sessionId: string): Promise<void>;
+
+    /**
+     * Delete all sessions for a user
+     */
+    deleteByUserId(userId: number): Promise<void>;
+
+    /**
+     * Delete expired sessions
+     */
+    deleteExpired(): Promise<void>;
 }

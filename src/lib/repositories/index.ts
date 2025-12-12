@@ -15,3 +15,5 @@ export { TemplateRepository } from './TemplateRepository';
 export { MessageHistoryRepository } from './MessageHistoryRepository';
 export { SettingRepository } from './SettingRepository';
 export { ActivityRepository } from './ActivityRepository';
+export { UserRepository } from './UserRepository';
+export { SessionRepository } from './SessionRepository';

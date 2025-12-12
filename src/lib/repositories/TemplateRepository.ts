@@ -1,55 +1,50 @@
 /**
- * TemplateRepository - Implementation
+ * TemplateRepository - PostgreSQL Implementation
  * Handles all database operations for message templates
  */
 
-import type { DatabaseInstance, TemplateRow } from '../types';
+import { pool } from '../db';
+import type { TemplateRow } from '../types';
 import type { CreateTemplateDto, UpdateTemplateDto } from './dtos';
 import type { ITemplateRepository } from './interfaces';
 
 export class TemplateRepository implements ITemplateRepository {
-    constructor(private db: DatabaseInstance) { }
 
     async findAll(): Promise<TemplateRow[]> {
-        const stmt = this.db.prepare('SELECT * FROM templates ORDER BY id ASC');
-        return stmt.all() as TemplateRow[];
+        const result = await pool.query('SELECT * FROM templates ORDER BY id ASC');
+        return result.rows as TemplateRow[];
     }
 
     async findById(id: number): Promise<TemplateRow | null> {
-        const stmt = this.db.prepare('SELECT * FROM templates WHERE id = ?');
-        const result = stmt.get(id) as TemplateRow | undefined;
-        return result || null;
+        const result = await pool.query('SELECT * FROM templates WHERE id = $1', [id]);
+        return result.rows[0] || null;
     }
 
     async create(template: CreateTemplateDto): Promise<TemplateRow> {
-        const stmt = this.db.prepare(`
+        const result = await pool.query(`
             INSERT INTO templates (name, message, type)
-            VALUES (?, ?, ?)
-        `);
+            VALUES ($1, $2, $3)
+            RETURNING *
+        `, [template.name, template.message, template.type]);
 
-        const result = stmt.run(
-            template.name,
-            template.message,
-            template.type
-        );
-
-        return this.findById(result.lastInsertRowid as number) as Promise<TemplateRow>;
+        return result.rows[0] as TemplateRow;
     }
 
     async update(id: number, data: UpdateTemplateDto): Promise<void> {
         const fields: string[] = [];
         const params: any[] = [];
+        let paramIndex = 1;
 
         if (data.name !== undefined) {
-            fields.push('name = ?');
+            fields.push(`name = $${paramIndex++}`);
             params.push(data.name);
         }
         if (data.message !== undefined) {
-            fields.push('message = ?');
+            fields.push(`message = $${paramIndex++}`);
             params.push(data.message);
         }
         if (data.type !== undefined) {
-            fields.push('type = ?');
+            fields.push(`type = $${paramIndex++}`);
             params.push(data.type);
         }
 
@@ -59,13 +54,11 @@ export class TemplateRepository implements ITemplateRepository {
 
         params.push(id);
 
-        const query = `UPDATE templates SET ${fields.join(', ')} WHERE id = ?`;
-        const stmt = this.db.prepare(query);
-        stmt.run(...params);
+        const query = `UPDATE templates SET ${fields.join(', ')} WHERE id = $${paramIndex}`;
+        await pool.query(query, params);
     }
 
     async delete(id: number): Promise<void> {
-        const stmt = this.db.prepare('DELETE FROM templates WHERE id = ?');
-        stmt.run(id);
+        await pool.query('DELETE FROM templates WHERE id = $1', [id]);
     }
 }

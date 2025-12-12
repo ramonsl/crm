@@ -1,27 +1,25 @@
 /**
- * SettingRepository - Implementation
+ * SettingRepository - PostgreSQL Implementation
  * Handles all database operations for system settings
  */
 
-import type { DatabaseInstance, SettingRow } from '../types';
+import { pool } from '../db';
+import type { SettingRow } from '../types';
 import type { ISettingRepository } from './interfaces';
 
 export class SettingRepository implements ISettingRepository {
-    constructor(private db: DatabaseInstance) { }
 
     async get(key: string): Promise<string | null> {
-        const stmt = this.db.prepare('SELECT value FROM settings WHERE key = ?');
-        const result = stmt.get(key) as SettingRow | undefined;
-        return result?.value || null;
+        const result = await pool.query('SELECT value FROM settings WHERE key = $1', [key]);
+        return result.rows[0]?.value || null;
     }
 
     async set(key: string, value: string): Promise<void> {
-        const stmt = this.db.prepare(`
+        await pool.query(`
             INSERT INTO settings (key, value) 
-            VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-        `);
-        stmt.run(key, value);
+            VALUES ($1, $2)
+            ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value
+        `, [key, value]);
     }
 
     async getMultiple(keys: string[]): Promise<SettingRow[]> {
@@ -29,14 +27,14 @@ export class SettingRepository implements ISettingRepository {
             return [];
         }
 
-        const placeholders = keys.map(() => '?').join(',');
+        const placeholders = keys.map((_, i) => `$${i + 1}`).join(',');
         const query = `SELECT key, value FROM settings WHERE key IN (${placeholders})`;
-        const stmt = this.db.prepare(query);
-        return stmt.all(...keys) as SettingRow[];
+        const result = await pool.query(query, keys);
+        return result.rows as SettingRow[];
     }
 
     async getAll(): Promise<SettingRow[]> {
-        const stmt = this.db.prepare('SELECT key, value FROM settings');
-        return stmt.all() as SettingRow[];
+        const result = await pool.query('SELECT key, value FROM settings');
+        return result.rows as SettingRow[];
     }
 }

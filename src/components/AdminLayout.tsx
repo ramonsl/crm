@@ -1,24 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Detect mobile screen
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth <= 768);
+            if (window.innerWidth <= 768) {
+                setSidebarCollapsed(true); // Start collapsed on mobile
+            }
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    const toggleSidebar = () => {
+        setSidebarCollapsed(!sidebarCollapsed);
+    };
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg-body)' }}>
-            <Sidebar isOpen={sidebarOpen} />
+            <Sidebar isOpen={!sidebarCollapsed} onToggle={toggleSidebar} />
 
             <div style={{
                 flex: 1,
-                marginLeft: '260px', // Matches sidebar width
+                marginLeft: sidebarCollapsed ? '0' : (isMobile ? '0' : '260px'),
                 display: 'flex',
                 flexDirection: 'column',
                 transition: 'margin-left 0.3s ease'
             }}>
-                <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+                <Header toggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
 
                 <main style={{
                     flex: 1,
@@ -29,31 +48,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </main>
             </div>
 
-            {/* Mobile Overlay */}
-            {sidebarOpen && (
+            {/* Mobile Overlay - shows when sidebar is open on mobile */}
+            {!sidebarCollapsed && isMobile && (
                 <div
                     style={{
                         position: 'fixed',
                         inset: 0,
                         backgroundColor: 'rgba(0,0,0,0.5)',
-                        zIndex: 45,
-                        display: 'none' // Only show on mobile via media query in CSS if needed, or handle via JS
+                        zIndex: 45
                     }}
-                    onClick={() => setSidebarOpen(false)}
-                    className="mobile-overlay"
+                    onClick={() => setSidebarCollapsed(true)}
                 />
             )}
-
-            <style jsx global>{`
-        @media (max-width: 768px) {
-          div[style*="marginLeft: 260px"] {
-            margin-left: 0 !important;
-          }
-          .mobile-overlay {
-            display: block !important;
-          }
-        }
-      `}</style>
         </div>
     );
 }

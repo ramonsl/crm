@@ -3,16 +3,21 @@
  * Eliminates use of 'any' and provides type safety
  */
 
-import type { Database } from 'better-sqlite3';
+import type { Pool, PoolClient } from '@neondatabase/serverless';
 
 // ============================================================================
 // DATABASE TYPES
 // ============================================================================
 
 /**
- * Better-sqlite3 Database instance type
+ * Neon PostgreSQL Pool instance type
  */
-export type DatabaseInstance = Database;
+export type DatabaseInstance = Pool;
+
+/**
+ * Neon PostgreSQL Client type (for transactions)
+ */
+export type DatabaseClient = PoolClient;
 
 /**
  * Settings table row
@@ -44,6 +49,13 @@ export interface LeadRow {
     status_changed: number;
     last_import_date: string | null;
     last_template_name: string | null;
+    tipo_ingresso?: string | null;
+    whatsapp_valido?: number;
+    profile_picture?: string | null;
+    last_template_sent?: string | null;
+    last_template_sent_at?: string | null;
+    created_at?: string;
+    updated_at?: string;
 }
 
 /**
@@ -63,15 +75,14 @@ export interface MessageHistoryRow {
  * Message table row
  */
 export interface MessageRow {
-    id: number;
-    contact_cpf: string;
-    message_id: string;
-    direction: 'incoming' | 'outgoing';
-    body: string;
+    id: string;
+    contact_phone: string;
+    content: string | null;
     timestamp: string;
-    status: 'sent' | 'delivered' | 'read' | 'failed';
+    from_me: boolean;
+    type: string;
     media_url: string | null;
-    media_type: 'image' | 'audio' | 'video' | 'document' | null;
+    read: boolean;
 }
 
 /**
@@ -82,6 +93,7 @@ export interface TemplateRow {
     name: string;
     message: string;
     type: 'fixed' | 'ai';
+    created_at?: string;
 }
 
 /**
@@ -97,6 +109,44 @@ export interface ActivityRow {
     metadata: string | null;
     created_at: string;
 }
+
+/**
+ * User table row - Authentication
+ */
+export interface UserRow {
+    id: number;
+    email: string;
+    password_hash: string;
+    name: string;
+    role: string;
+    active: number;
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * Session table row - Authentication
+ */
+export interface SessionRow {
+    id: string;
+    user_id: number;
+    expires_at: string;
+    created_at: string;
+}
+
+/**
+ * Status table row
+ */
+export interface StatusRow {
+    id: number;
+    name: string;
+    color: string;
+    display_order: number;
+    active: number;
+    created_at: string;
+    updated_at: string;
+}
+
 
 // ============================================================================
 // WHATSAPP TYPES

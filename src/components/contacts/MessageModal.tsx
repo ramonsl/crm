@@ -120,11 +120,17 @@ export function MessageModal({ contact, isOpen, onClose, onSent }: MessageModalP
                 onClose();
             } else {
                 const errorData = await response.json();
-                toastError(`Erro ao enviar: ${errorData.error || 'Erro desconhecido'}`);
+
+                // Show a clearer message for WhatsApp connection issues
+                if (errorData.needsConnection) {
+                    toastError(`⚠️ ${errorData.error}`);
+                } else {
+                    toastError(`Erro ao enviar: ${errorData.error || 'Erro desconhecido'}`);
+                }
             }
         } catch (err) {
             console.error('Send error:', err);
-            toastError('Erro ao enviar mensagem');
+            toastError('Erro ao enviar mensagem. Verifique sua conexão.');
         } finally {
             setSending(false);
         }

@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 import { getStatus, getClient } from '@/lib/whatsapp';
 import { WHATSAPP_CONFIG } from '@/lib/constants';
 
-// POST /api/whatsapp/sync-history - Sync conversation history from WhatsApp
 export async function POST(req: NextRequest) {
     try {
         const status = getStatus();
 
         if (status.status !== 'ready') {
-            return NextResponse.json({
-                error: 'WhatsApp não está conectado',
-                status: status.status
-            }, { status: 400 });
+            return NextResponse.json({ error: 'WhatsApp não está conectado', status: status.status }, { status: 400 });
         }
 
         const client = getClient();
         if (!client) {
-            return NextResponse.json({
-                error: 'Cliente WhatsApp não disponível'
-            }, { status: 400 });
+            return NextResponse.json({ error: 'Cliente WhatsApp não disponível' }, { status: 400 });
         }
 
         const body = await req.json().catch(() => ({}));
@@ -28,15 +22,16 @@ export async function POST(req: NextRequest) {
         // Get contacts to sync
         let contacts: any[] = [];
         if (cpf) {
-            const contact = db.prepare('SELECT cpf, nome, telefone FROM leads WHERE cpf = ?').get(cpf);
-            if (contact) {
-                contacts = [contact];
-                console.log(`[Sync History] Syncing specific contact: ${(contact as any).nome} (Limit: ${limit})`);
+            const result = await pool.query('SELECT cpf, nome, telefone FROM leads WHERE cpf = $1', [cpf]);
+            if (result.rows[0]) {
+                contacts = [result.rows[0]];
+                console.log(`[Sync History] Syncing specific contact: ${result.rows[0].nome}`);
             } else {
                 return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
             }
         } else {
-            contacts = db.prepare('SELECT cpf, nome, telefone FROM leads WHERE telefone IS NOT NULL').all() as any[];
+            const result = await pool.query('SELECT cpf, nome, telefone FROM leads WHERE telefone IS NOT NULL');
+            contacts = result.rows;
             console.log(`[Sync History] Starting sync for all ${contacts.length} contacts...`);
         }
 
@@ -44,106 +39,74 @@ export async function POST(req: NextRequest) {
         let contactsProcessed = 0;
         let contactsFailed = 0;
 
-        // Process contacts one by one
         for (const contact of contacts) {
             try {
                 console.log(`[Sync History] Processing ${contact.nome} (${contact.telefone})...`);
 
-                // Format phone number to chatId
                 let formattedPhone = contact.telefone.replace(/\D/g, '');
-
-                if (formattedPhone.startsWith('0')) {
-                    formattedPhone = formattedPhone.substring(1);
-                }
-
+                if (formattedPhone.startsWith('0')) formattedPhone = formattedPhone.substring(1);
                 if (formattedPhone.length === 10 || formattedPhone.length === 11) {
                     formattedPhone = '55' + formattedPhone;
                 }
 
-                // Try variations for Brazilian numbers
                 const variations: string[] = [formattedPhone];
-
                 if (formattedPhone.startsWith('55') && formattedPhone.length === 13) {
-                    const without9 = formattedPhone.substring(0, 4) + formattedPhone.substring(5);
-                    variations.push(without9);
+                    variations.push(formattedPhone.substring(0, 4) + formattedPhone.substring(5));
                 } else if (formattedPhone.startsWith('55') && formattedPhone.length === 12) {
-                    const with9 = formattedPhone.substring(0, 4) + '9' + formattedPhone.substring(4);
-                    variations.push(with9);
+                    variations.push(formattedPhone.substring(0, 4) + '9' + formattedPhone.substring(4));
                 }
 
                 let chatFound = false;
 
                 for (const phoneVariation of variations) {
                     try {
-                        const chatId = `${phoneVariation} @c.us`;
-
-                        // Get the chat
+                        const chatId = `${phoneVariation}@c.us`;
                         const chat = await client.getChatById(chatId);
 
                         if (chat) {
-                            console.log(`[Sync History] Found chat for ${contact.nome} with ${phoneVariation} `);
+                            console.log(`[Sync History] Found chat for ${contact.nome} with ${phoneVariation}`);
                             chatFound = true;
 
-                            // Fetch messages
                             const fetchLimit = cpf ? limit : 200;
                             const messages = await chat.fetchMessages({ limit: fetchLimit });
 
                             console.log(`[Sync History] Fetched ${messages.length} messages for ${contact.nome}`);
 
-                            // Insert messages into database
                             for (const msg of messages) {
                                 try {
                                     // Check if message already exists
-                                    const existingMsg = db.prepare(
-                                        'SELECT id FROM messages WHERE message_id = ?'
-                                    ).get(msg.id.id);
+                                    const existing = await pool.query('SELECT id FROM messages WHERE id = $1', [msg.id.id]);
 
-                                    if (!existingMsg) {
-                                        const insertStmt = db.prepare(`
-                                            INSERT INTO messages(contact_cpf, message_id, direction, body, timestamp, status)
-VALUES(?, ?, ?, ?, ?, ?)
-    `);
-
-                                        const direction = msg.fromMe ? 'outgoing' : 'incoming';
+                                    if (existing.rows.length === 0) {
+                                        const from_me = msg.fromMe;
                                         const timestamp = new Date(msg.timestamp * 1000).toISOString();
 
-                                        // Determine status based on ack
-                                        let status = 'sent';
-                                        if (msg.ack === 1) status = 'sent';
-                                        else if (msg.ack === 2) status = 'delivered';
-                                        else if (msg.ack >= 3) status = 'read';
-                                        else if (msg.ack === -1) status = 'failed';
-
-                                        // For incoming messages, status is always 'read' (or delivered) effectively
-                                        if (direction === 'incoming') status = 'read';
-
-                                        insertStmt.run(contact.cpf, msg.id.id, direction, msg.body, timestamp, status);
+                                        await pool.query(`
+                                            INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type)
+                                            VALUES ($1, $2, $3, $4, $5, 'text')
+                                            ON CONFLICT (id) DO NOTHING
+                                        `, [msg.id.id, contact.cpf, msg.body, from_me, timestamp]);
                                         messagesImported++;
                                     }
                                 } catch (msgError) {
-                                    console.error(`[Sync History] Error inserting message: `, msgError);
+                                    console.error(`[Sync History] Error inserting message:`, msgError);
                                 }
                             }
 
-                            // Update contact's last message info
+                            // Update last message info
                             if (messages.length > 0) {
                                 const lastMsg = messages[messages.length - 1];
-                                const updateStmt = db.prepare(`
-                                    UPDATE leads
-                                    SET last_message = ?,
-    last_message_time = ?
-        WHERE cpf = ?
-            `);
                                 const lastMsgTime = new Date(lastMsg.timestamp * 1000).toISOString();
-                                updateStmt.run(lastMsg.body, lastMsgTime, contact.cpf);
+                                await pool.query(`
+                                    UPDATE leads SET last_message = $1, last_message_time = $2 WHERE cpf = $3
+                                `, [lastMsg.body, lastMsgTime, contact.cpf]);
                             }
 
                             contactsProcessed++;
-                            break; // Found the chat, stop trying variations
+                            break;
                         }
                     } catch (err) {
-                        // Continue to next variation
-                        console.log(`[Sync History] No chat with variation ${phoneVariation} `);
+                        console.log(`[Sync History] No chat with variation ${phoneVariation}`);
                     }
                 }
 
@@ -152,30 +115,20 @@ VALUES(?, ?, ?, ?, ?, ?)
                     contactsFailed++;
                 }
 
-                // Small delay to avoid rate limiting
                 await new Promise(resolve => setTimeout(resolve, WHATSAPP_CONFIG.HISTORY_SYNC_DELAY_MS));
 
             } catch (error: any) {
                 contactsFailed++;
-                console.error(`[Sync History] Error for ${contact.nome}: `, error);
+                console.error(`[Sync History] Error for ${contact.nome}:`, error);
             }
         }
 
-        console.log(`[Sync History]Completed: ${contactsProcessed} contacts, ${messagesImported} messages imported, ${contactsFailed} failed`);
+        console.log(`[Sync History] Completed: ${contactsProcessed} contacts, ${messagesImported} messages imported`);
 
-        return NextResponse.json({
-            success: true,
-            contactsProcessed,
-            messagesImported,
-            contactsFailed,
-            totalContacts: contacts.length
-        });
+        return NextResponse.json({ success: true, contactsProcessed, messagesImported, contactsFailed, totalContacts: contacts.length });
 
     } catch (error: any) {
         console.error('[Sync History] Error:', error);
-        return NextResponse.json({
-            error: 'Erro interno do servidor',
-            message: error.message
-        }, { status: 500 });
+        return NextResponse.json({ error: 'Erro interno do servidor', message: error.message }, { status: 500 });
     }
 }

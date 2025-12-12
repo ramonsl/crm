@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 import { removeNonDigits } from '@/lib/utils/phoneUtils';
 
 export async function GET(req: NextRequest) {
@@ -10,11 +10,12 @@ export async function GET(req: NextRequest) {
         // Build query based on status filter
         let query = 'SELECT * FROM leads WHERE 1=1';
         const params: any[] = [];
+        let paramIndex = 1;
 
         if (status && status !== 'all') {
             const statuses = status.split(',');
             if (statuses.length > 0) {
-                const conditions = statuses.map(() => 'status = ?').join(' OR ');
+                const conditions = statuses.map(() => `status = $${paramIndex++}`).join(' OR ');
                 query += ` AND (${conditions})`;
                 statuses.forEach(s => params.push(s.trim()));
             }
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
         if (excludeStatus) {
             const excluded = excludeStatus.split(',');
             if (excluded.length > 0) {
-                const conditions = excluded.map(() => 'status != ?').join(' AND ');
+                const conditions = excluded.map(() => `status != $${paramIndex++}`).join(' AND ');
                 query += ` AND (${conditions})`;
                 excluded.forEach(s => params.push(s.trim()));
             }
@@ -33,7 +34,8 @@ export async function GET(req: NextRequest) {
 
         query += ' ORDER BY nome ASC';
 
-        const leads = db.prepare(query).all(...params) as any[];
+        const result = await pool.query(query, params);
+        const leads = result.rows;
 
         // Google Contacts CSV headers
         const headers = [
@@ -58,7 +60,6 @@ export async function GET(req: NextRequest) {
         const escapeCsv = (value: any): string => {
             if (value === null || value === undefined) return '';
             const str = String(value);
-            // Escape quotes and wrap in quotes if contains comma, quote, or newline
             if (str.includes(',') || str.includes('"') || str.includes('\n')) {
                 return `"${str.replace(/"/g, '""')}"`;
             }
@@ -76,16 +77,13 @@ export async function GET(req: NextRequest) {
             return { firstName, lastName };
         };
 
-        // Format phone number for Google (remove non-digits and add country code if needed)
+        // Format phone number for Google
         const formatPhone = (phone: string): string => {
             if (!phone) return '';
-            // Consolidate phone formatting
             const digits = removeNonDigits(phone);
-            // If it's a Brazilian number without country code, add +55
             if (digits.length === 10 || digits.length === 11) {
                 return `+55 ${digits}`;
             }
-            // If it already has country code
             if (digits.length > 11) {
                 return `+${digits}`;
             }
@@ -97,7 +95,6 @@ export async function GET(req: NextRequest) {
             const { firstName, lastName } = splitName(lead.nome || '');
             const formattedPhone = formatPhone(lead.telefone || '');
 
-            // Build notes field with additional info
             let notes = lead.notes || '';
             if (lead.curso_interesse) {
                 notes += (notes ? '\n' : '') + `Curso de Interesse: ${lead.curso_interesse}`;
@@ -113,49 +110,20 @@ export async function GET(req: NextRequest) {
             }
 
             return [
-                '', // Name Prefix
-                escapeCsv(firstName), // First Name
-                '', // Middle Name
-                escapeCsv(lastName), // Last Name
-                '', // Name Suffix
-                '', // Phonetic First Name
-                '', // Phonetic Middle Name
-                '', // Phonetic Last Name
-                '', // Nickname
-                '', // File As
-                'Email', // E-mail 1 - Label
-                escapeCsv(lead.email || ''), // E-mail 1 - Value
-                'Mobile', // Phone 1 - Label
-                escapeCsv(formattedPhone), // Phone 1 - Value
-                '', // Address 1 - Label
-                '', // Address 1 - Country
-                '', // Address 1 - Street
-                '', // Address 1 - Extended Address
-                '', // Address 1 - City
-                '', // Address 1 - Region
-                '', // Address 1 - Postal Code
-                '', // Address 1 - PO Box
-                'ULBRA', // Organization Name
-                '', // Organization Title
-                escapeCsv(lead.curso_interesse || ''), // Organization Department
-                '', // Birthday
-                '', // Event 1 - Label
-                '', // Event 1 - Value
-                '', // Relation 1 - Label
-                '', // Relation 1 - Value
-                '', // Website 1 - Label
-                '', // Website 1 - Value
-                'Status', // Custom Field 1 - Label
-                escapeCsv(lead.status || ''), // Custom Field 1 - Value
-                escapeCsv(notes), // Notes
-                'CRM' // Labels
+                '', escapeCsv(firstName), '', escapeCsv(lastName), '',
+                '', '', '', '', '',
+                'Email', escapeCsv(lead.email || ''),
+                'Mobile', escapeCsv(formattedPhone),
+                '', '', '', '', '', '', '', '',
+                'ULBRA', '', escapeCsv(lead.curso_interesse || ''),
+                '', '', '', '', '', '', '',
+                'Status', escapeCsv(lead.status || ''),
+                escapeCsv(notes), 'CRM'
             ].join(',');
         });
 
-        // Combine headers and rows
         const csv = [headers.join(','), ...rows].join('\n');
 
-        // Return CSV with proper headers
         return new NextResponse(csv, {
             status: 200,
             headers: {

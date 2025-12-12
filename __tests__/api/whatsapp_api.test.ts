@@ -4,7 +4,7 @@ import { GET as GET_VALIDATE } from '@/app/api/whatsapp/validate/route';
 import { NextRequest } from 'next/server';
 import { getStatus, getClient, logout, sendMessage, validateWhatsAppNumber } from '@/lib/whatsapp';
 import { messageQueue } from '@/lib/messageQueue';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 
 // Mock dependencies
 jest.mock('@/lib/whatsapp', () => ({
@@ -25,8 +25,12 @@ jest.mock('@/lib/messageQueue', () => ({
 }));
 
 jest.mock('@/lib/db', () => ({
-    prepare: jest.fn()
+    pool: {
+        query: jest.fn()
+    }
 }));
+
+const mockPoolQuery = pool.query as jest.Mock;
 
 describe('WhatsApp API', () => {
     beforeEach(() => {
@@ -51,10 +55,12 @@ describe('WhatsApp API', () => {
         });
 
         it('POST send should send message', async () => {
-            (db.prepare as jest.Mock).mockReturnValue({
-                get: jest.fn().mockReturnValue({ nome: 'Test User' })
+            mockPoolQuery.mockResolvedValue({
+                rows: [{ nome: 'Test User' }],
+                rowCount: 1
             });
             (sendMessage as jest.Mock).mockResolvedValue({ id: '123' });
+            (getStatus as jest.Mock).mockReturnValue({ status: 'ready' });
 
             const req = new NextRequest('http://localhost/api/whatsapp', {
                 method: 'POST',

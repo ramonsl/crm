@@ -11,6 +11,7 @@ interface UseContactsResult {
     loading: boolean;
     error: string | null;
     totalPages: number;
+    totalCount: number;
     currentPage: number;
     refresh: () => void;
 }
@@ -23,6 +24,7 @@ export function useContacts(
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
 
     const fetchContacts = useCallback(async () => {
@@ -109,6 +111,7 @@ export function useContacts(
 
             setContacts(data.data || []);
             setTotalPages(data.pagination?.totalPages || 1);
+            setTotalCount(data.pagination?.total || 0);
             setCurrentPage(data.pagination?.page || 1);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error');
@@ -127,6 +130,7 @@ export function useContacts(
         loading,
         error,
         totalPages,
+        totalCount,
         currentPage,
         refresh: fetchContacts
     };

@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getClient, getStatus, logout, sendMessage } from '@/lib/whatsapp';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function GET() {
     const status = getStatus();
 
-    // Add reconnection and health check info
     return NextResponse.json({
         ...status,
-        reconnectAttempts: global.whatsappReconnectAttempts || 0,
-        lastDisconnect: global.whatsappLastDisconnect || null,
-        healthCheckActive: global.whatsappHealthCheckTimer !== null,
-        restartHistory: global.whatsappRestartHistory?.length || 0,
+        reconnectAttempts: (global as any).whatsappReconnectAttempts || 0,
+        lastDisconnect: (global as any).whatsappLastDisconnect || null,
+        healthCheckActive: (global as any).whatsappHealthCheckTimer !== null,
+        restartHistory: (global as any).whatsappRestartHistory?.length || 0,
     });
 }
 
@@ -20,15 +20,30 @@ export async function POST(req: Request) {
     const { action } = body;
 
     if (action === 'connect') {
-        getClient(); // Triggers initialization if not exists
+        getClient();
         return NextResponse.json({ message: 'Initializing' });
     }
 
     if (action === 'send') {
         let { phone, message } = body;
 
-        // Normalize phone: add 55 prefix if Brazilian number without it
-        // This ensures validation works correctly for numbers like "51981636027"
+        // Check if WhatsApp is connected
+        const status = getStatus();
+        if (status.status !== 'ready') {
+            const statusMessages: Record<string, string> = {
+                'disconnected': 'WhatsApp desconectado. Por favor, conecte-se na página WhatsApp.',
+                'initializing': 'WhatsApp está inicializando. Aguarde alguns segundos e tente novamente.',
+                'qr': 'WhatsApp aguardando leitura do QR Code. Escaneie o código na página WhatsApp.'
+            };
+            const errorMessage = statusMessages[status.status] || `WhatsApp não está pronto (${status.status})`;
+            return NextResponse.json({
+                error: errorMessage,
+                whatsappStatus: status.status,
+                needsConnection: true
+            }, { status: 400 });
+        }
+
+        // Normalize phone
         const digitsOnly = phone.replace(/\D/g, '');
         if ((digitsOnly.length === 10 || digitsOnly.length === 11) && !digitsOnly.startsWith('55')) {
             phone = '55' + digitsOnly;
@@ -36,10 +51,13 @@ export async function POST(req: Request) {
         }
 
         try {
-            // Fetch lead name for substitution
+            // Fetch lead name and CPF for substitution
             const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
-            const stmt = db.prepare('SELECT nome FROM leads WHERE telefone = ? OR telefone = ?');
-            const lead = stmt.get(phone, phoneWithoutCountry) as { nome: string } | undefined;
+            const result = await pool.query(
+                'SELECT cpf, nome FROM leads WHERE telefone = $1 OR telefone = $2',
+                [phone, phoneWithoutCountry]
+            );
+            const lead = result.rows[0];
 
             if (lead && lead.nome) {
                 const firstName = lead.nome.trim().split(' ')[0];
@@ -47,14 +65,44 @@ export async function POST(req: Request) {
                     .replace(/{nome_completo}/g, lead.nome)
                     .replace(/{nome}/g, firstName);
             } else {
-                // Fallback if name not found or empty
                 message = message
                     .replace(/{nome_completo}/g, 'Visitante')
                     .replace(/{nome}/g, 'Visitante');
             }
 
-            await sendMessage(phone, message);
-            return NextResponse.json({ success: true });
+            const sendResult = await sendMessage(phone, message);
+
+            // Save to messages table if we have a lead CPF
+            if (lead && lead.cpf) {
+                try {
+                    const messageId = typeof sendResult.id === 'object' && sendResult.id !== null
+                        ? (sendResult.id as any)._serialized || String(sendResult.id)
+                        : sendResult.id || uuidv4();
+
+                    await pool.query(`
+                        INSERT INTO messages (id, contact_phone, content, from_me, type, timestamp)
+                        VALUES ($1, $2, $3, true, 'text', NOW())
+                        ON CONFLICT (id) DO NOTHING
+                    `, [messageId, lead.cpf, message]);
+                    console.log(`[API] Message saved to DB for CPF ${lead.cpf}`);
+
+                    await pool.query(`
+                        UPDATE leads 
+                        SET last_message = $1, 
+                            last_message_time = NOW(),
+                            updated_at = NOW()
+                        WHERE cpf = $2
+                    `, [message, lead.cpf]);
+                    console.log(`[API] Lead updated with last message for CPF ${lead.cpf}`);
+
+                } catch (dbError) {
+                    console.error('[API] Error saving message to DB:', dbError);
+                }
+            } else {
+                console.warn(`[API] Message sent but not saved to DB: No lead found for phone ${phone}`);
+            }
+
+            return NextResponse.json({ success: true, messageId: sendResult.id });
         } catch (error: any) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }

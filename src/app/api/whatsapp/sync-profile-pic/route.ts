@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getContactProfilePicture } from '@/lib/whatsapp';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 
 export async function POST(req: Request) {
     try {
@@ -13,10 +13,7 @@ export async function POST(req: Request) {
         const profilePicUrl = await getContactProfilePicture(phone);
 
         if (profilePicUrl) {
-            // Update database
-            const stmt = db.prepare('UPDATE leads SET profile_image = ? WHERE cpf = ?');
-            stmt.run(profilePicUrl, cpf);
-
+            await pool.query('UPDATE leads SET profile_image = $1 WHERE cpf = $2', [profilePicUrl, cpf]);
             return NextResponse.json({ success: true, profile_image: profilePicUrl });
         }
 

@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { pool } from '@/lib/db';
 
 export async function POST() {
     try {
-        const stmt = db.prepare(`
+        const result = await pool.query(`
             UPDATE leads 
             SET is_new = 0, status_changed = 0 
             WHERE is_new = 1 OR status_changed = 1
         `);
 
-        const result = stmt.run();
-
         return NextResponse.json({
             success: true,
-            cleared: result.changes,
-            message: `${result.changes} marcações foram limpas com sucesso.`
+            cleared: result.rowCount || 0,
+            message: `${result.rowCount || 0} marcações foram limpas com sucesso.`
         });
     } catch (error) {
         console.error('Error clearing markers:', error);

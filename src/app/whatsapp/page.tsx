@@ -172,6 +172,22 @@ export default function WhatsAppPage() {
     const failed = queueState?.stats?.failed || 0;
     const progress = total > 0 ? ((processed + failed) / total) * 100 : 0;
 
+    // Format estimated time remaining
+    const formatEstimatedTime = (seconds: number): string => {
+        if (seconds <= 0) return '';
+
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+
+        if (hours > 0) {
+            return minutes > 0 ? `${hours}h ${minutes}min` : `${hours}h`;
+        }
+        return `${minutes}min`;
+    };
+
+    const estimatedTime = queueState?.estimatedTimeRemaining || 0;
+    const estimatedTimeText = estimatedTime > 0 ? formatEstimatedTime(estimatedTime) : null;
+
     return (
         <div className={styles.container}>
             <header className={styles.header}>
@@ -305,6 +321,12 @@ export default function WhatsAppPage() {
                                     style={{ width: `${progress}%` }}
                                 />
                             </div>
+                            {estimatedTimeText && (
+                                <div className={styles.progressInfo} style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                                    <span>Tempo estimado restante</span>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>⏱️ {estimatedTimeText}</span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Terminal */}
