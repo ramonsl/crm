@@ -20,6 +20,7 @@ import type {
     SocketData
 } from './src/lib/socket/types';
 import { setSocketServer } from './src/lib/socket/emitter';
+import { getClient } from './src/lib/whatsapp';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -131,5 +132,9 @@ app.prepare().then(() => {
     httpServer.listen(port, () => {
         console.log(`> Ready on http://${hostname}:${port}`);
         console.log(`> Socket.io server running on port ${port}`);
+
+        // Initialize WhatsApp client
+        console.log('> Initializing WhatsApp client...');
+        getClient();
     });
 });

@@ -1456,20 +1456,13 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
 // ============================================================================
 
 /**
- * Automatically initialize WhatsApp client when the module loads (server-side only)
- * This ensures the client is ready before any API calls are made
+ * AUTO-INITIALIZATION DISABLED
+ * 
+ * We do NOT want to initialize the client automatically when the module loads,
+ * because this module is imported during the Next.js build process (static generation).
+ * If we initialize here, it tries to launch Chrome/Puppeteer during 'next build',
+ * causing the build to fail.
+ * 
+ * Instead, we initialize the client explicitly in server.ts when the server starts.
  */
-if (typeof window === 'undefined') {
-    // Only run on server-side (Node.js environment)
-    console.log('[WhatsApp] 🚀 Inicializando cliente automaticamente no carregamento do módulo...');
 
-    // Small delay to ensure database and other dependencies are ready
-    setTimeout(() => {
-        try {
-            getClient();
-            console.log('[WhatsApp] ✅ Cliente inicializado com sucesso');
-        } catch (error) {
-            console.error('[WhatsApp] ❌ Erro ao inicializar cliente automaticamente:', error);
-        }
-    }, 1000);
-}
