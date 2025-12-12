@@ -8,7 +8,9 @@
 import { Pool, neon, NeonQueryFunction } from '@neondatabase/serverless';
 
 // Validate DATABASE_URL is present
-if (!process.env.DATABASE_URL) {
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
     console.warn('[DB] DATABASE_URL not set - database operations will fail');
 }
 
@@ -19,7 +21,10 @@ if (!process.env.DATABASE_URL) {
  * Usage:
  *   const users = await sql`SELECT * FROM users WHERE id = ${id}`;
  */
-export const sql: NeonQueryFunction<false, false> = neon(process.env.DATABASE_URL!);
+// Safely initialize neon - if no connection string, return a dummy function that throws when called
+export const sql: NeonQueryFunction<false, false> = connectionString
+    ? neon(connectionString)
+    : ((...args: any[]) => { throw new Error('DATABASE_URL is not set'); }) as any;
 
 /**
  * Connection Pool for WebSocket queries (session-based)
@@ -29,7 +34,7 @@ export const sql: NeonQueryFunction<false, false> = neon(process.env.DATABASE_UR
  *   const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
  */
 export const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: connectionString, // Pool allows undefined connectionString in config, but will fail on connect
     max: 10, // Maximum number of connections
 });
 
