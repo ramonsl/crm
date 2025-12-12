@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { ActivityRepository } from './repositories/ActivityRepository';
-import { ActivityService } from '@/services/activityService';
+import { ActivityService } from '../services/activityService';
 import { emitNewMessage, emitContactUpdated, emitNewMessageToPhone } from './socket/emitter';
 
 // Activity service for logging timeline events
