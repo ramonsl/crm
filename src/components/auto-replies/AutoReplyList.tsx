@@ -2,110 +2,121 @@
 
 /**
  * Auto-Reply List Component
- * Displays all auto-replies in a table format
+ * Displays all auto-replies in a table format following system patterns
  */
 
 import type { AutoReply } from '@/types/autoReply';
+import { Edit2, Trash2 } from 'lucide-react';
+import styles from './AutoReplies.module.css';
 
 interface AutoReplyListProps {
     replies: AutoReply[];
+    loading: boolean;
     onEdit: (reply: AutoReply) => void;
     onDelete: (id: number) => void;
     onToggle: (id: number) => void;
 }
 
-export function AutoReplyList({ replies, onEdit, onDelete, onToggle }: AutoReplyListProps) {
+export function AutoReplyList({ replies, loading, onEdit, onDelete, onToggle }: AutoReplyListProps) {
+    if (loading) {
+        return (
+            <div className={styles.tableContainer}>
+                <div className={styles.loading}>Carregando...</div>
+            </div>
+        );
+    }
+
     if (replies.length === 0) {
         return (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                <p className="text-gray-500 text-lg">Nenhuma resposta automática cadastrada</p>
-                <p className="text-gray-400 text-sm mt-2">
-                    Clique em "Nova Resposta Automática" para começar
-                </p>
+            <div className={styles.tableContainer}>
+                <div className={styles.empty}>
+                    Nenhuma resposta automática cadastrada
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+        <div className={styles.tableContainer}>
+            <table className={styles.table}>
+                <thead>
                     <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Nome / Intenção
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Resposta
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Confiança
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Prioridade
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Ações
-                        </th>
+                        <th>Status</th>
+                        <th>Nome / Intenção</th>
+                        <th>Resposta</th>
+                        <th>Confiança</th>
+                        <th>Prioridade</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody>
                     {replies.map((reply) => (
-                        <tr key={reply.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <button
-                                    onClick={() => onToggle(reply.id)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${reply.is_active ? 'bg-blue-600' : 'bg-gray-300'
-                                        }`}
-                                >
-                                    <span
-                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reply.is_active ? 'translate-x-6' : 'translate-x-1'
-                                            }`}
+                        <tr key={reply.id}>
+                            <td>
+                                <label className={styles.toggle}>
+                                    <input
+                                        type="checkbox"
+                                        checked={reply.is_active}
+                                        onChange={() => onToggle(reply.id)}
+                                        className={styles.toggleInput}
                                     />
-                                </button>
+                                    <span className={styles.toggleSlider}></span>
+                                </label>
                             </td>
-                            <td className="px-6 py-4">
-                                <div className="text-sm font-medium text-gray-900">{reply.name}</div>
-                                <div className="text-sm text-gray-500 truncate max-w-xs">
-                                    {reply.intent_description}
-                                </div>
-                            </td>
-                            <td className="px-6 py-4">
-                                <div className="text-sm text-gray-900 truncate max-w-md">
-                                    {reply.response_template}
-                                </div>
-                                {reply.example_messages && reply.example_messages.length > 0 && (
-                                    <div className="text-xs text-gray-400 mt-1">
-                                        Exemplos: {reply.example_messages.slice(0, 2).join(', ')}
-                                        {reply.example_messages.length > 2 && '...'}
+                            <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <div style={{ fontWeight: 500, color: 'var(--text-main)' }}>
+                                        {reply.name}
                                     </div>
-                                )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">
-                                    {(reply.confidence_threshold * 100).toFixed(0)}%
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                        {reply.intent_description.length > 80
+                                            ? reply.intent_description.substring(0, 80) + '...'
+                                            : reply.intent_description
+                                        }
+                                    </div>
+                                    {reply.example_messages && reply.example_messages.length > 0 && (
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            Exemplos: {reply.example_messages.slice(0, 2).join(', ')}
+                                            {reply.example_messages.length > 2 && '...'}
+                                        </div>
+                                    )}
                                 </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <td>
+                                <div style={{ maxWidth: '300px', fontSize: '0.9rem' }}>
+                                    {reply.response_template.length > 100
+                                        ? reply.response_template.substring(0, 100) + '...'
+                                        : reply.response_template
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <span className={`${styles.badge} ${styles.badgeSuccess}`}>
+                                    {(reply.confidence_threshold * 100).toFixed(0)}%
+                                </span>
+                            </td>
+                            <td>
+                                <span className={`${styles.badge} ${styles.badgePrimary}`}>
                                     {reply.priority}
                                 </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button
-                                    onClick={() => onEdit(reply)}
-                                    className="text-blue-600 hover:text-blue-900 mr-4"
-                                >
-                                    Editar
-                                </button>
-                                <button
-                                    onClick={() => onDelete(reply.id)}
-                                    className="text-red-600 hover:text-red-900"
-                                >
-                                    Deletar
-                                </button>
+                            <td>
+                                <div className={styles.actions}>
+                                    <button
+                                        onClick={() => onEdit(reply)}
+                                        className={styles.actionButton}
+                                        title="Editar"
+                                    >
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => onDelete(reply.id)}
+                                        className={styles.actionButton}
+                                        title="Deletar"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     ))}

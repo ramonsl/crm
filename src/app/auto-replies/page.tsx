@@ -3,6 +3,7 @@
 /**
  * Auto-Replies Management Page
  * Main page for configuring and managing automated responses
+ * Following system UI/UX patterns
  */
 
 import { useState, useEffect } from 'react';
@@ -11,6 +12,8 @@ import { AutoReplyForm } from '@/components/auto-replies/AutoReplyForm';
 import { AutoReplyTester } from '@/components/auto-replies/AutoReplyTester';
 import { AutoReplyStats } from '@/components/auto-replies/AutoReplyStats';
 import type { AutoReply } from '@/types/autoReply';
+import { Plus, RefreshCw } from 'lucide-react';
+import styles from '@/components/auto-replies/AutoReplies.module.css';
 
 export default function AutoRepliesPage() {
     const [replies, setReplies] = useState<AutoReply[]>([]);
@@ -85,95 +88,67 @@ export default function AutoRepliesPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">
-                        Respostas Automáticas
-                    </h1>
-                    <p className="mt-2 text-gray-600">
-                        Configure respostas automáticas inteligentes com detecção de intenção via IA
-                    </p>
+        <div className={styles.container}>
+            {/* Header */}
+            <div className={styles.header}>
+                <div className={styles.headerLeft}>
+                    <h2>Respostas Automáticas</h2>
                 </div>
-
-                {/* Tabs */}
-                <div className="mb-6 border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-8">
-                        <button
-                            onClick={() => setActiveTab('list')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'list'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                        >
-                            Gerenciar ({replies.length})
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('test')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'test'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                        >
-                            Testar
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('stats')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'stats'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                        >
-                            Estatísticas
-                        </button>
-                    </nav>
+                <div className={styles.headerActions}>
+                    <button onClick={handleCreate} className={styles.primaryButton}>
+                        <Plus size={18} />
+                        Nova Resposta
+                    </button>
+                    <button onClick={loadReplies} className={styles.iconButton} title="Atualizar">
+                        <RefreshCw size={18} className={isLoading ? styles.spinning : ''} />
+                    </button>
                 </div>
-
-                {/* Content */}
-                {activeTab === 'list' && (
-                    <div>
-                        <div className="mb-4 flex justify-end">
-                            <button
-                                onClick={handleCreate}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                            >
-                                + Nova Resposta Automática
-                            </button>
-                        </div>
-
-                        {isLoading ? (
-                            <div className="text-center py-12">
-                                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600"></div>
-                                <p className="mt-2 text-gray-600">Carregando...</p>
-                            </div>
-                        ) : (
-                            <AutoReplyList
-                                replies={replies}
-                                onEdit={handleEdit}
-                                onDelete={handleDelete}
-                                onToggle={handleToggle}
-                            />
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'test' && (
-                    <AutoReplyTester />
-                )}
-
-                {activeTab === 'stats' && (
-                    <AutoReplyStats />
-                )}
-
-                {/* Form Modal */}
-                {isFormOpen && (
-                    <AutoReplyForm
-                        reply={editingReply}
-                        onClose={handleFormClose}
-                    />
-                )}
             </div>
+
+            {/* Tabs */}
+            <div className={styles.tabs}>
+                <button
+                    onClick={() => setActiveTab('list')}
+                    className={`${styles.tab} ${activeTab === 'list' ? styles.tabActive : ''}`}
+                >
+                    Gerenciar ({replies.length})
+                </button>
+                <button
+                    onClick={() => setActiveTab('test')}
+                    className={`${styles.tab} ${activeTab === 'test' ? styles.tabActive : ''}`}
+                >
+                    Testar
+                </button>
+                <button
+                    onClick={() => setActiveTab('stats')}
+                    className={`${styles.tab} ${activeTab === 'stats' ? styles.tabActive : ''}`}
+                >
+                    Estatísticas
+                </button>
+            </div>
+
+            {/* Content */}
+            {activeTab === 'list' && (
+                <AutoReplyList
+                    replies={replies}
+                    loading={isLoading}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onToggle={handleToggle}
+                />
+            )}
+
+            {activeTab === 'test' && <AutoReplyTester />}
+
+            {activeTab === 'stats' && <AutoReplyStats />}
+
+            {/* Form Modal */}
+            {isFormOpen && (
+                <AutoReplyForm
+                    reply={editingReply}
+                    onClose={handleFormClose}
+                />
+            )}
         </div>
     );
 }
