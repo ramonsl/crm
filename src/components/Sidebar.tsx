@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, MessageSquare, MessageCircle, Settings, LogOut, Upload, Columns, FileText, UserPlus, X } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, MessageCircle, Settings, LogOut, Upload, Columns, FileText, UserPlus, X, Bot } from 'lucide-react';
 import styles from './Sidebar.module.css';
 import { useEffect, useState } from 'react';
 
@@ -37,6 +37,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         { href: '/kanban', label: 'Kanban', icon: Columns },
         { href: '/chat', label: 'Chat', icon: MessageCircle },
         { href: '/whatsapp-chat', label: 'WhatsApp Chat', icon: MessageSquare, badge: 'POC' },
+        { href: '/auto-replies', label: 'Auto-Respostas', icon: Bot },
         { href: '/templates', label: 'Modelos', icon: FileText },
         { href: '/import', label: 'Importar', icon: Upload },
         { href: '/whatsapp', label: 'WhatsApp', icon: MessageSquare, showStatus: true },
