@@ -9,7 +9,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, MessageSquare, RefreshCw, FileText, UserPlus, ArrowRightLeft, StickyNote, ChevronDown, ChevronRight } from 'lucide-react';
-import TimeAgoBadge from '@/components/TimeAgoBadge';
+import { ActivityTimestamp } from '@/components/ActivityTimestamp';
 import type { Contact } from '@/types/contacts';
 import styles from './ActivityTimeline.module.css';
 
@@ -208,7 +208,7 @@ export function ActivityTimeline({ contact, isOpen, onClose }: ActivityTimelineP
                                                 {getSubtypeBadge(activity.subtype)}
                                             </span>
                                             <div className={styles.headerRight}>
-                                                <TimeAgoBadge date={activity.created_at} />
+                                                <ActivityTimestamp date={activity.created_at} />
                                                 {canExpand && (
                                                     <span className={styles.expandIcon}>
                                                         {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}

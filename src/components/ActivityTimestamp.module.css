@@ -1,0 +1,30 @@
+.timestamp {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #6b7280;
+    font-weight: 500;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    background-color: #f3f4f6;
+    cursor: help;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.timestamp:hover {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
+/* Dark mode compatibility */
+@media (prefers-color-scheme: dark) {
+    .timestamp {
+        background-color: #374151;
+        color: #d1d5db;
+    }
+
+    .timestamp:hover {
+        background-color: #4b5563;
+        color: #f3f4f6;
+    }
+}
