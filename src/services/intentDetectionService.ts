@@ -192,7 +192,9 @@ Responda em JSON no formato:
         // Cleanup old entries (simple LRU)
         if (this.cacheStore.size > 1000) {
             const oldestKey = this.cacheStore.keys().next().value;
-            this.cacheStore.delete(oldestKey);
+            if (oldestKey !== undefined) {
+                this.cacheStore.delete(oldestKey);
+            }
         }
     }
 
