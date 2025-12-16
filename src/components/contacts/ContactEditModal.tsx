@@ -31,13 +31,17 @@ export function ContactEditModal({ contact, isOpen, onClose, onSave }: ContactEd
     useEffect(() => {
         const loadStatuses = async () => {
             try {
+                console.log('[ContactEditModal] Loading statuses...');
                 const response = await fetch('/api/statuses');
                 if (response.ok) {
-                    const data = await response.json();
-                    setStatuses(data.statuses || []);
+                    const result = await response.json();
+                    console.log('[ContactEditModal] Statuses loaded:', result);
+                    setStatuses(result.data || []);
+                } else {
+                    console.error('[ContactEditModal] Failed to load statuses:', response.status);
                 }
             } catch (error) {
-                console.error('Error loading statuses:', error);
+                console.error('[ContactEditModal] Error loading statuses:', error);
             } finally {
                 setLoadingStatuses(false);
             }
