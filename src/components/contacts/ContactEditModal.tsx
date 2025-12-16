@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import type { Contact } from '@/types/contacts';
+import type { Status } from '@/types/status';
 import styles from './ContactEditModal.module.css';
 
 interface ContactEditModalProps {
@@ -21,19 +22,40 @@ export function ContactEditModal({ contact, isOpen, onClose, onSave }: ContactEd
     const { success, error: toastError } = useToast();
     const [formData, setFormData] = useState<Partial<Contact>>({});
     const [saving, setSaving] = useState(false);
+    const [statuses, setStatuses] = useState<Status[]>([]);
+    const [loadingStatuses, setLoadingStatuses] = useState(true);
 
     const isCreating = !contact;
+
+    // Load statuses from API
+    useEffect(() => {
+        const loadStatuses = async () => {
+            try {
+                const response = await fetch('/api/statuses');
+                if (response.ok) {
+                    const data = await response.json();
+                    setStatuses(data.statuses || []);
+                }
+            } catch (error) {
+                console.error('Error loading statuses:', error);
+            } finally {
+                setLoadingStatuses(false);
+            }
+        };
+        loadStatuses();
+    }, []);
 
     useEffect(() => {
         if (contact) {
             setFormData(contact);
         } else {
-            // Reset form for new contact
+            // Reset form for new contact - use first status as default
+            const defaultStatus = statuses[0]?.name || 'Novo';
             setFormData({
-                status: 'NOVO'
+                status: defaultStatus
             });
         }
-    }, [contact, isOpen]);
+    }, [contact, isOpen, statuses]);
 
     if (!isOpen) return null;
 
@@ -128,14 +150,17 @@ export function ContactEditModal({ contact, isOpen, onClose, onSave }: ContactEd
                             <select
                                 value={formData.status || ''}
                                 onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                                disabled={loadingStatuses}
                             >
-                                <option value="NOVO">Novo</option>
-                                <option value="LEAD">Lead</option>
-                                <option value="EM_CONTATO">Em Contato</option>
-                                <option value="APROVADO">Aprovado</option>
-                                <option value="MATRICULADO">Matriculado</option>
-                                <option value="DESISTENTE">Desistente</option>
-                                <option value="REPROVADO">Reprovado</option>
+                                {loadingStatuses ? (
+                                    <option value="">Carregando...</option>
+                                ) : (
+                                    statuses.map((status) => (
+                                        <option key={status.id} value={status.name}>
+                                            {status.name}
+                                        </option>
+                                    ))
+                                )}
                             </select>
                         </div>
 
