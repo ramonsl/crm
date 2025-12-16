@@ -10,6 +10,11 @@
  * - Authentication middleware validates socket connections
  */
 
+// Load environment variables from .env.local
+import { config } from 'dotenv';
+import { resolve } from 'path';
+config({ path: resolve(process.cwd(), '.env.local') });
+
 import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
