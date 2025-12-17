@@ -38,7 +38,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getGroupParticipants = exports.listAllGroups = exports.isNumberInGroup = exports.handleMessageCreate = exports.resetSession = exports.logout = exports.sendMessage = exports.getContactProfilePicture = exports.restartClient = exports.isClientReady = exports.getStatus = exports.getClient = void 0;
 exports.validateWhatsAppNumber = validateWhatsAppNumber;
-const types_1 = require("@/lib/types");
+const types_1 = require("../lib/types");
 const whatsapp_web_js_1 = require("whatsapp-web.js");
 const db_1 = require("./db");
 const messageQueue_1 = require("./messageQueue");

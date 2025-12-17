@@ -5,7 +5,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.autoReplyService = exports.AutoReplyService = void 0;
-const AutoReplyRepository_1 = require("@/lib/repositories/AutoReplyRepository");
+const AutoReplyRepository_1 = require("../lib/repositories/AutoReplyRepository");
 const intentDetectionService_1 = require("./intentDetectionService");
 class AutoReplyService {
     constructor() {
