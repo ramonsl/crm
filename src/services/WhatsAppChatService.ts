@@ -60,80 +60,91 @@ export class WhatsAppChatService {
 
             const chatInfos: ChatInfo[] = [];
 
-            for (const chat of chats) {
+            // Extract all phone numbers first for batch lookup
+            const phoneNumbers: string[] = [];
+            const chatPhoneMap = new Map<number, string>(); // chatIndex -> phone
+
+            for (let i = 0; i < chats.length; i++) {
+                const chat = chats[i];
+                if (chat.isGroup && !includeGroups) continue;
+
+                if (!chat.isGroup) {
+                    const isLidContact = chat.id._serialized.includes('@lid');
+
+                    if (!isLidContact) {
+                        const idParts = chat.id._serialized.split('@');
+                        if (idParts.length > 0 && idParts[0].length >= 10 && idParts[0].length <= 15) {
+                            const phone = idParts[0];
+                            phoneNumbers.push(phone);
+                            chatPhoneMap.set(i, phone);
+                        }
+                    }
+                }
+            }
+
+            // Batch lookup all leads by phone in ONE query
+            const leadsMap = new Map<string, { nome: string; cpf: string; status: string; telefone: string; profile_image: string | null }>();
+
+            if (phoneNumbers.length > 0) {
+                console.log(`[WhatsAppChatService] Batch looking up ${phoneNumbers.length} phones...`);
+
+                // Build OR conditions for last 8 digits of each phone
+                const last8Conditions = phoneNumbers.map(phone => {
+                    const normalized = phone.replace(/\D/g, '');
+                    return `%${normalized.slice(-8)}`;
+                });
+
+                const result = await pool.query(`
+                    SELECT nome, cpf, status, telefone, profile_image
+                    FROM leads 
+                    WHERE ${last8Conditions.map((_, idx) => `telefone LIKE $${idx + 1}`).join(' OR ')}
+                `, last8Conditions);
+
+                // Map results by last 8 digits for quick lookup
+                for (const lead of result.rows) {
+                    const leadLast8 = lead.telefone.replace(/\D/g, '').slice(-8);
+                    leadsMap.set(leadLast8, lead);
+                }
+
+                console.log(`[WhatsAppChatService] Found ${result.rows.length} matching leads`);
+            }
+
+            // Now process each chat with the pre-loaded data
+            for (let i = 0; i < chats.length; i++) {
+                const chat = chats[i];
+
                 if (chat.isGroup && !includeGroups) {
                     continue;
                 }
 
                 let profilePicUrl: string | null = null;
-                try {
-                    profilePicUrl = await (chat as any).getProfilePicUrl();
-
-                    if (profilePicUrl && !chat.isGroup) {
-                        const phoneToSync = chat.id._serialized.split('@')[0];
-                        try {
-                            await pool.query(
-                                'UPDATE leads SET profile_image = $1 WHERE telefone LIKE $2',
-                                [profilePicUrl, `%${phoneToSync}%`]
-                            );
-                            console.log(`[WhatsAppChatService] ✓ Synced profile pic to DB for ${chat.name}`);
-                        } catch (syncErr) {
-                            console.warn(`[WhatsAppChatService] Failed to sync profile pic to DB:`, syncErr);
-                        }
-                    }
-                } catch (err) {
-                    console.warn(`[WhatsAppChatService] No profile pic from API for ${chat.name}`);
-
-                    if (!chat.isGroup) {
-                        try {
-                            const phoneToSearch = chat.id._serialized.split('@')[0];
-
-                            const result = await pool.query(`
-                                SELECT profile_image 
-                                FROM leads 
-                                WHERE (
-                                    telefone LIKE $1 
-                                    OR telefone LIKE $2
-                                    OR telefone LIKE $3
-                                )
-                                AND profile_image IS NOT NULL 
-                                LIMIT 1
-                            `, [
-                                `%${phoneToSearch}%`,
-                                `%${phoneToSearch.slice(-11)}%`,
-                                `%${phoneToSearch.slice(-10)}%`
-                            ]);
-
-                            if (result.rows[0]?.profile_image) {
-                                profilePicUrl = result.rows[0].profile_image;
-                                console.log(`[WhatsAppChatService] ✓ Using DB profile pic for ${chat.name}`);
-                            }
-                        } catch (dbErr) {
-                            console.warn(`[WhatsAppChatService] Failed to fetch DB profile pic:`, dbErr);
-                        }
-                    }
-                }
-
-                let phone: string | null = null;
+                const phone = chatPhoneMap.get(i) || null;
                 let status: string | null = null;
                 let leadName: string | null = null;
                 let cpf: string | null = null;
                 let isRegistered: boolean = false;
-                const isLidContact = chat.id._serialized.includes('@lid');
 
-                if (!chat.isGroup) {
-                    if (!isLidContact) {
-                        const idParts = chat.id._serialized.split('@');
-                        if (idParts.length > 0 && idParts[0].length >= 10 && idParts[0].length <= 15) {
-                            phone = idParts[0];
-                        }
+                // Lookup lead from pre-loaded map
+                if (phone) {
+                    const normalizedPhone = phone.replace(/\D/g, '');
+                    const last8 = normalizedPhone.slice(-8);
+                    const lead = leadsMap.get(last8);
 
-                        if (!phone && chat.id.user) {
-                            const userId = chat.id.user;
-                            if (userId.length >= 10 && userId.length <= 15) {
-                                phone = userId;
-                            }
-                        }
+                    if (lead) {
+                        leadName = lead.nome;
+                        cpf = lead.cpf;
+                        status = lead.status;
+                        isRegistered = true;
+                        profilePicUrl = lead.profile_image;
+                    }
+                }
+
+                // Try to get profile pic from WhatsApp API (only if not in DB)
+                if (!profilePicUrl) {
+                    try {
+                        profilePicUrl = await (chat as any).getProfilePicUrl();
+                    } catch (err) {
+                        // Ignore - no profile pic available
                     }
                 }
 
@@ -146,87 +157,9 @@ export class WhatsAppChatService {
                         const msg = messages[0];
                         lastMessage = msg.body || '[Media]';
                         lastMessageTime = msg.timestamp;
-
-                        if (!phone && !chat.isGroup && isLidContact) {
-                            for (const m of messages) {
-                                const phoneId = m.fromMe ? m.to : m.from;
-
-                                if (phoneId && phoneId.includes('@c.us')) {
-                                    const cleanPhone = phoneId.replace('@c.us', '');
-                                    if (cleanPhone.length >= 10 && cleanPhone.length <= 15) {
-                                        phone = cleanPhone;
-                                        console.log(`[WhatsAppChatService] ✓ Found phone from message for @lid contact ${chat.name}: ${phone}`);
-                                        break;
-                                    }
-                                }
-                            }
-
-                            if (!phone) {
-                                try {
-                                    const result = await pool.query(`
-                                        SELECT telefone 
-                                        FROM leads 
-                                        WHERE nome LIKE $1 
-                                        AND telefone IS NOT NULL 
-                                        AND telefone != ''
-                                        LIMIT 1
-                                    `, [`%${chat.name}%`]);
-
-                                    if (result.rows[0]?.telefone) {
-                                        phone = result.rows[0].telefone.replace(/\D/g, '');
-                                        console.log(`[WhatsAppChatService] ✓ Found phone from DB for @lid contact ${chat.name}: ${phone}`);
-                                    }
-                                } catch (dbErr) {
-                                    console.warn(`[WhatsAppChatService] Failed to search DB for ${chat.name}:`, dbErr);
-                                }
-                            }
-                        }
                     }
                 } catch (err) {
-                    console.warn(`[WhatsAppChatService] Failed to fetch last message for ${chat.name}`);
-                }
-
-                if (!phone && !chat.isGroup && chat.name) {
-                    const phoneMatch = chat.name.match(/\+?\d[\d\s\-\(\)]+/);
-                    if (phoneMatch) {
-                        const extracted = phoneMatch[0].replace(/\D/g, '');
-                        if (extracted.length >= 10 && extracted.length <= 15) {
-                            phone = extracted;
-                            console.log(`[WhatsAppChatService] ✓ Extracted phone from chat name "${chat.name}": ${phone}`);
-                        }
-                    }
-                }
-
-                if (!chat.isGroup && phone) {
-                    try {
-                        const normalizedPhone = phone.replace(/\D/g, '');
-                        const last8 = normalizedPhone.slice(-8);
-
-                        console.log(`[WhatsAppChatService] 🔍 "${chat.name}" - original: "${phone}", normalized: "${normalizedPhone}", last8: "${last8}"`);
-
-                        const result = await pool.query(`
-                            SELECT nome, cpf, status, telefone
-                            FROM leads 
-                            WHERE telefone LIKE $1
-                            LIMIT 1
-                        `, [`%${last8}`]);
-
-                        const dbLead = result.rows[0];
-
-                        if (dbLead) {
-                            leadName = dbLead.nome;
-                            cpf = dbLead.cpf;
-                            status = dbLead.status;
-                            isRegistered = true;
-                            console.log(`[WhatsAppChatService] ✅ MATCH! "${chat.name}" → "${leadName}" (${status}) | DB phone: ${dbLead.telefone}`);
-                        } else {
-                            console.log(`[WhatsAppChatService] ❌ No match for last 8: "${last8}"`);
-                        }
-                    } catch (dbErr) {
-                        console.error(`[WhatsAppChatService] ❌ DB Error:`, dbErr);
-                    }
-                } else if (!chat.isGroup) {
-                    console.log(`[WhatsAppChatService] ⚠️ No phone for "${chat.name}"`);
+                    // Ignore - failed to fetch messages
                 }
 
                 chatInfos.push({
