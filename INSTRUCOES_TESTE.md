@@ -47,3 +47,14 @@ npm run dev
 ## PROBLEMA CONHECIDO
 A biblioteca whatsapp-web.js da versão GitHub pode não disparar eventos corretamente.
 Se nada funcionar, pode ser necessário mudar para versão estável do npm.
+
+## 5. Ambiente de Teste (Novo)
+Configuramos uma instância separada do Neon para testes seguros, sem afetar o banco principal.
+
+**Como usar:**
+1. O arquivo `.env.test` já está configurado.
+2. Para popular o banco de teste, rode:
+   ```bash
+   npx ts-node -O '{"module":"commonjs"}' scripts/seed_test_db.ts
+   ```
+3. O script irá criar as tabelas e inserir um Lead de teste (Test User).
