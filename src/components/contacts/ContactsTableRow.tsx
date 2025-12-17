@@ -122,7 +122,10 @@ export function ContactsTableRow({
             {/* Status Column */}
             {visibleColumns.status && (
                 <td>
-                    <StatusBadge status={contact.status} />
+                    <StatusBadge
+                        status={contact.status}
+                        status_changed_at={contact.status_changed_at}
+                    />
                 </td>
             )}
 

@@ -24,6 +24,7 @@ export interface Contact {
     last_template_sent_at?: string | null; // Data de envio do último template
     is_new?: number;
     status_changed?: number;
+    status_changed_at?: string;
     last_import_date?: string;
     last_template_name?: string;
 }

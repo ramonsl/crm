@@ -39,6 +39,7 @@ export async function initializeDatabase(): Promise<void> {
         escola TEXT,
         is_new INTEGER DEFAULT 0,
         status_changed INTEGER DEFAULT 0,
+        status_changed_at TIMESTAMP,
         last_import_date TIMESTAMP,
         last_template_name TEXT,
         whatsapp_valido INTEGER DEFAULT 0,

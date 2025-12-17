@@ -9,11 +9,23 @@ import { ActivityService } from '@/services/activityService';
 const activityRepository = new ActivityRepository();
 const activityService = new ActivityService(activityRepository);
 
+// Status priority from lowest (1) to highest (7)
+// Only upgrade status, never downgrade
 const STATUS_PRIORITY: Record<string, number> = {
-    'NOVO': 1, 'LEAD': 2, 'EM_CONTATO': 3, 'INSCRITO': 4,
-    'Inscrito Confirmado': 5, 'Aprovado': 6, 'APROVADO': 6,
-    'Pagamento da Matrícula Iniciado': 7, 'Matricula Confirmada': 8, 'MATRICULADO': 8,
-    'Reprovado': 0, 'REPROVADO': 0, 'Desistente': 0, 'DESISTENTE': 0,
+    'LEAD': 1,
+    'NOVO': 1,
+    'EM_CONTATO': 1,
+    'INSCRITO': 1,
+    'Desistente': 2,
+    'DESISTENTE': 2,
+    'Reprovado': 3,
+    'REPROVADO': 3,
+    'Inscrito Confirmado': 4,
+    'Aprovado': 5,
+    'APROVADO': 5,
+    'Pagamento da Matrícula Iniciado': 6,
+    'Matricula Confirmada': 7,
+    'MATRICULADO': 7,
 };
 
 export async function POST(req: NextRequest) {
@@ -113,25 +125,42 @@ export async function POST(req: NextRequest) {
                 const existingStatus = (existing.status || '').trim();
                 const newStatus = (status || '').trim();
 
-                if (existingStatus.toLowerCase() !== newStatus.toLowerCase() && newStatus !== '') {
+                // Check priority: only upgrade status, never downgrade
+                const existingPriority = STATUS_PRIORITY[existingStatus] || 0;
+                const newPriority = STATUS_PRIORITY[newStatus] || 0;
+
+                // Determine final status based on priority
+                let finalStatus = existingStatus;
+                if (newStatus !== '' && newPriority >= existingPriority) {
+                    // New status has equal or higher priority - allow update
+                    if (existingStatus.toLowerCase() !== newStatus.toLowerCase()) {
+                        const date = new Date().toLocaleDateString('pt-BR');
+                        notes = `${notes ? notes + '\n' : ''}[${date}] Status alterado: ${existingStatus} -> ${newStatus}`;
+                        statusChanged = 1;
+                        anyDataChanged = true;
+                        finalStatus = newStatus;
+                    }
+                } else if (newStatus !== '' && newPriority < existingPriority) {
+                    // New status has lower priority - log but don't downgrade
                     const date = new Date().toLocaleDateString('pt-BR');
-                    notes = `${notes ? notes + '\n' : ''}[${date}] Status alterado: ${existingStatus} -> ${newStatus}`;
-                    statusChanged = 1;
+                    notes = `${notes ? notes + '\n' : ''}[${date}] Importação ignorada: tentativa de alterar ${existingStatus} para ${newStatus} (prioridade menor)`;
                     anyDataChanged = true;
+                    console.log(`[Import] Skipping status downgrade for CPF ${cpf}: ${existingStatus} (${existingPriority}) -> ${newStatus} (${newPriority})`);
                 }
 
                 if (anyDataChanged || statusChanged) {
                     await pool.query(`
                         UPDATE leads SET status = $1, tipo_ingresso = $2, data_inscricao = $3, 
                             notes = $4, is_new = 0, status_changed = $5, 
+                            status_changed_at = CASE WHEN $5 = 1 THEN NOW() ELSE status_changed_at END,
                             last_import_date = NOW(), updated_at = NOW()
                         WHERE cpf = $6
-                    `, [newStatus || existingStatus, tipo_ingresso, data_inscricao, notes, statusChanged, cpf]);
+                    `, [finalStatus, tipo_ingresso, data_inscricao, notes, statusChanged, cpf]);
                     updated++;
 
                     if (statusChanged) {
                         try {
-                            await activityService.logStatusChange(cpf, existingStatus, newStatus);
+                            await activityService.logStatusChange(cpf, existingStatus, finalStatus);
                         } catch (e) {
                             console.error('[Import] Error logging activity:', e);
                         }
@@ -164,6 +193,7 @@ export async function POST(req: NextRequest) {
                             notes = $6,
                             is_new = 0,
                             status_changed = CASE WHEN status != $3 THEN 1 ELSE status_changed END,
+                            status_changed_at = CASE WHEN status != $3 THEN NOW() ELSE status_changed_at END,
                             last_import_date = NOW(),
                             updated_at = NOW()
                         WHERE cpf = $7

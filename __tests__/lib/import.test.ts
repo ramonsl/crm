@@ -88,4 +88,79 @@ describe('Import API', () => {
             { status: 400 }
         );
     });
+
+    it('should NOT downgrade status when importing lower priority', async () => {
+        // Mock FormData
+        const formData = new Map();
+        formData.set('file', {
+            arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8))
+        });
+
+        const req = {
+            formData: jest.fn().mockResolvedValue(formData)
+        } as any;
+
+        // Mock XLSX data - importing 'Inscrito Confirmado' (priority 4)
+        (XLSX.utils.sheet_to_json as jest.Mock).mockReturnValue([
+            ['Nome', 'Email', 'Celular', 'CPF', 'Situação'],
+            ['Test User', 'test@example.com', '51999999999', '12345678900', 'Inscrito Confirmado']
+        ]);
+
+        // Mock existing lead with 'Matricula Confirmada' (priority 7)
+        mockPoolQuery.mockResolvedValueOnce({
+            rows: [{ cpf: '12345678900', status: 'Matricula Confirmada', notes: '' }],
+            rowCount: 1
+        });
+        // Mock the UPDATE query
+        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+        await POST(req);
+
+        // Verify UPDATE was called but status was NOT downgraded
+        const updateCalls = mockPoolQuery.mock.calls.filter((call: any[]) =>
+            call[0]?.includes('UPDATE leads SET status')
+        );
+        expect(updateCalls.length).toBe(1);
+
+        // The first parameter should be the existing status, not the new one
+        const updateParams = updateCalls[0][1];
+        expect(updateParams[0]).toBe('Matricula Confirmada'); // Status should NOT be downgraded
+    });
+
+    it('should upgrade status when importing higher priority', async () => {
+        // Mock FormData
+        const formData = new Map();
+        formData.set('file', {
+            arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8))
+        });
+
+        const req = {
+            formData: jest.fn().mockResolvedValue(formData)
+        } as any;
+
+        // Mock XLSX data - importing 'Matricula Confirmada' (priority 7)
+        (XLSX.utils.sheet_to_json as jest.Mock).mockReturnValue([
+            ['Nome', 'Email', 'Celular', 'CPF', 'Situação'],
+            ['Test User', 'test@example.com', '51999999999', '12345678900', 'Matricula Confirmada']
+        ]);
+
+        // Mock existing lead with 'Inscrito Confirmado' (priority 4)
+        mockPoolQuery.mockResolvedValueOnce({
+            rows: [{ cpf: '12345678900', status: 'Inscrito Confirmado', notes: '' }],
+            rowCount: 1
+        });
+        // Mock the UPDATE query
+        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+        await POST(req);
+
+        // Verify UPDATE was called with the new higher priority status
+        const updateCalls = mockPoolQuery.mock.calls.filter((call: any[]) =>
+            call[0]?.includes('UPDATE leads SET status')
+        );
+        expect(updateCalls.length).toBe(1);
+
+        const updateParams = updateCalls[0][1];
+        expect(updateParams[0]).toBe('Matricula Confirmada'); // Status should be upgraded
+    });
 });

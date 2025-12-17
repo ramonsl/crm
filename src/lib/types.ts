@@ -47,6 +47,7 @@ export interface LeadRow {
     escola: string | null;
     is_new: number;
     status_changed: number;
+    status_changed_at: string | null;
     last_import_date: string | null;
     last_template_name: string | null;
     tipo_ingresso?: string | null;
