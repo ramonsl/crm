@@ -21,7 +21,9 @@ import { BulkMessageModal } from './BulkMessageModal';
 import { ActivityTimeline } from './ActivityTimeline';
 import TimeAgoBadge from '@/components/TimeAgoBadge';
 import WhatsAppIndicator from '@/components/WhatsAppIndicator';
+import { TagSelector } from '@/components/tags/TagSelector';
 import type { ContactView, Contact } from '@/types/contacts';
+import type { Tag } from '@/types/tag';
 import styles from './ContactsTable.module.css';
 import { UserPlus, RefreshCw, MessageSquare, Edit2, Trash2, Download, Upload, Filter, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clock, Forward } from 'lucide-react';
 import { ColumnSelector } from './ColumnSelector';
@@ -58,6 +60,9 @@ export function ContactsTable({
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
     const [deleteConfirmContact, setDeleteConfirmContact] = useState<Contact | null>(null);
 
+    // Tags state - map of CPF to tags
+    const [leadTags, setLeadTags] = useState<Map<string, Tag[]>>(new Map());
+
     // Commercial team settings
     const [comercialPhone, setComercialPhone] = useState('');
     const [comercialName, setComercialName] = useState('');
@@ -93,6 +98,34 @@ export function ContactsTable({
                 if (data.comercialName) setComercialName(data.comercialName);
             });
     }, []);
+
+    // Load tags for all contacts
+    useEffect(() => {
+        const loadTagsForContacts = async () => {
+            if (contacts.length === 0) return;
+
+            const tagsMap = new Map<string, Tag[]>();
+
+            // Load tags for each contact
+            await Promise.all(
+                contacts.map(async (contact) => {
+                    try {
+                        const response = await fetch(`/api/leads/${contact.cpf}/tags`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            tagsMap.set(contact.cpf, data.data || []);
+                        }
+                    } catch (error) {
+                        console.error(`Error loading tags for ${contact.cpf}:`, error);
+                    }
+                })
+            );
+
+            setLeadTags(tagsMap);
+        };
+
+        loadTagsForContacts();
+    }, [contacts]);
 
     const handleExport = async () => {
         try {
@@ -365,6 +398,7 @@ export function ContactsTable({
                                     Última Mensagem {renderSortIndicator('last_message_time')}
                                 </th>
                             )}
+                            <th style={{ width: '200px' }}>Tags</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -432,6 +466,18 @@ export function ContactsTable({
                                             )}
                                         </td>
                                     )}
+                                    <td>
+                                        <TagSelector
+                                            leadCpf={contact.cpf}
+                                            selectedTags={leadTags.get(contact.cpf) || []}
+                                            onTagsChange={(newTags) => {
+                                                const updatedMap = new Map(leadTags);
+                                                updatedMap.set(contact.cpf, newTags);
+                                                setLeadTags(updatedMap);
+                                            }}
+                                            inline
+                                        />
+                                    </td>
                                     <td>
                                         <div className={styles.actions}>
                                             <button
