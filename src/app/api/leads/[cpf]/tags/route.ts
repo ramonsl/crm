@@ -58,11 +58,14 @@ export async function POST(
     { params }: RouteParams
 ) {
     try {
+        console.log('[API POST /api/leads/:cpf/tags] Starting...', { params });
         const { cpf } = params;
         const body = await req.json();
         const { tagId } = body;
+        console.log('[API POST] Body parsed:', { cpf, tagId });
 
         if (!tagId) {
+            console.log('[API POST] Missing tagId');
             return NextResponse.json(
                 { error: 'tagId é obrigatório' },
                 { status: 400 }
@@ -70,12 +73,15 @@ export async function POST(
         }
 
         // Check if lead exists
+        console.log('[API POST] Checking if lead exists:', cpf);
         const leadCheck = await pool.query(
             'SELECT cpf FROM leads WHERE cpf = $1',
             [cpf]
         );
+        console.log('[API POST] Lead check result:', leadCheck.rows.length);
 
         if (leadCheck.rows.length === 0) {
+            console.log('[API POST] Lead not found');
             return NextResponse.json(
                 { error: 'Lead não encontrado' },
                 { status: 404 }
@@ -83,12 +89,15 @@ export async function POST(
         }
 
         // Check if tag exists and is active
+        console.log('[API POST] Checking if tag exists:', tagId);
         const tagCheck = await pool.query(
             'SELECT id FROM tags WHERE id = $1 AND active = 1',
             [tagId]
         );
+        console.log('[API POST] Tag check result:', tagCheck.rows.length);
 
         if (tagCheck.rows.length === 0) {
+            console.log('[API POST] Tag not found or inactive');
             return NextResponse.json(
                 { error: 'Tag não encontrada ou inativa' },
                 { status: 404 }
@@ -96,17 +105,23 @@ export async function POST(
         }
 
         // Insert association
+        console.log('[API POST] Inserting association...');
         await pool.query(
             `INSERT INTO lead_tags (lead_cpf, tag_id) 
              VALUES ($1, $2)
              ON CONFLICT (lead_cpf, tag_id) DO NOTHING`,
             [cpf, tagId]
         );
+        console.log('[API POST] Association inserted successfully');
 
         return NextResponse.json({ success: true }, { status: 201 });
 
     } catch (error) {
         console.error(`[API /api/leads/${params.cpf}/tags POST] Error:`, error);
+        console.error('[API POST] Error details:', {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+        });
         return NextResponse.json(
             { error: 'Failed to associate tag' },
             { status: 500 }
