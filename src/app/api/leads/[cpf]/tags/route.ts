@@ -13,9 +13,9 @@ import { pool } from '@/lib/db';
 import type { Tag } from '@/types/tag';
 
 interface RouteParams {
-    params: {
+    params: Promise<{
         cpf: string;
-    };
+    }>;
 }
 
 /**

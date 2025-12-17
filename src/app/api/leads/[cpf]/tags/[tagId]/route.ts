@@ -8,10 +8,10 @@ import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
 
 interface RouteParams {
-    params: {
+    params: Promise<{
         cpf: string;
         tagId: string;
-    };
+    }>;
 }
 
 /**
