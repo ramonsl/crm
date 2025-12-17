@@ -20,10 +20,11 @@ interface RouteParams {
  */
 export async function DELETE(
     req: NextRequest,
-    { params }: RouteParams
+    context: RouteParams
 ) {
     try {
-        const { cpf, tagId } = params;
+        // Next.js 15: params is now a Promise
+        const { cpf, tagId } = await context.params;
 
         // Delete the association
         const result = await pool.query(
@@ -42,7 +43,7 @@ export async function DELETE(
         return NextResponse.json({ success: true });
 
     } catch (error) {
-        console.error(`[API /api/leads/${params.cpf}/tags/${params.tagId} DELETE] Error:`, error);
+        console.error(`[API /api/leads/tags DELETE] Error:`, error);
         return NextResponse.json(
             { error: 'Failed to remove tag association' },
             { status: 500 }

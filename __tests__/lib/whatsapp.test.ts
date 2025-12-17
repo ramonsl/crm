@@ -1,6 +1,23 @@
 import * as whatsapp from '@/lib/whatsapp';
 import { Client } from 'whatsapp-web.js';
 
+// Suppress console output during tests for cleaner test output
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+
+beforeAll(() => {
+    console.log = jest.fn();
+    console.error = jest.fn();
+    console.warn = jest.fn();
+});
+
+afterAll(() => {
+    console.log = originalConsoleLog;
+    console.error = originalConsoleError;
+    console.warn = originalConsoleWarn;
+});
+
 // Mock whatsapp-web.js
 jest.mock('whatsapp-web.js', () => {
     return {
@@ -16,10 +33,27 @@ jest.mock('whatsapp-web.js', () => {
     };
 });
 
-// Mock DB
+// Mock Neon PostgreSQL Database
+jest.mock('@/lib/neonDb', () => ({
+    pool: {
+        query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+        connect: jest.fn().mockResolvedValue({
+            query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+            release: jest.fn(),
+        }),
+    },
+    query: jest.fn().mockResolvedValue([]),
+    queryOne: jest.fn().mockResolvedValue(undefined),
+    execute: jest.fn().mockResolvedValue(0),
+    sql: jest.fn().mockResolvedValue([]),
+}));
+
+// Mock legacy DB (for backwards compatibility)
 jest.mock('@/lib/db', () => ({
     prepare: jest.fn().mockReturnValue({
         run: jest.fn(),
+        get: jest.fn().mockReturnValue(undefined),
+        all: jest.fn().mockReturnValue([]),
     }),
 }));
 
@@ -27,6 +61,7 @@ jest.mock('@/lib/db', () => ({
 jest.mock('fs/promises', () => ({
     rm: jest.fn().mockResolvedValue(true),
 }));
+
 
 describe('WhatsApp Client', () => {
     beforeEach(() => {

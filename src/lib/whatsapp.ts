@@ -1,4 +1,4 @@
-import { Client, LocalAuth, MessageMedia } from 'whatsapp-web.js';
+import { Client, LocalAuth, MessageMedia, Chat } from 'whatsapp-web.js';
 import { pool } from './db';
 import { messageQueue } from './messageQueue';
 import { WHATSAPP_CONFIG } from './constants';
@@ -9,6 +9,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { ActivityRepository } from './repositories/ActivityRepository';
 import { ActivityService } from '../services/activityService';
 import { emitNewMessage, emitContactUpdated, emitNewMessageToPhone } from './socket/emitter';
+
+// Extend Chat type to include group-specific properties
+interface GroupChat extends Chat {
+    participants?: Array<{
+        id: { user: string; _serialized: string };
+        isAdmin?: boolean;
+    }>;
+}
 
 // Activity service for logging timeline events
 const activityRepository = new ActivityRepository();
@@ -1473,6 +1481,256 @@ export const handleMessageCreate = async (msg: WhatsAppMessage) => {
     }
 
     console.log('='.repeat(60));
+};
+
+/**
+ * Verifica se um número está em um grupo específico do WhatsApp
+ * @param phone - Número de telefone (pode incluir ou não o código do país)
+ * @param groupId - ID do grupo no formato '123456789-987654321@g.us' ou nome do grupo
+ * @returns Promise<boolean> - true se o número estiver no grupo, false caso contrário
+ */
+export const isNumberInGroup = async (phone: string, groupId: string): Promise<boolean> => {
+    console.log(`[WhatsApp] Verificando se ${phone} está no grupo ${groupId}`);
+
+    // Validação simples e direta do cliente
+    if (!global.whatsappClient) {
+        const errorMsg = `WhatsApp client is not initialized. Status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+
+    if (global.whatsappStatus !== 'ready') {
+        const errorMsg = `WhatsApp is not in ready state. Current status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+        // Normalizar o número de telefone
+        let formattedPhone = phone.replace(/\D/g, '');
+
+        // Remover zero inicial se presente
+        if (formattedPhone.startsWith('0')) {
+            formattedPhone = formattedPhone.substring(1);
+        }
+
+        // Adicionar código do país se for número brasileiro
+        if (formattedPhone.length === 10 || formattedPhone.length === 11) {
+            formattedPhone = '55' + formattedPhone;
+        }
+
+        // Verificação adicional imediatamente antes de usar o cliente
+        if (!global.whatsappClient) {
+            throw new Error('WhatsApp client became undefined before executing getChats');
+        }
+
+        // Obter todos os grupos
+        console.log('[WhatsApp] Obtendo lista de chats...');
+        const chats = await global.whatsappClient.getChats();
+        const groups = chats.filter(chat => chat.isGroup);
+
+        console.log(`[WhatsApp] Total de grupos encontrados: ${groups.length}`);
+
+        // Encontrar o grupo específico
+        let targetGroup = null;
+
+        // Se groupId termina com @g.us, é um ID de grupo direto
+        if (groupId.endsWith('@g.us')) {
+            targetGroup = groups.find(g => g.id._serialized === groupId);
+        } else {
+            // Caso contrário, procurar pelo nome do grupo
+            targetGroup = groups.find(g => g.name.toLowerCase().includes(groupId.toLowerCase()));
+        }
+
+        if (!targetGroup) {
+            console.warn(`[WhatsApp] Grupo não encontrado: ${groupId}`);
+            throw new Error(`Group not found: ${groupId}`);
+        }
+
+        console.log(`[WhatsApp] Grupo encontrado: ${targetGroup.name} (${targetGroup.id._serialized})`);
+
+        // Obter participantes do grupo
+        const chat = await global.whatsappClient.getChatById(targetGroup.id._serialized) as GroupChat;
+        const participants = chat.participants || [];
+
+        console.log(`[WhatsApp] Total de participantes no grupo: ${participants.length}`);
+
+        // Criar variações do número para verificar
+        const variations: string[] = [formattedPhone];
+
+        // Para números brasileiros, tentar com e sem o 9º dígito
+        if (formattedPhone.startsWith('55') && formattedPhone.length === 13) {
+            // Tem 9º dígito, tentar sem ele
+            const without9 = formattedPhone.substring(0, 4) + formattedPhone.substring(5);
+            variations.push(without9);
+        } else if (formattedPhone.startsWith('55') && formattedPhone.length === 12) {
+            // Não tem 9º dígito, tentar com ele
+            const with9 = formattedPhone.substring(0, 4) + '9' + formattedPhone.substring(4);
+            variations.push(with9);
+        }
+
+        console.log(`[WhatsApp] Verificando variações: ${variations.join(', ')}`);
+
+        // Verificar se alguma variação está nos participantes
+        for (const variation of variations) {
+            const isInGroup = participants.some((p: { id: { user: string } }) => {
+                const participantNumber = p.id.user;
+                return participantNumber === variation;
+            });
+
+            if (isInGroup) {
+                console.log(`[WhatsApp] ✓ Número ${phone} encontrado no grupo ${targetGroup.name} (variação: ${variation})`);
+                return true;
+            }
+        }
+
+        console.log(`[WhatsApp] ✗ Número ${phone} NÃO está no grupo ${targetGroup.name}`);
+        return false;
+
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorString = String(error);
+
+        // Detectar erros específicos do Puppeteer/WhatsApp Client
+        if (errorString.includes('Cannot read properties of undefined') ||
+            errorString.includes('pptr://') ||
+            errorString.includes('evaluation_script')) {
+            console.error('[WhatsApp] Cliente WhatsApp foi destruído ou está em estado inválido');
+            throw new Error('WhatsApp client is not ready');
+        }
+
+        console.error(`[WhatsApp] Erro ao verificar número no grupo: ${errorMessage}`);
+        throw error;
+    }
+};
+
+/**
+ * Lista todos os grupos disponíveis
+ * @returns Promise<Array<{id: string, name: string, participantCount: number}>>
+ */
+export const listAllGroups = async (): Promise<Array<{ id: string; name: string; participantCount: number }>> => {
+    console.log('[WhatsApp] Listando todos os grupos');
+
+    // Validação simples e direta do cliente
+    if (!global.whatsappClient) {
+        const errorMsg = `WhatsApp client is not initialized. Status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+
+    if (global.whatsappStatus !== 'ready') {
+        const errorMsg = `WhatsApp is not in ready state. Current status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+        // Verificação adicional imediatamente antes de usar o cliente
+        if (!global.whatsappClient) {
+            throw new Error('WhatsApp client became undefined before executing getChats');
+        }
+
+        const chats = await global.whatsappClient.getChats();
+        const groups = chats.filter(chat => chat.isGroup);
+
+        const groupList = groups.map(group => ({
+            id: group.id._serialized,
+            name: group.name,
+            participantCount: (group as any).participants?.length || 0
+        }));
+
+        console.log(`[WhatsApp] Total de grupos: ${groupList.length}`);
+        return groupList;
+
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorString = String(error);
+
+        // Detectar erros específicos do Puppeteer/WhatsApp Client
+        if (errorString.includes('Cannot read properties of undefined') ||
+            errorString.includes('pptr://') ||
+            errorString.includes('evaluation_script')) {
+            console.error('[WhatsApp] Cliente WhatsApp foi destruído ou está em estado inválido');
+            throw new Error('WhatsApp client is not ready');
+        }
+
+        console.error(`[WhatsApp] Erro ao listar grupos: ${errorMessage}`);
+        throw error;
+    }
+};
+
+/**
+ * Obtém todos os participantes de um grupo específico
+ * @param groupId - ID do grupo no formato '123456789-987654321@g.us' ou nome do grupo
+ * @returns Promise<Array<{phone: string, isAdmin: boolean}>>
+ */
+export const getGroupParticipants = async (
+    groupId: string
+): Promise<Array<{ phone: string; isAdmin: boolean; name?: string }>> => {
+    console.log(`[WhatsApp] Obtendo participantes do grupo ${groupId}`);
+
+    // Validação simples e direta do cliente
+    if (!global.whatsappClient) {
+        const errorMsg = `WhatsApp client is not initialized. Status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+
+    if (global.whatsappStatus !== 'ready') {
+        const errorMsg = `WhatsApp is not in ready state. Current status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+        // Verificação adicional imediatamente antes de usar o cliente
+        if (!global.whatsappClient) {
+            throw new Error('WhatsApp client became undefined before executing getChats');
+        }
+
+        const chats = await global.whatsappClient.getChats();
+        const groups = chats.filter(chat => chat.isGroup);
+
+        // Encontrar o grupo
+        let targetGroup = null;
+        if (groupId.endsWith('@g.us')) {
+            targetGroup = groups.find(g => g.id._serialized === groupId);
+        } else {
+            targetGroup = groups.find(g => g.name.toLowerCase().includes(groupId.toLowerCase()));
+        }
+
+        if (!targetGroup) {
+            console.warn(`[WhatsApp] Grupo não encontrado: ${groupId}`);
+            throw new Error(`Group not found: ${groupId}`);
+        }
+
+        const chat = await global.whatsappClient.getChatById(targetGroup.id._serialized) as GroupChat;
+        const participants = chat.participants || [];
+
+        const participantList = participants.map((p: { id: { user: string }; isAdmin?: boolean }) => ({
+            phone: p.id.user,
+            isAdmin: p.isAdmin || false,
+            name: p.id.user // A biblioteca não fornece o nome diretamente
+        }));
+
+        console.log(`[WhatsApp] Total de participantes no grupo ${targetGroup.name}: ${participantList.length}`);
+        return participantList;
+
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorString = String(error);
+
+        // Detectar erros específicos do Puppeteer/WhatsApp Client
+        if (errorString.includes('Cannot read properties of undefined') ||
+            errorString.includes('pptr://') ||
+            errorString.includes('evaluation_script')) {
+            console.error('[WhatsApp] Cliente WhatsApp foi destruído ou está em estado inválido');
+            throw new Error('WhatsApp client is not ready');
+        }
+
+        console.error(`[WhatsApp] Erro ao obter participantes do grupo: ${errorMessage}`);
+        throw error;
+    }
 };
 
 // ============================================================================

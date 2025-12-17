@@ -24,10 +24,11 @@ interface RouteParams {
  */
 export async function GET(
     req: NextRequest,
-    { params }: RouteParams
+    context: RouteParams
 ) {
     try {
-        const { cpf } = params;
+        // Next.js 15: params is now a Promise
+        const { cpf } = await context.params;
 
         const result = await pool.query(`
             SELECT t.*
@@ -41,7 +42,7 @@ export async function GET(
             data: result.rows as Tag[]
         });
     } catch (error) {
-        console.error(`[API /api/leads/${params.cpf}/tags GET] Error:`, error);
+        console.error(`[API /api/leads/tags GET] Error:`, error);
         return NextResponse.json(
             { error: 'Failed to fetch lead tags' },
             { status: 500 }
@@ -55,11 +56,13 @@ export async function GET(
  */
 export async function POST(
     req: NextRequest,
-    { params }: RouteParams
+    context: RouteParams
 ) {
     try {
-        console.log('[API POST /api/leads/:cpf/tags] Starting...', { params });
-        const { cpf } = params;
+        // Next.js 15: params is now a Promise
+        const { cpf } = await context.params;
+        console.log('[API POST /api/leads/:cpf/tags] Starting...', { cpf });
+
         const body = await req.json();
         const { tagId } = body;
         console.log('[API POST] Body parsed:', { cpf, tagId });
@@ -92,7 +95,7 @@ export async function POST(
         }
 
         // Insert association
-        console.log('[API POST] Inserting association...');
+        console.log('[API POST] Inserting association...', { cpf, tagId });
         await pool.query(
             `INSERT INTO lead_tags (lead_cpf, tag_id) 
              VALUES ($1, $2)
@@ -104,7 +107,7 @@ export async function POST(
         return NextResponse.json({ success: true }, { status: 201 });
 
     } catch (error) {
-        console.error(`[API /api/leads/${params.cpf}/tags POST] Error:`, error);
+        console.error(`[API /api/leads/tags POST] Error:`, error);
         console.error('[API POST] Error details:', {
             message: error instanceof Error ? error.message : 'Unknown error',
             stack: error instanceof Error ? error.stack : undefined

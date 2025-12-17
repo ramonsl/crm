@@ -13,21 +13,18 @@ import { useContactsSelection } from '@/hooks/useContactsSelection';
 import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus';
 import { ContactsTabs } from './ContactsTabs';
 import { ContactsFilters } from './ContactsFilters';
-import { StatusBadge } from './StatusBadge';
-import { ProfileAvatar } from './ProfileAvatar';
 import { ContactEditModal } from './ContactEditModal';
 import { MessageModal } from './MessageModal';
 import { BulkMessageModal } from './BulkMessageModal';
 import { ActivityTimeline } from './ActivityTimeline';
-import TimeAgoBadge from '@/components/TimeAgoBadge';
-import WhatsAppIndicator from '@/components/WhatsAppIndicator';
-import { TagSelector } from '@/components/tags/TagSelector';
 import type { ContactView, Contact } from '@/types/contacts';
 import type { Tag } from '@/types/tag';
 import styles from './ContactsTable.module.css';
-import { UserPlus, RefreshCw, MessageSquare, Edit2, Trash2, Download, Upload, Filter, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Clock, Forward } from 'lucide-react';
+import { UserPlus, RefreshCw, MessageSquare, Download, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { ColumnSelector } from './ColumnSelector';
 import { useVisibleColumns } from '@/hooks/useVisibleColumns';
+import { ContactsPagination } from './ContactsPagination';
+import { ContactsTableRow } from './ContactsTableRow';
 
 interface ContactsTableProps {
     view?: ContactView;
@@ -417,109 +414,27 @@ export function ContactsTable({
                             </tr>
                         ) : (
                             contacts.map((contact) => (
-                                <tr key={contact.cpf} className={isSelected(contact.cpf) ? styles.selected : ''}>
-                                    <td>
-                                        <input
-                                            type="checkbox"
-                                            checked={isSelected(contact.cpf)}
-                                            onChange={() => toggleSelect(contact.cpf)}
-                                        />
-                                    </td>
-                                    <td>
-                                        <ProfileAvatar contact={contact} size="medium" />
-                                    </td>
-                                    <td>
-                                        <div className={styles.namePhoneCell}>
-                                            <div className={styles.nameRow}>
-                                                <span className={styles.contactName}>{contact.nome}</span>
-                                                {contact.is_new === 1 && <span className={styles.newBadge}>NOVO</span>}
-                                            </div>
-                                            <div className={styles.phoneRow}>
-                                                <span className={styles.phoneNumber}>{contact.telefone}</span>
-                                                <WhatsAppIndicator
-                                                    phone={contact.telefone}
-                                                    onSyncComplete={refresh}
-                                                />
-                                            </div>
-                                            {contact.last_template_sent && (
-                                                <div className={styles.templateRow}>
-                                                    <span className={styles.templateBadge}>
-                                                        📄 {contact.last_template_sent}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    {visibleColumns.cpf && <td>{contact.cpf}</td>}
-                                    {visibleColumns.status && (
-                                        <td>
-                                            <StatusBadge status={contact.status} />
-                                        </td>
-                                    )}
-                                    {visibleColumns.semestre && <td>{contact.tipo_ingresso || '-'}</td>}
-                                    {visibleColumns.ultima_mensagem && (
-                                        <td>
-                                            {contact.last_message_time ? (
-                                                <TimeAgoBadge date={contact.last_message_time} />
-                                            ) : (
-                                                <span className={styles.noMessage}>Nunca</span>
-                                            )}
-                                        </td>
-                                    )}
-                                    <td>
-                                        <TagSelector
-                                            leadCpf={contact.cpf}
-                                            selectedTags={leadTags.get(contact.cpf) || []}
-                                            onTagsChange={(newTags) => {
-                                                const updatedMap = new Map(leadTags);
-                                                updatedMap.set(contact.cpf, newTags);
-                                                setLeadTags(updatedMap);
-                                            }}
-                                            inline
-                                        />
-                                    </td>
-                                    <td>
-                                        <div className={styles.actions}>
-                                            <button
-                                                className={styles.actionButton}
-                                                title="Enviar mensagem"
-                                                onClick={() => handleSendMessage(contact)}
-                                            >
-                                                <MessageSquare size={16} />
-                                            </button>
-                                            {comercialPhone && (
-                                                <button
-                                                    className={styles.actionButton}
-                                                    title={`Encaminhar para ${comercialName || 'Comercial'}`}
-                                                    onClick={() => handleForwardToComercial(contact)}
-                                                >
-                                                    <Forward size={16} />
-                                                </button>
-                                            )}
-                                            <button
-                                                className={styles.actionButton}
-                                                title="Editar"
-                                                onClick={() => handleEdit(contact)}
-                                            >
-                                                <Edit2 size={16} />
-                                            </button>
-                                            <button
-                                                className={styles.actionButton}
-                                                title="Timeline (Histórico completo)"
-                                                onClick={() => handleViewTimeline(contact)}
-                                            >
-                                                <Clock size={16} />
-                                            </button>
-                                            <button
-                                                className={styles.actionButton}
-                                                title="Deletar"
-                                                onClick={(e) => handleDelete(contact, e)}
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                <ContactsTableRow
+                                    key={contact.cpf}
+                                    contact={contact}
+                                    isSelected={isSelected(contact.cpf)}
+                                    visibleColumns={visibleColumns}
+                                    tags={leadTags.get(contact.cpf) || []}
+                                    comercialPhone={comercialPhone}
+                                    comercialName={comercialName}
+                                    onSelect={toggleSelect}
+                                    onTagsChange={(newTags) => {
+                                        const updatedMap = new Map(leadTags);
+                                        updatedMap.set(contact.cpf, newTags);
+                                        setLeadTags(updatedMap);
+                                    }}
+                                    onSendMessage={handleSendMessage}
+                                    onEdit={handleEdit}
+                                    onViewTimeline={handleViewTimeline}
+                                    onDelete={handleDelete}
+                                    onForwardToComercial={handleForwardToComercial}
+                                    onSyncComplete={refresh}
+                                />
                             ))
                         )}
                     </tbody>
@@ -527,109 +442,14 @@ export function ContactsTable({
             </div>
 
             {/* Pagination */}
-            <div className={styles.pagination}>
-                {/* Left: Page size selector */}
-                <div className={styles.paginationLeft}>
-                    <label>Mostrar:</label>
-                    <select
-                        className={styles.pageSizeSelect}
-                        value={filters.limit || 25}
-                        onChange={(e) => {
-                            updateFilters({
-                                limit: Number(e.target.value),
-                                page: 1 // Reset to first page when changing page size
-                            });
-                        }}
-                    >
-                        <option value={25}>25</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                    </select>
-                    <span>por página</span>
-                </div>
-
-                {/* Center: Page navigation */}
-                <div className={styles.paginationCenter}>
-                    <button
-                        onClick={() => updateFilter('page', Math.max(1, currentPage - 1))}
-                        disabled={currentPage === 1}
-                        title="Página anterior"
-                    >
-                        <ChevronLeft size={18} />
-                    </button>
-
-                    <div className={styles.pageNumbers}>
-                        {(() => {
-                            const pages: (number | string)[] = [];
-                            const maxVisiblePages = 5;
-
-                            if (totalPages <= maxVisiblePages) {
-                                // Show all pages
-                                for (let i = 1; i <= totalPages; i++) {
-                                    pages.push(i);
-                                }
-                            } else {
-                                // Always show first page
-                                pages.push(1);
-
-                                if (currentPage > 3) {
-                                    pages.push('...');
-                                }
-
-                                // Show pages around current
-                                const start = Math.max(2, currentPage - 1);
-                                const end = Math.min(totalPages - 1, currentPage + 1);
-
-                                for (let i = start; i <= end; i++) {
-                                    pages.push(i);
-                                }
-
-                                if (currentPage < totalPages - 2) {
-                                    pages.push('...');
-                                }
-
-                                // Always show last page
-                                if (totalPages > 1) {
-                                    pages.push(totalPages);
-                                }
-                            }
-
-                            return pages.map((page, index) => (
-                                typeof page === 'number' ? (
-                                    <button
-                                        key={index}
-                                        className={`${styles.pageButton} ${currentPage === page ? styles.activePageButton : ''}`}
-                                        onClick={() => updateFilter('page', page)}
-                                    >
-                                        {page}
-                                    </button>
-                                ) : (
-                                    <span key={index} className={styles.pageEllipsis}>{page}</span>
-                                )
-                            ));
-                        })()}
-                    </div>
-
-                    <button
-                        onClick={() => updateFilter('page', Math.min(totalPages, currentPage + 1))}
-                        disabled={currentPage === totalPages || totalPages === 0}
-                        title="Próxima página"
-                    >
-                        <ChevronRight size={18} />
-                    </button>
-                </div>
-
-                {/* Right: Total count info */}
-                <div className={styles.paginationRight}>
-                    {totalCount > 0 ? (
-                        <span>
-                            {((currentPage - 1) * (filters.limit || 25)) + 1} - {Math.min(currentPage * (filters.limit || 25), totalCount)} de {totalCount} contatos
-                        </span>
-                    ) : (
-                        <span>0 contatos</span>
-                    )}
-                </div>
-            </div>
+            <ContactsPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalCount={totalCount}
+                pageSize={filters.limit || 25}
+                onPageChange={(page) => updateFilter('page', page)}
+                onPageSizeChange={(size) => updateFilters({ limit: size, page: 1 })}
+            />
 
             {/* Modals */}
             <ContactEditModal
