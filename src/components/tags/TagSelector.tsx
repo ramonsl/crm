@@ -41,6 +41,9 @@ export function TagSelector({
     const [showCreateModal, setShowCreateModal] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    // Debug: log CPF value
+    console.log('[TagSelector] Component rendered with leadCpf:', leadCpf, 'Type:', typeof leadCpf);
+
     // Load available tags
     useEffect(() => {
         if (isOpen) {
