@@ -152,10 +152,7 @@ export function TagSelector({
                                 key={tag.id}
                                 tag={tag}
                                 size="sm"
-                                onRemove={(e) => {
-                                    e?.stopPropagation();
-                                    handleToggleTag(tag);
-                                }}
+                                onRemove={() => handleToggleTag(tag)}
                             />
                         ))}
                         {selectedTags.length > 2 && (

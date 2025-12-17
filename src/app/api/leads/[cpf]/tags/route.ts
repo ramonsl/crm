@@ -72,21 +72,8 @@ export async function POST(
             );
         }
 
-        // Check if lead exists
-        console.log('[API POST] Checking if lead exists:', cpf);
-        const leadCheck = await pool.query(
-            'SELECT cpf FROM leads WHERE cpf = $1',
-            [cpf]
-        );
-        console.log('[API POST] Lead check result:', leadCheck.rows.length);
-
-        if (leadCheck.rows.length === 0) {
-            console.log('[API POST] Lead not found');
-            return NextResponse.json(
-                { error: 'Lead não encontrado' },
-                { status: 404 }
-            );
-        }
+        // Note: CPF field can also contain phone number for leads without CPF
+        // So we don't validate if it's a real CPF format
 
         // Check if tag exists and is active
         console.log('[API POST] Checking if tag exists:', tagId);
