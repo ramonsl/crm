@@ -1,0 +1,250 @@
+.page {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    gap: 1rem;
+}
+
+.title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 0.5rem 0;
+}
+
+.subtitle {
+    color: #6b7280;
+    font-size: 1rem;
+    margin: 0;
+}
+
+.createButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+.createButton:hover {
+    background-color: #2563eb;
+}
+
+.loading,
+.empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    gap: 1rem;
+}
+
+.spinner {
+    width: 2rem;
+    height: 2rem;
+    border: 3px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.miniSpinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.emptyIcon {
+    color: #d1d5db;
+}
+
+.empty h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #374151;
+    margin: 0;
+}
+
+.empty p {
+    color: #6b7280;
+    margin: 0 0 1rem 0;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border-color: #d1d5db;
+}
+
+.cardHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.cardActions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.iconButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    background: transparent;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    color: #6b7280;
+    transition: all 0.2s;
+}
+
+.iconButton:hover {
+    background-color: #f3f4f6;
+    color: #374151;
+}
+
+.iconButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.deleteButton:hover {
+    background-color: #fef2f2;
+    color: #dc2626;
+}
+
+.description {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.cardFooter {
+    padding-top: 0.75rem;
+    border-top: 1px solid #f3f4f6;
+}
+
+.usageCount {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    .title {
+        color: #f3f4f6;
+    }
+
+    .subtitle {
+        color: #9ca3af;
+    }
+
+    .card {
+        background-color: #1f2937;
+        border-color: #374151;
+    }
+
+    .card:hover {
+        border-color: #4b5563;
+    }
+
+    .iconButton {
+        color: #9ca3af;
+    }
+
+    .iconButton:hover {
+        background-color: #374151;
+        color: #d1d5db;
+    }
+
+    .deleteButton:hover {
+        background-color: #7f1d1d;
+        color: #fca5a5;
+    }
+
+    .description {
+        color: #9ca3af;
+    }
+
+    .cardFooter {
+        border-top-color: #374151;
+    }
+
+    .usageCount {
+        color: #9ca3af;
+    }
+
+    .empty h3 {
+        color: #d1d5db;
+    }
+
+    .empty p {
+        color: #9ca3af;
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .page {
+        padding: 1rem;
+    }
+
+    .header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
