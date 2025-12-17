@@ -73,6 +73,20 @@ export async function GET() {
         const leadToMatriculaRatio = matriculados > 0 ? (leadInscritoSum / matriculados).toFixed(1) : '0.0';
         const inscritoToMatriculaRatio = matriculados > 0 ? (inscritosCount / matriculados).toFixed(1) : '0.0';
 
+        // === Total de Mensagens Enviadas ===
+        // Conta mensagens do WhatsApp (from_me = true) + templates enviados
+        const messagesResult = await pool.query(`
+            SELECT COUNT(*) as count FROM messages WHERE from_me = true
+        `);
+        const whatsappMessagesSent = parseInt(messagesResult.rows[0]?.count || '0');
+
+        const templatesResult = await pool.query(`
+            SELECT COUNT(*) as count FROM template_history WHERE success = true
+        `);
+        const templatesSent = parseInt(templatesResult.rows[0]?.count || '0');
+
+        const totalMessagesSent = whatsappMessagesSent + templatesSent;
+
         // Construct funnel data
         const funnel = [
             { label: 'Total de Leads', value: total, color: '#3b82f6' },
@@ -94,7 +108,10 @@ export async function GET() {
             matriculados,
             encaminhadosComercial,
             encaminhadosMatriculados,
-            taxaConversaoComercial
+            taxaConversaoComercial,
+            totalMessagesSent,
+            whatsappMessagesSent,
+            templatesSent
         });
     } catch (error) {
         console.error(error);

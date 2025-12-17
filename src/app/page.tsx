@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
-import { Users, CheckCircle, TrendingUp, PieChart as PieChartIcon, Send } from 'lucide-react';
+import { Users, CheckCircle, TrendingUp, PieChart as PieChartIcon, Send, MessageSquare } from 'lucide-react';
 import {
   PieChart, Pie, Cell,
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -256,6 +256,22 @@ export default function Dashboard() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        </div>
+
+        {/* NEW: Total de Mensagens Enviadas */}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiHeader}>
+            <span className={styles.kpiLabel}>Mensagens Enviadas</span>
+            <div className={`${styles.iconBox} ${styles.blueIcon}`}>
+              <MessageSquare size={20} />
+            </div>
+          </div>
+          <div className={styles.kpiContent}>
+            <span className={styles.kpiValue}>{stats?.totalMessagesSent?.toLocaleString('pt-BR') || 0}</span>
+            <span className={styles.kpiTrend}>
+              WhatsApp: {stats?.whatsappMessagesSent || 0} | Templates: {stats?.templatesSent || 0}
+            </span>
           </div>
         </div>
       </div>

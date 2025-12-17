@@ -184,6 +184,41 @@ export async function POST(req: Request) {
         // Log the forward in the timeline
         await activityService.logForwarded(leadCpf, comercialName || 'Comercial');
 
+        // Auto-tag with "Comercial"
+        try {
+            // Get or create "Comercial" tag
+            let tagResult = await pool.query(
+                `SELECT id FROM tags WHERE name = 'Comercial' AND active = 1`
+            );
+
+            let tagId;
+            if (tagResult.rows.length === 0) {
+                // Create tag if it doesn't exist
+                const createResult = await pool.query(
+                    `INSERT INTO tags (name, color, description, active)
+                     VALUES ('Comercial', '#8b5cf6', 'Lead encaminhado para o time comercial', 1)
+                     RETURNING id`
+                );
+                tagId = createResult.rows[0].id;
+                console.log('[Forward API] Created "Comercial" tag');
+            } else {
+                tagId = tagResult.rows[0].id;
+            }
+
+            // Associate tag with lead
+            await pool.query(
+                `INSERT INTO lead_tags (lead_cpf, tag_id)
+                 VALUES ($1, $2)
+                 ON CONFLICT (lead_cpf, tag_id) DO NOTHING`,
+                [leadCpf, tagId]
+            );
+
+            console.log(`[Forward API] Tagged lead ${leadCpf} with "Comercial"`);
+        } catch (tagError) {
+            console.error('[Forward API] Error tagging lead:', tagError);
+            // Don't fail the forward if tagging fails
+        }
+
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('[API /api/forward POST] Error:', error);
