@@ -81,35 +81,46 @@ export function TagSelector({
     };
 
     const handleToggleTag = async (tag: Tag) => {
+        console.log('[TagSelector] handleToggleTag called:', { tag, leadCpf, selectedTags });
         const isSelected = selectedTags.some(t => t.id === tag.id);
 
         if (isSelected) {
             // Remove tag
             try {
+                console.log('[TagSelector] Removing tag:', tag.id);
                 const response = await fetch(`/api/leads/${leadCpf}/tags/${tag.id}`, {
                     method: 'DELETE',
                 });
 
+                console.log('[TagSelector] Delete response:', response.status);
                 if (response.ok) {
                     onTagsChange(selectedTags.filter(t => t.id !== tag.id));
+                } else {
+                    const errorText = await response.text();
+                    console.error('[TagSelector] Delete failed:', errorText);
                 }
             } catch (error) {
-                console.error('Error removing tag:', error);
+                console.error('[TagSelector] Error removing tag:', error);
             }
         } else {
             // Add tag
             try {
+                console.log('[TagSelector] Adding tag:', tag.id);
                 const response = await fetch(`/api/leads/${leadCpf}/tags`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ tagId: tag.id }),
                 });
 
+                console.log('[TagSelector] POST response:', response.status);
                 if (response.ok) {
                     onTagsChange([...selectedTags, tag]);
+                } else {
+                    const errorText = await response.text();
+                    console.error('[TagSelector] POST failed:', errorText);
                 }
             } catch (error) {
-                console.error('Error adding tag:', error);
+                console.error('[TagSelector] Error adding tag:', error);
             }
         }
     };
