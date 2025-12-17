@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 import { NextResponse, NextRequest } from 'next/server';
 import { sendMessage } from '@/lib/whatsapp';
 import { pool } from '@/lib/db';
@@ -76,8 +78,8 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json({ success: true, messageId });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error sending message:', error);
-        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: getErrorMessage(error) || 'Internal Server Error' }, { status: 500 });
     }
 }

@@ -4,6 +4,7 @@
  */
 
 import { pool } from '../db';
+import type { QueryParams } from "@/types/database";
 import type { UserRow } from '../types';
 import type { CreateUserDto, UpdateUserDto } from './dtos';
 import type { IUserRepository } from './interfaces';
@@ -57,7 +58,7 @@ export class UserRepository implements IUserRepository {
      */
     async update(id: number, data: UpdateUserDto): Promise<void> {
         const fields: string[] = [];
-        const params: any[] = [];
+        const params: QueryParams = [];
         let paramIndex = 1;
 
         if (data.email !== undefined) {

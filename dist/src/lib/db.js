@@ -44,6 +44,7 @@ async function initializeDatabase() {
         escola TEXT,
         is_new INTEGER DEFAULT 0,
         status_changed INTEGER DEFAULT 0,
+        status_changed_at TIMESTAMP,
         last_import_date TIMESTAMP,
         last_template_name TEXT,
         whatsapp_valido INTEGER DEFAULT 0,
@@ -179,6 +180,32 @@ async function initializeDatabase() {
       )
     `);
         console.log('[DB] ✅ Table: messages');
+        // Create tags table
+        await neonDb_1.pool.query(`
+      CREATE TABLE IF NOT EXISTS tags (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        color TEXT NOT NULL DEFAULT '#6b7280',
+        description TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+        console.log('[DB] ✅ Table: tags');
+        // Create lead_tags junction table
+        await neonDb_1.pool.query(`
+      CREATE TABLE IF NOT EXISTS lead_tags (
+        id SERIAL PRIMARY KEY,
+        lead_cpf TEXT NOT NULL,
+        tag_id INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_lead_tag_lead FOREIGN KEY (lead_cpf) REFERENCES leads(cpf) ON DELETE CASCADE,
+        CONSTRAINT fk_lead_tag_tag FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+        CONSTRAINT unique_lead_tag UNIQUE (lead_cpf, tag_id)
+      )
+    `);
+        console.log('[DB] ✅ Table: lead_tags');
         // Create indexes
         await createIndexes();
         // Seed default data

@@ -88,11 +88,12 @@ export async function POST(req: NextRequest) {
             id: result.rows[0].id
         }, { status: 201 });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API /api/tags POST] Error:', error);
 
         // Handle unique constraint violation
-        if (error.message?.includes('duplicate key') || error.code === '23505') {
+        const isErr = error instanceof Error;
+        if (isErr && (error.message?.includes('duplicate key') || (error as any).code === '23505')) {
             return NextResponse.json(
                 { error: 'Tag com este nome já existe' },
                 { status: 409 }
@@ -172,10 +173,11 @@ export async function PUT(req: NextRequest) {
 
         return NextResponse.json({ success: true });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API /api/tags PUT] Error:', error);
 
-        if (error.code === '23505') {
+        const isErr = error instanceof Error;
+        if (isErr && (error as any).code === '23505') {
             return NextResponse.json(
                 { error: 'Tag com este nome já existe' },
                 { status: 409 }

@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * API Route - Sync WhatsApp Contact Data
  * POST /api/contacts/sync-whatsapp
@@ -123,10 +125,10 @@ export async function POST(req: NextRequest) {
             updated: true
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API Sync] Error:', error);
         return NextResponse.json(
-            { error: error.message || 'Synchronization failed' },
+            { error: getErrorMessage(error) || 'Synchronization failed' },
             { status: 500 }
         );
     }

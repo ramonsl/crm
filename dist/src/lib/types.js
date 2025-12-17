@@ -1,11 +1,8 @@
 "use strict";
-/**
- * Centralized type definitions for the CRM application
- * Eliminates use of 'any' and provides type safety
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isStandardError = isStandardError;
-exports.getErrorMessage = getErrorMessage;
+exports.safeGetErrorMessage = safeGetErrorMessage;
+exports.getErrorMessage = safeGetErrorMessage;
 /**
  * Type guard for StandardError
  */
@@ -18,7 +15,7 @@ function isStandardError(error) {
 /**
  * Safely extract error message
  */
-function getErrorMessage(error) {
+function safeGetErrorMessage(error) {
     if (isStandardError(error)) {
         return error.message;
     }

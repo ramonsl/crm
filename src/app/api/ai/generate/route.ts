@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * API Route - Generate AI Message
  * POST /api/ai/generate
@@ -89,10 +91,10 @@ export async function POST(req: NextRequest) {
             message: generatedMessage
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[AI API] Error:', error);
         return NextResponse.json(
-            { error: error.message || 'Erro ao gerar mensagem' },
+            { error: getErrorMessage(error) || 'Erro ao gerar mensagem' },
             { status: 500 }
         );
     }

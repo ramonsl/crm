@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 import { NextResponse } from 'next/server';
 import { getContactProfilePicture } from '@/lib/whatsapp';
 import { pool } from '@/lib/db';
@@ -19,8 +21,8 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: false, message: 'No profile picture found' });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error syncing profile pic:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
     }
 }

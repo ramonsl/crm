@@ -1,20 +1,15 @@
 'use client';
 
-/**
- * WhatsApp Chat Page
- *
- * Main page for WhatsApp-style chat interface
- * Replicates WhatsApp Web experience with real-time updates
- */
-
 import { useState, useEffect } from 'react';
-import styles from './page.module.css';
+import { Forward } from 'lucide-react';
+
+import { getErrorMessage } from '@/lib/types';
 import ChatList from '@/components/whatsapp-chat/ChatList';
 import MessageArea from '@/components/whatsapp-chat/MessageArea';
 import type { ChatInfo } from '@/services/WhatsAppChatService';
-import { Forward } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { useSocketContacts } from '@/hooks/useSocketContacts';
+import styles from './page.module.css';
 
 export default function WhatsAppChatPage() {
     const { success: toastSuccess, error: toastError } = useToast();
@@ -114,9 +109,9 @@ export default function WhatsAppChatPage() {
             }
 
             setChats(data.chats || []);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('[WhatsAppChat] Error loading chats:', err);
-            setError(err.message);
+            setError(getErrorMessage(err));
         } finally {
             setLoading(false);
         }

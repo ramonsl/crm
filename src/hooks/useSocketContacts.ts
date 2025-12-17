@@ -1,7 +1,9 @@
+'use client';
+
 /**
- * Hook for WebSocket-based contact list updates
- * Listens for new messages and updates the chat list in real-time
- * Note: Notifications are handled globally by WhatsAppNotificationManager
+ * useSocketContacts Hook
+ * 
+ * Listens to Socket.IO events for new messages and contact updates
  */
 
 import { useEffect, useState } from 'react';

@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 import { NextResponse } from 'next/server';
 import { getClient, getStatus } from '@/lib/whatsapp';
 
@@ -15,7 +17,7 @@ export async function GET() {
             messageListeners: listenerCount,
             timestamp: new Date().toISOString()
         });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
     }
 }

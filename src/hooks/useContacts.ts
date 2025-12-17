@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * Hook for managing contacts data and state
  */
@@ -114,7 +116,7 @@ export function useContacts(
             setTotalCount(data.pagination?.total || 0);
             setCurrentPage(data.pagination?.page || 1);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
+            setError(err instanceof Error ? getErrorMessage(err) : 'Unknown error');
             console.error('Error fetching contacts:', err);
         } finally {
             setLoading(false);

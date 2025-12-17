@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * Hook for managing templates
  */
@@ -25,7 +27,7 @@ export function useTemplates() {
             const data = await res.json();
             setTemplates(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
+            setError(err instanceof Error ? getErrorMessage(err) : 'Unknown error');
             console.error('Error fetching templates:', err);
         } finally {
             setLoading(false);

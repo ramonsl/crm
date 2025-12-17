@@ -23,11 +23,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Database Migrations
-        run: npx ts-node -O '{"module":"commonjs"}' scripts/migrate_prod.ts
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
       - name: Run tests
         run: npm test
         env:
@@ -38,4 +33,9 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # Database URL might be needed for build if static pages fetch data
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run Database Migrations
+        run: npx ts-node -O '{"module":"commonjs"}' scripts/migrate_prod.ts
+        env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

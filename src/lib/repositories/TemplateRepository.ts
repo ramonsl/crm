@@ -4,6 +4,7 @@
  */
 
 import { pool } from '../db';
+import type { QueryParams } from "@/types/database";
 import type { TemplateRow } from '../types';
 import type { CreateTemplateDto, UpdateTemplateDto } from './dtos';
 import type { ITemplateRepository } from './interfaces';
@@ -32,7 +33,7 @@ export class TemplateRepository implements ITemplateRepository {
 
     async update(id: number, data: UpdateTemplateDto): Promise<void> {
         const fields: string[] = [];
-        const params: any[] = [];
+        const params: QueryParams = [];
         let paramIndex = 1;
 
         if (data.name !== undefined) {

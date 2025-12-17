@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient, getStatus } from '@/lib/whatsapp';
 
@@ -112,11 +114,11 @@ export async function GET(req: NextRequest) {
             total: allMessages.length
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Fetch Messages] Error:', error);
         return NextResponse.json({
             error: 'Erro ao buscar mensagens',
-            message: error.message
+            message: getErrorMessage(error)
         }, { status: 500 });
     }
 }

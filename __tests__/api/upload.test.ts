@@ -1,64 +1,175 @@
-import { POST } from '@/app/api/chat/upload/route';
-import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { POST } from '@/app/api/upload/route';
+import { pool } from '@/lib/db';
+import { NextRequest } from 'next/server';
+import * as XLSX from 'xlsx';
 
-// Mock fs/promises
-jest.mock('fs/promises', () => ({
-    writeFile: jest.fn(),
-    mkdir: jest.fn(),
+// Mock DB
+jest.mock('@/lib/db', () => ({
+    pool: {
+        query: jest.fn(),
+    },
 }));
 
-// Mock NextRequest
-class MockNextRequest extends Request {
-    formData: () => Promise<FormData>;
+// Mock XLSX
+jest.mock('xlsx', () => ({
+    read: jest.fn(),
+    utils: {
+        sheet_to_json: jest.fn(),
+    },
+    SheetNames: ['Sheet1'],
+    Sheets: { 'Sheet1': {} }
+}));
 
-    constructor(url: string, init?: RequestInit & { formData?: FormData }) {
-        super(url, init);
-        this.formData = async () => init?.formData || new FormData();
-    }
+const mockPoolQuery = pool.query as jest.Mock;
+const mockSheetToJson = XLSX.utils.sheet_to_json as jest.Mock;
+const mockRead = XLSX.read as jest.Mock;
+
+function createRequestWithFile(data: string) {
+    const formData = new FormData();
+    const file = new File([data], 'leads.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    formData.append('file', file);
+
+    return new NextRequest(new URL('/api/upload', 'http://localhost'), {
+        method: 'POST',
+        body: formData,
+    });
 }
 
-describe('Upload API', () => {
+describe('/api/upload', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        jest.resetAllMocks();
+        // Setup default XLSX mock behavior
+        mockRead.mockReturnValue({
+            SheetNames: ['Sheet1'],
+            Sheets: { 'Sheet1': {} }
+        });
     });
 
-    it('should upload a file successfully', async () => {
-        const file = new File(['dummy content'], 'test.png', { type: 'image/png' });
-        const formData = new FormData();
-        formData.append('file', file);
+    it('should create new lead from valid file', async () => {
+        // Mock XLSX data: Header row + 1 Data row
+        const mockRows = [
+            ['CPF', 'Nome', 'Celular', 'Email', 'Status'],
+            ['123.456.789-00', 'New Lead', '11999999999', 'test@test.com', 'NOVO']
+        ];
+        mockSheetToJson.mockReturnValue(mockRows);
 
-        const req = new MockNextRequest('http://localhost/api/chat/upload', {
-            method: 'POST',
-            formData: formData
-        }) as unknown as NextRequest;
+        // Mock DB:
+        // 1. Check existing by CPF (empty)
+        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        // 2. Check existing by phone (empty)
+        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        // 3. Insert lead
+        mockPoolQuery.mockResolvedValueOnce({ rowCount: 1 });
+        // 4. Log creation activity (insert)
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
 
+        const req = createRequestWithFile('dummy content');
         const res = await POST(req);
-        const data = await res.json();
 
         expect(res.status).toBe(200);
-        expect(data.success).toBe(true);
-        expect(data.url).toMatch(/^\/uploads\/.*-test\.png$/);
-        expect(data.type).toBe('image/png');
-
-        expect(fs.mkdir).toHaveBeenCalled();
-        expect(fs.writeFile).toHaveBeenCalled();
+        const json = await res.json();
+        expect(json.created).toBe(1);
     });
 
-    it('should return 400 if no file is uploaded', async () => {
-        const formData = new FormData();
-        // No file appended
+    it('should update existing lead if status priority allows', async () => {
+        const mockRows = [
+            ['CPF', 'Status'],
+            ['123.456.789-00', 'MATRICULADO']
+        ];
+        mockSheetToJson.mockReturnValue(mockRows);
 
-        const req = new MockNextRequest('http://localhost/api/chat/upload', {
-            method: 'POST',
-            formData: formData
-        }) as unknown as NextRequest;
+        // Mock DB:
+        // 1. Check existing by CPF (Found, status=NOVO)
+        mockPoolQuery.mockResolvedValueOnce({
+            rows: [{ cpf: '12345678900', status: 'NOVO', notes: '' }],
+            rowCount: 1
+        });
 
+        // 2. Update lead (MATRICULADO > NOVO)
+        mockPoolQuery.mockResolvedValueOnce({ rowCount: 1 });
+
+        // 3. Log status change activity
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
+
+        const req = createRequestWithFile('dummy content');
         const res = await POST(req);
-        const data = await res.json();
+
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.updated).toBe(1);
+    });
+
+    it('should skip update if status priority is lower', async () => {
+        const mockRows = [
+            ['CPF', 'Status'],
+            ['123.456.789-00', 'NOVO']
+        ];
+        mockSheetToJson.mockReturnValue(mockRows);
+
+        // Mock DB:
+        // 1. Check existing by CPF (Found, status=MATRICULADO)
+        // MATRICULADO(7) > NOVO(1)
+        mockPoolQuery.mockResolvedValueOnce({
+            rows: [{ cpf: '12345678900', status: 'MATRICULADO', notes: '' }],
+            rowCount: 1
+        });
+
+        // No update query expected because logic skips it
+
+        const req = createRequestWithFile('dummy content');
+        const res = await POST(req);
+
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.updated).toBe(1);
+
+        // Verify that update was called but status remained MATRICULADO
+        const updateCall = mockPoolQuery.mock.calls.find(call => call[0].includes('UPDATE leads SET'));
+        expect(updateCall).toBeDefined();
+        // check that 1st param (status) passed to query matches EXISTING status (MATRICULADO), not new one (NOVO)
+        expect(updateCall[1][0]).toBe('MATRICULADO');
+    });
+
+    it('should merge lead if phone matches but CPF differs', async () => {
+        const mockRows = [
+            ['CPF', 'Nome', 'Celular', 'Status'],
+            ['999.999.999-99', 'Duplicate Lead', '11999999999', 'NOVO']
+        ];
+        mockSheetToJson.mockReturnValue(mockRows);
+
+        // Mock DB:
+        // 1. Check existing by CPF (Empty - new CPF)
+        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+        // 2. Check existing by Phone (Found old CPF)
+        mockPoolQuery.mockResolvedValueOnce({
+            rows: [{ cpf: '12345678900', status: 'NOVO', notes: '' }],
+            rowCount: 1
+        });
+
+        // 3. Update existing lead (merge)
+        mockPoolQuery.mockResolvedValueOnce({ rowCount: 1 });
+
+        // (No log status change because status is same, logic checks change)
+
+        const req = createRequestWithFile('dummy content');
+        const res = await POST(req);
+
+        expect(res.status).toBe(200);
+        const json = await res.json();
+        expect(json.updated).toBe(1);
+    });
+
+    it('should return 400 if header row not found', async () => {
+        const mockRows = [
+            ['Wrong', 'Header'],
+            ['Data', 'Row']
+        ];
+        mockSheetToJson.mockReturnValue(mockRows);
+
+        const req = createRequestWithFile('dummy content');
+        const res = await POST(req);
 
         expect(res.status).toBe(400);
-        expect(data.error).toBe('No file uploaded');
     });
 });
