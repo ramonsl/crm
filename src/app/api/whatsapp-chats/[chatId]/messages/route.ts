@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * GET /api/whatsapp-chats/[chatId]/messages
  * 
@@ -25,10 +27,11 @@ export async function GET(
             total: messages.length,
             hasMore: messages.length >= limit
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API /whatsapp-chats/messages] Error:', error);
 
-        if (error.message?.includes('not connected')) {
+        const isErr = error instanceof Error;
+        if (isErr && error.message?.includes('not connected')) {
             return NextResponse.json(
                 { error: 'WhatsApp não está conectado' },
                 { status: 400 }
@@ -36,7 +39,7 @@ export async function GET(
         }
 
         return NextResponse.json(
-            { error: error.message || 'Erro ao buscar mensagens' },
+            { error: getErrorMessage(error) || 'Erro ao buscar mensagens' },
             { status: 500 }
         );
     }

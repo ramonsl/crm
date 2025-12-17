@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 import { Client, LocalAuth, MessageMedia, Chat } from 'whatsapp-web.js';
 import { pool } from './db';
 import { messageQueue } from './messageQueue';
@@ -398,7 +400,7 @@ export const getClient = () => {
 
         global.whatsappClient.initialize().catch(err => {
             console.error('Failed to initialize client:', err);
-            messageQueue.addLog(`Falha ao inicializar: ${err.message}`, 'error');
+            messageQueue.addLog(`Falha ao inicializar: ${getErrorMessage(err)}`, 'error');
             global.whatsappStatus = 'disconnected';
             global.whatsappClient = null; // Reset client so we can try again
         });

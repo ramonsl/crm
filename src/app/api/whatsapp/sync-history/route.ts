@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { getStatus, getClient } from '@/lib/whatsapp';
@@ -117,7 +119,7 @@ export async function POST(req: NextRequest) {
 
                 await new Promise(resolve => setTimeout(resolve, WHATSAPP_CONFIG.HISTORY_SYNC_DELAY_MS));
 
-            } catch (error: any) {
+            } catch (error: unknown) {
                 contactsFailed++;
                 console.error(`[Sync History] Error for ${contact.nome}:`, error);
             }
@@ -127,8 +129,8 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, contactsProcessed, messagesImported, contactsFailed, totalContacts: contacts.length });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Sync History] Error:', error);
-        return NextResponse.json({ error: 'Erro interno do servidor', message: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Erro interno do servidor', message: getErrorMessage(error) }, { status: 500 });
     }
 }

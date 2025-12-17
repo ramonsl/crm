@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * API Route - Template History Recording
  * POST /api/template-history
@@ -43,10 +45,10 @@ export async function POST(req: NextRequest) {
             message: 'Template history recorded'
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API] Error recording template history:', error);
         return NextResponse.json(
-            { error: error.message || 'Internal Server Error' },
+            { error: getErrorMessage(error) || 'Internal Server Error' },
             { status: 500 }
         );
     }

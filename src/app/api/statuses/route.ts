@@ -69,10 +69,11 @@ export async function POST(req: NextRequest) {
             success: true,
             id: result.rows[0].id
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API /api/statuses POST] Error:', error);
 
-        if (error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+        const isErr = error instanceof Error;
+        if (isErr && (error.message?.includes('duplicate key') || (error as any).code === '23505')) {
             return NextResponse.json(
                 { error: 'Status já existe' },
                 { status: 409 }

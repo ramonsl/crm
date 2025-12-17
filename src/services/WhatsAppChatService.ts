@@ -6,7 +6,7 @@
  */
 
 import { getClient, getStatus } from '@/lib/whatsapp';
-import type { WhatsAppChat, WhatsAppMessage } from '@/lib/types';
+import type { WhatsAppChat, WhatsAppMessage, WhatsAppWebChat, WhatsAppWebMessage } from '@/lib/types';
 import { pool } from '@/lib/db';
 
 export interface ChatInfo {
@@ -55,7 +55,7 @@ export class WhatsAppChatService {
         try {
             console.log('[WhatsAppChatService] Fetching all chats...');
 
-            const chats: any[] = await client.getChats();
+            const chats: WhatsAppWebChat[] = await client.getChats();
             console.log(`[WhatsAppChatService] Found ${chats.length} chats`);
 
             const chatInfos: ChatInfo[] = [];
@@ -141,7 +141,7 @@ export class WhatsAppChatService {
                 let lastMessageTime: number | null = null;
 
                 try {
-                    const messages: any[] = await chat.fetchMessages({ limit: 5 });
+                    const messages: WhatsAppWebMessage[] = await chat.fetchMessages({ limit: 5 });
                     if (messages.length > 0) {
                         const msg = messages[0];
                         lastMessage = msg.body || '[Media]';
@@ -275,7 +275,7 @@ export class WhatsAppChatService {
             const chat = await client.getChatById(chatId);
             console.log(`[WhatsAppChatService] Chat found: ${chat.name}`);
 
-            const messages: any[] = await chat.fetchMessages({ limit });
+            const messages: WhatsAppWebMessage[] = await chat.fetchMessages({ limit });
             console.log(`[WhatsAppChatService] Raw messages fetched: ${messages.length}`);
 
             const chatMessages: ChatMessage[] = messages.map(msg => {

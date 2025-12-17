@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * API Route - Message History
  * GET /api/message-history?phone={phone}
@@ -50,10 +52,10 @@ export async function GET(req: NextRequest) {
             total: messages.length
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API] Error fetching message history:', error);
         return NextResponse.json(
-            { error: error.message || 'Internal Server Error' },
+            { error: getErrorMessage(error) || 'Internal Server Error' },
             { status: 500 }
         );
     }

@@ -1,0 +1,97 @@
+import { GET } from '@/app/api/dashboard/route';
+import { pool } from '@/lib/db';
+import { NextRequest } from 'next/server';
+
+// Mock DB
+jest.mock('@/lib/db', () => ({
+    pool: {
+        query: jest.fn(),
+    },
+    query: jest.fn(),
+    queryOne: jest.fn(),
+}));
+
+const mockPoolQuery = pool.query as jest.Mock;
+
+function createRequest(method: string, url: string) {
+    return new NextRequest(new URL(url, 'http://localhost'), { method });
+}
+
+describe('/api/dashboard', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it('should return correct dashboard metrics', async () => {
+        // 1. Total leads
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '100' }], rowCount: 1 });
+
+        // 2. Status counts
+        mockPoolQuery.mockResolvedValueOnce({
+            rows: [
+                { status: 'NOVO', count: '50' },
+                { status: 'INSCRITO', count: '20' },
+                { status: 'MATRICULADO', count: '30' }
+            ],
+            rowCount: 3
+        });
+
+        // 3. Meta matriculas
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ value: '50' }], rowCount: 1 });
+
+        // 4. Encaminhados count
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '10' }], rowCount: 1 });
+
+        // 5. Encaminhados -> Matriculados count
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '5' }], rowCount: 1 });
+
+        // 6. WhatsApp messages sent
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '100' }], rowCount: 1 });
+
+        // 7. Templates sent
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '50' }], rowCount: 1 });
+
+        const req = createRequest('GET', '/api/dashboard');
+        const res = await GET();
+
+        expect(res.status).toBe(200);
+        const data = await res.json();
+
+        // Verify calculations
+        expect(data.total).toBe(100);
+        expect(data.matriculados).toBe(30); // From status counts
+        expect(data.metaMatriculas).toBe(50);
+
+        // Conversion Logic:
+        // conversionRate = (matriculados / total) * 100 = (30/100)*100 = 30.0
+        expect(data.conversionRate).toBe('30.0');
+
+        // Taxa conversão comercial = (encaminhadosMatriculados / encaminhadosComercial) * 100
+        // (5 / 10) * 100 = 50.0
+        expect(data.taxaConversaoComercial).toBe('50.0');
+
+        // Total messages = 100 + 50
+        expect(data.totalMessagesSent).toBe(150);
+        expect(data.whatsappMessagesSent).toBe(100);
+        expect(data.templatesSent).toBe(50);
+    });
+
+    it('should handle zero values gracefully', async () => {
+        // Return 0/empty for everything
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // Total
+        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // Status
+        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // Meta
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // Encaminhados
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // EncM
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // Msg
+        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // Tmpl
+
+        const res = await GET();
+        const data = await res.json();
+
+        expect(data.total).toBe(0);
+        expect(data.conversionRate).toBe('0.0');
+        expect(data.taxaConversaoComercial).toBe('0.0');
+        expect(data.totalMessagesSent).toBe(0);
+    });
+});

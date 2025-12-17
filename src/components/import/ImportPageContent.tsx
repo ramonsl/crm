@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { getErrorMessage } from '@/lib/types';
 import styles from '@/app/import/page.module.css';
-import { Upload, AlertCircle, RefreshCw } from 'lucide-react';
 
 export function ImportPageContent() {
     const searchParams = useSearchParams();
@@ -45,8 +46,8 @@ export function ImportPageContent() {
             }
 
             setStats({ created: data.created, updated: data.updated });
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(getErrorMessage(err));
         } finally {
             setUploading(false);
             if (fileInputRef.current) {

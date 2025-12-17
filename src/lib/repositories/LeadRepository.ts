@@ -5,6 +5,7 @@
 
 import { pool } from '../db';
 import type { LeadRow } from '../types';
+import type { QueryParams } from '@/types/database';
 import type {
     CreateLeadDto,
     UpdateLeadDto,
@@ -17,7 +18,7 @@ export class LeadRepository implements ILeadRepository {
 
     async findAll(filters?: LeadFilters): Promise<LeadRow[]> {
         let query = 'SELECT * FROM leads WHERE 1=1';
-        const params: any[] = [];
+        const params: QueryParams = [];
         let paramIndex = 1;
 
         // Apply filters
@@ -114,7 +115,7 @@ export class LeadRepository implements ILeadRepository {
 
     async update(cpf: string, data: UpdateLeadDto): Promise<void> {
         const fields: string[] = [];
-        const params: any[] = [];
+        const params: QueryParams = [];
         let paramIndex = 1;
 
         // Build dynamic UPDATE query
@@ -212,7 +213,7 @@ export class LeadRepository implements ILeadRepository {
 
     async count(filters?: LeadFilters): Promise<number> {
         let query = 'SELECT COUNT(*) as count FROM leads WHERE 1=1';
-        const params: any[] = [];
+        const params: QueryParams = [];
         let paramIndex = 1;
 
         // Apply same filters as findAll

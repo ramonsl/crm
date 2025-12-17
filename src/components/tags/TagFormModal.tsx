@@ -1,22 +1,8 @@
-/**
- * TagFormModal Component
- * 
- * Modal for creating and editing tags.
- * Handles form state, validation, and API calls.
- * 
- * @example
- * <TagFormModal 
- *   isOpen={true}
- *   onClose={() => setOpen(false)}
- *   onSave={(tag) => handleSave(tag)}
- *   tag={existingTag} // optional, for editing
- * />
- */
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { getErrorMessage } from '@/lib/types';
 import { ColorPicker } from './ColorPicker';
 import { TagBadge } from './TagBadge';
 import type { Tag, CreateTagDTO } from '@/types/tag';
@@ -102,8 +88,8 @@ export function TagFormModal({ isOpen, onClose, onSave, tag }: TagFormModalProps
 
             onSave(savedTag);
             onClose();
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(getErrorMessage(err));
         } finally {
             setSaving(false);
         }

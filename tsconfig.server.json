@@ -5,7 +5,13 @@
         "moduleResolution": "node",
         "outDir": "./dist",
         "noEmit": false,
-        "isolatedModules": false
+        "isolatedModules": false,
+        "baseUrl": ".",
+        "paths": {
+            "@/*": [
+                "./src/*"
+            ]
+        }
     },
     "include": [
         "server.ts",

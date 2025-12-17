@@ -36,8 +36,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleMessageCreate = exports.resetSession = exports.logout = exports.sendMessage = exports.getContactProfilePicture = exports.restartClient = exports.isClientReady = exports.getStatus = exports.getClient = void 0;
+exports.getGroupParticipants = exports.listAllGroups = exports.isNumberInGroup = exports.handleMessageCreate = exports.resetSession = exports.logout = exports.sendMessage = exports.getContactProfilePicture = exports.restartClient = exports.isClientReady = exports.getStatus = exports.getClient = void 0;
 exports.validateWhatsAppNumber = validateWhatsAppNumber;
+const types_1 = require("@/lib/types");
 const whatsapp_web_js_1 = require("whatsapp-web.js");
 const db_1 = require("./db");
 const messageQueue_1 = require("./messageQueue");
@@ -353,7 +354,7 @@ const getClient = () => {
         global.whatsappClient.on('message_create', exports.handleMessageCreate);
         global.whatsappClient.initialize().catch(err => {
             console.error('Failed to initialize client:', err);
-            messageQueue_1.messageQueue.addLog(`Falha ao inicializar: ${err.message}`, 'error');
+            messageQueue_1.messageQueue.addLog(`Falha ao inicializar: ${(0, types_1.getErrorMessage)(err)}`, 'error');
             global.whatsappStatus = 'disconnected';
             global.whatsappClient = null; // Reset client so we can try again
         });
@@ -988,7 +989,7 @@ const resetSession = async (autoReconnect = false) => {
 };
 exports.resetSession = resetSession;
 const handleMessageCreate = async (msg) => {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f;
     console.log('🔔 EVENT message_create DISPARADO!');
     // Only process direct messages (not groups)
     if (!msg.from.endsWith('@c.us') && !((_a = msg.to) === null || _a === void 0 ? void 0 : _a.endsWith('@c.us'))) {
@@ -1009,18 +1010,39 @@ const handleMessageCreate = async (msg) => {
     }
     if (!phone)
         return;
-    // --- AUTO REPLY LOGIC ---
-    if (direction === 'incoming') {
-        const lowerBody = msg.body.toLowerCase();
-        if (lowerBody.includes('tem aula hoje?') || lowerBody.includes('tem aula hoje')) {
-            console.log(`🤖 Auto-reply triggered for ${phone}`);
-            try {
-                await ((_c = msg.reply) === null || _c === void 0 ? void 0 : _c.call(msg, 'Por qual motivo não teriamos?'));
-                messageQueue_1.messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone}`, 'success');
+    // --- AI-POWERED AUTO REPLY INTEGRATION ---
+    if (direction === 'incoming' && msg.body && msg.body.trim()) {
+        try {
+            // Import auto-reply service dynamically to avoid circular dependencies
+            const { autoReplyService } = await Promise.resolve().then(() => __importStar(require('../services/autoReplyService')));
+            console.log(`🤖 Processing auto-reply for message from ${phone}: "${msg.body}"`);
+            // Process the message and get the response if applicable
+            const response = await autoReplyService.processIncomingMessage(phone, msg.body);
+            // If we got a response, send it
+            if (response && typeof response === 'string') {
+                console.log(`🤖 Sending auto-reply to ${phone}: "${response}"`);
+                // Add a small delay to seem more human
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                // Send the auto-reply
+                if (msg.reply) {
+                    await msg.reply(response);
+                    messageQueue_1.messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone}`, 'success');
+                    console.log(`✅ Auto-reply sent successfully to ${phone}`);
+                }
+                else {
+                    // Fallback: send as new message
+                    await (0, exports.sendMessage)(phone, response);
+                    messageQueue_1.messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone} (fallback)`, 'success');
+                    console.log(`✅ Auto-reply sent successfully to ${phone} (via fallback)`);
+                }
             }
-            catch (e) {
-                console.error('Error sending auto-reply:', e);
+            else {
+                console.log(`ℹ️ No auto-reply triggered for message from ${phone}`);
             }
+        }
+        catch (error) {
+            console.error('[WhatsApp] Error processing auto-reply:', error);
+            // Don't throw - continue processing the message normally
         }
     }
     // ------------------------
@@ -1091,7 +1113,7 @@ const handleMessageCreate = async (msg) => {
                 ON CONFLICT (id) DO NOTHING
                 RETURNING id
             `, [contact.cpf, msg.id.id, msg.body, direction === 'outgoing', messageTime]);
-            const insertedId = ((_d = insertResult.rows[0]) === null || _d === void 0 ? void 0 : _d.id) || 0;
+            const insertedId = ((_c = insertResult.rows[0]) === null || _c === void 0 ? void 0 : _c.id) || 0;
             console.log(`💾 Mensagem ${direction} salva no banco! ID: ${insertedId}`);
             messageQueue_1.messageQueue.addLog(`💾 Mensagem salva! ID: ${insertedId}`, 'success');
             // Emit Socket.io event for real-time update (ONLY for incoming messages)
@@ -1146,17 +1168,16 @@ const handleMessageCreate = async (msg) => {
             }
             // Update lead's last message (ALWAYS update, regardless of direction)
             console.log(`[WhatsApp] 🔄 Tentando atualizar last_message para CPF: ${contact.cpf}`);
-            console.log(`[WhatsApp] 📝 Mensagem: "${(_e = msg.body) === null || _e === void 0 ? void 0 : _e.substring(0, 50)}"`);
+            console.log(`[WhatsApp] 📝 Mensagem: "${(_d = msg.body) === null || _d === void 0 ? void 0 : _d.substring(0, 50)}"`);
             console.log(`[WhatsApp] ⏰ Timestamp: ${messageTime}`);
             console.log(`[WhatsApp] ➡️ Direction: ${direction}`);
             try {
                 const updateResult = await db_1.pool.query(`
                     UPDATE leads 
                     SET last_message = $1,
-                        last_message_time = $2,
-                        last_message_direction = $3
-                    WHERE cpf = $4
-                `, [msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, direction, contact.cpf]);
+                        last_message_time = $2
+                    WHERE cpf = $3
+                `, [msg.body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, contact.cpf]);
                 console.log(`✅ Lead ${contact.cpf} UPDATE executado! Changes: ${updateResult.rowCount}`);
                 if (updateResult.rowCount === 0) {
                     console.warn(`⚠️ UPDATE não afetou nenhuma linha! CPF ${contact.cpf} pode não existir na tabela leads`);
@@ -1220,7 +1241,7 @@ const handleMessageCreate = async (msg) => {
             catch (e) {
                 console.error('Error fetching contact info:', e);
                 // Fallback to notifyName if available (mostly for incoming)
-                contactName = ((_f = msg._data) === null || _f === void 0 ? void 0 : _f.notifyName) || phone;
+                contactName = ((_e = msg._data) === null || _e === void 0 ? void 0 : _e.notifyName) || phone;
             }
             const tempCpf = phone; // Use phone as temporary CPF
             try {
@@ -1263,7 +1284,7 @@ const handleMessageCreate = async (msg) => {
                     ON CONFLICT (id) DO NOTHING
                     RETURNING id
                 `, [contact.cpf, msg.id.id, msg.body, direction === 'outgoing', messageTime]);
-                const msgId = ((_g = insertMsgResult.rows[0]) === null || _g === void 0 ? void 0 : _g.id) || 0;
+                const msgId = ((_f = insertMsgResult.rows[0]) === null || _f === void 0 ? void 0 : _f.id) || 0;
                 console.log(`💾 Mensagem ${direction} salva para novo lead! ID: ${msgId}`);
                 // Update lead's last message
                 if (direction === 'incoming') {
@@ -1299,6 +1320,219 @@ const handleMessageCreate = async (msg) => {
     console.log('='.repeat(60));
 };
 exports.handleMessageCreate = handleMessageCreate;
+/**
+ * Verifica se um número está em um grupo específico do WhatsApp
+ * @param phone - Número de telefone (pode incluir ou não o código do país)
+ * @param groupId - ID do grupo no formato '123456789-987654321@g.us' ou nome do grupo
+ * @returns Promise<boolean> - true se o número estiver no grupo, false caso contrário
+ */
+const isNumberInGroup = async (phone, groupId) => {
+    console.log(`[WhatsApp] Verificando se ${phone} está no grupo ${groupId}`);
+    // Validação simples e direta do cliente
+    if (!global.whatsappClient) {
+        const errorMsg = `WhatsApp client is not initialized. Status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+    if (global.whatsappStatus !== 'ready') {
+        const errorMsg = `WhatsApp is not in ready state. Current status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+    try {
+        // Normalizar o número de telefone
+        let formattedPhone = phone.replace(/\D/g, '');
+        // Remover zero inicial se presente
+        if (formattedPhone.startsWith('0')) {
+            formattedPhone = formattedPhone.substring(1);
+        }
+        // Adicionar código do país se for número brasileiro
+        if (formattedPhone.length === 10 || formattedPhone.length === 11) {
+            formattedPhone = '55' + formattedPhone;
+        }
+        // Verificação adicional imediatamente antes de usar o cliente
+        if (!global.whatsappClient) {
+            throw new Error('WhatsApp client became undefined before executing getChats');
+        }
+        // Obter todos os grupos
+        console.log('[WhatsApp] Obtendo lista de chats...');
+        const chats = await global.whatsappClient.getChats();
+        const groups = chats.filter(chat => chat.isGroup);
+        console.log(`[WhatsApp] Total de grupos encontrados: ${groups.length}`);
+        // Encontrar o grupo específico
+        let targetGroup = null;
+        // Se groupId termina com @g.us, é um ID de grupo direto
+        if (groupId.endsWith('@g.us')) {
+            targetGroup = groups.find(g => g.id._serialized === groupId);
+        }
+        else {
+            // Caso contrário, procurar pelo nome do grupo
+            targetGroup = groups.find(g => g.name.toLowerCase().includes(groupId.toLowerCase()));
+        }
+        if (!targetGroup) {
+            console.warn(`[WhatsApp] Grupo não encontrado: ${groupId}`);
+            throw new Error(`Group not found: ${groupId}`);
+        }
+        console.log(`[WhatsApp] Grupo encontrado: ${targetGroup.name} (${targetGroup.id._serialized})`);
+        // Obter participantes do grupo
+        const chat = await global.whatsappClient.getChatById(targetGroup.id._serialized);
+        const participants = chat.participants || [];
+        console.log(`[WhatsApp] Total de participantes no grupo: ${participants.length}`);
+        // Criar variações do número para verificar
+        const variations = [formattedPhone];
+        // Para números brasileiros, tentar com e sem o 9º dígito
+        if (formattedPhone.startsWith('55') && formattedPhone.length === 13) {
+            // Tem 9º dígito, tentar sem ele
+            const without9 = formattedPhone.substring(0, 4) + formattedPhone.substring(5);
+            variations.push(without9);
+        }
+        else if (formattedPhone.startsWith('55') && formattedPhone.length === 12) {
+            // Não tem 9º dígito, tentar com ele
+            const with9 = formattedPhone.substring(0, 4) + '9' + formattedPhone.substring(4);
+            variations.push(with9);
+        }
+        console.log(`[WhatsApp] Verificando variações: ${variations.join(', ')}`);
+        // Verificar se alguma variação está nos participantes
+        for (const variation of variations) {
+            const isInGroup = participants.some((p) => {
+                const participantNumber = p.id.user;
+                return participantNumber === variation;
+            });
+            if (isInGroup) {
+                console.log(`[WhatsApp] ✓ Número ${phone} encontrado no grupo ${targetGroup.name} (variação: ${variation})`);
+                return true;
+            }
+        }
+        console.log(`[WhatsApp] ✗ Número ${phone} NÃO está no grupo ${targetGroup.name}`);
+        return false;
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorString = String(error);
+        // Detectar erros específicos do Puppeteer/WhatsApp Client
+        if (errorString.includes('Cannot read properties of undefined') ||
+            errorString.includes('pptr://') ||
+            errorString.includes('evaluation_script')) {
+            console.error('[WhatsApp] Cliente WhatsApp foi destruído ou está em estado inválido');
+            throw new Error('WhatsApp client is not ready');
+        }
+        console.error(`[WhatsApp] Erro ao verificar número no grupo: ${errorMessage}`);
+        throw error;
+    }
+};
+exports.isNumberInGroup = isNumberInGroup;
+/**
+ * Lista todos os grupos disponíveis
+ * @returns Promise<Array<{id: string, name: string, participantCount: number}>>
+ */
+const listAllGroups = async () => {
+    console.log('[WhatsApp] Listando todos os grupos');
+    // Validação simples e direta do cliente
+    if (!global.whatsappClient) {
+        const errorMsg = `WhatsApp client is not initialized. Status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+    if (global.whatsappStatus !== 'ready') {
+        const errorMsg = `WhatsApp is not in ready state. Current status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+    try {
+        // Verificação adicional imediatamente antes de usar o cliente
+        if (!global.whatsappClient) {
+            throw new Error('WhatsApp client became undefined before executing getChats');
+        }
+        const chats = await global.whatsappClient.getChats();
+        const groups = chats.filter(chat => chat.isGroup);
+        const groupList = groups.map(group => {
+            var _a;
+            return ({
+                id: group.id._serialized,
+                name: group.name,
+                participantCount: ((_a = group.participants) === null || _a === void 0 ? void 0 : _a.length) || 0
+            });
+        });
+        console.log(`[WhatsApp] Total de grupos: ${groupList.length}`);
+        return groupList;
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorString = String(error);
+        // Detectar erros específicos do Puppeteer/WhatsApp Client
+        if (errorString.includes('Cannot read properties of undefined') ||
+            errorString.includes('pptr://') ||
+            errorString.includes('evaluation_script')) {
+            console.error('[WhatsApp] Cliente WhatsApp foi destruído ou está em estado inválido');
+            throw new Error('WhatsApp client is not ready');
+        }
+        console.error(`[WhatsApp] Erro ao listar grupos: ${errorMessage}`);
+        throw error;
+    }
+};
+exports.listAllGroups = listAllGroups;
+/**
+ * Obtém todos os participantes de um grupo específico
+ * @param groupId - ID do grupo no formato '123456789-987654321@g.us' ou nome do grupo
+ * @returns Promise<Array<{phone: string, isAdmin: boolean}>>
+ */
+const getGroupParticipants = async (groupId) => {
+    console.log(`[WhatsApp] Obtendo participantes do grupo ${groupId}`);
+    // Validação simples e direta do cliente
+    if (!global.whatsappClient) {
+        const errorMsg = `WhatsApp client is not initialized. Status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+    if (global.whatsappStatus !== 'ready') {
+        const errorMsg = `WhatsApp is not in ready state. Current status: ${global.whatsappStatus}`;
+        console.error(`[WhatsApp] ${errorMsg}`);
+        throw new Error('WhatsApp client is not ready');
+    }
+    try {
+        // Verificação adicional imediatamente antes de usar o cliente
+        if (!global.whatsappClient) {
+            throw new Error('WhatsApp client became undefined before executing getChats');
+        }
+        const chats = await global.whatsappClient.getChats();
+        const groups = chats.filter(chat => chat.isGroup);
+        // Encontrar o grupo
+        let targetGroup = null;
+        if (groupId.endsWith('@g.us')) {
+            targetGroup = groups.find(g => g.id._serialized === groupId);
+        }
+        else {
+            targetGroup = groups.find(g => g.name.toLowerCase().includes(groupId.toLowerCase()));
+        }
+        if (!targetGroup) {
+            console.warn(`[WhatsApp] Grupo não encontrado: ${groupId}`);
+            throw new Error(`Group not found: ${groupId}`);
+        }
+        const chat = await global.whatsappClient.getChatById(targetGroup.id._serialized);
+        const participants = chat.participants || [];
+        const participantList = participants.map((p) => ({
+            phone: p.id.user,
+            isAdmin: p.isAdmin || false,
+            name: p.id.user // A biblioteca não fornece o nome diretamente
+        }));
+        console.log(`[WhatsApp] Total de participantes no grupo ${targetGroup.name}: ${participantList.length}`);
+        return participantList;
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorString = String(error);
+        // Detectar erros específicos do Puppeteer/WhatsApp Client
+        if (errorString.includes('Cannot read properties of undefined') ||
+            errorString.includes('pptr://') ||
+            errorString.includes('evaluation_script')) {
+            console.error('[WhatsApp] Cliente WhatsApp foi destruído ou está em estado inválido');
+            throw new Error('WhatsApp client is not ready');
+        }
+        console.error(`[WhatsApp] Erro ao obter participantes do grupo: ${errorMessage}`);
+        throw error;
+    }
+};
+exports.getGroupParticipants = getGroupParticipants;
 // ============================================================================
 // AUTO-INITIALIZATION
 // ============================================================================

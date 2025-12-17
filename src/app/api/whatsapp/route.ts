@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 import { NextResponse } from 'next/server';
 import { getClient, getStatus, logout, sendMessage } from '@/lib/whatsapp';
 import { pool } from '@/lib/db';
@@ -103,8 +105,8 @@ export async function POST(req: Request) {
             }
 
             return NextResponse.json({ success: true, messageId: sendResult.id });
-        } catch (error: any) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+        } catch (error: unknown) {
+            return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
         }
     }
 

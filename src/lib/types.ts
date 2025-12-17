@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * Centralized type definitions for the CRM application
  * Eliminates use of 'any' and provides type safety
@@ -244,6 +246,48 @@ export interface WhatsAppRegisteredUser {
     server: string;
 }
 
+/**
+ * WhatsApp Web Chat object (from whatsapp-web.js getChats())
+ * This is the actual type returned by client.getChats()
+ */
+export interface WhatsAppWebChat {
+    id: {
+        _serialized: string;
+        user?: string;
+    };
+    name: string;
+    isGroup: boolean;
+    unreadCount: number;
+    timestamp?: number;
+    archived?: boolean;
+
+    // Methods available on Chat object
+    fetchMessages(options: { limit: number }): Promise<WhatsAppWebMessage[]>;
+    sendMessage(content: string): Promise<WhatsAppWebMessage>;
+    sendSeen(): Promise<boolean>; // Returns boolean, not void
+}
+
+/**
+ * WhatsApp Web Message object (from whatsapp-web.js)
+ * This is the actual type returned by chat.fetchMessages()
+ */
+export interface WhatsAppWebMessage {
+    id: {
+        id: string;
+        _serialized: string;
+    };
+    body: string;
+    fromMe: boolean;
+    timestamp: number;
+    hasMedia: boolean;
+    ack?: number; // -1: failed, 1: sent, 2: delivered, 3+: read
+    from: string;
+    to: string;
+    type?: string;
+    author?: string;
+}
+
+
 // ============================================================================
 // API TYPES
 // ============================================================================
@@ -305,7 +349,7 @@ export function isStandardError(error: unknown): error is StandardError {
 /**
  * Safely extract error message
  */
-export function getErrorMessage(error: unknown): string {
+export function safeGetErrorMessage(error: unknown): string {
     if (isStandardError(error)) {
         return error.message;
     }
@@ -314,3 +358,6 @@ export function getErrorMessage(error: unknown): string {
     }
     return 'Unknown error';
 }
+
+// Alias for backward compatibility
+export { safeGetErrorMessage as getErrorMessage };

@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * GET /api/whatsapp-chats
  * 
@@ -20,11 +22,12 @@ export async function GET(req: NextRequest) {
             chats,
             total: chats.length
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API /whatsapp-chats] Error:', error);
 
         // User-friendly error messages
-        if (error.message?.includes('not connected')) {
+        const isErr = error instanceof Error;
+        if (isErr && error.message?.includes('not connected')) {
             return NextResponse.json(
                 { error: 'WhatsApp não está conectado. Conecte via QR code primeiro.' },
                 { status: 400 }
@@ -32,7 +35,7 @@ export async function GET(req: NextRequest) {
         }
 
         return NextResponse.json(
-            { error: error.message || 'Erro ao buscar chats' },
+            { error: getErrorMessage(error) || 'Erro ao buscar chats' },
             { status: 500 }
         );
     }

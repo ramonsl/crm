@@ -4,6 +4,7 @@ import { pool } from '@/lib/db';
 import { normalizePhone } from '@/lib/utils';
 import { ActivityRepository } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
+import type { UploadRow } from '@/types/import';
 
 // Initialize activity service for logging
 const activityRepository = new ActivityRepository();
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
         const dataRows = rawRows.slice(headerIndex + 1);
 
         const data = dataRows.map(row => {
-            const obj: any = {};
+            const obj: UploadRow = {};
             headers.forEach((h, i) => { obj[h] = row[i]; });
             return obj;
         });
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
                 let anyDataChanged = false;
 
                 const existingStatus = (existing.status || '').trim();
-                const newStatus = (status || '').trim();
+                const newStatus = String(status || '').trim();
 
                 // Check priority: only upgrade status, never downgrade
                 const existingPriority = STATUS_PRIORITY[existingStatus] || 0;
@@ -217,7 +218,7 @@ export async function POST(req: NextRequest) {
                     created++;
 
                     try {
-                        await activityService.logLeadCreated(cpf, nome || cpf, 'importação Prime');
+                        await activityService.logLeadCreated(cpf, String(nome || cpf), 'importação Prime');
                     } catch (e) {
                         console.error('[Import] Error logging activity:', e);
                     }

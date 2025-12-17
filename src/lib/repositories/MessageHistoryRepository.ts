@@ -4,6 +4,7 @@
  */
 
 import { pool } from '../db';
+import type { QueryParams } from "@/types/database";
 import type { MessageHistoryRow } from '../types';
 import type { CreateMessageHistoryDto, MessageHistoryFilters } from './dtos';
 import type { IMessageHistoryRepository } from './interfaces';
@@ -34,7 +35,7 @@ export class MessageHistoryRepository implements IMessageHistoryRepository {
 
     async findRecent(filters?: MessageHistoryFilters): Promise<MessageHistoryRow[]> {
         let query = 'SELECT * FROM message_history WHERE 1=1';
-        const params: any[] = [];
+        const params: QueryParams = [];
         let paramIndex = 1;
 
         if (filters?.cpf) {

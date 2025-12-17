@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 /**
  * POST /api/whatsapp-chats/[chatId]/read
  * 
@@ -19,11 +21,11 @@ export async function POST(
         await whatsAppChatService.markAsRead(chatId);
 
         return NextResponse.json({ success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API /whatsapp-chats/read] Error:', error);
 
         return NextResponse.json(
-            { error: error.message || 'Erro ao marcar como lido' },
+            { error: getErrorMessage(error) || 'Erro ao marcar como lido' },
             { status: 500 }
         );
     }

@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@/lib/types';
+
 import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
 import { WHATSAPP_CONFIG } from '@/lib/constants';
@@ -43,9 +45,9 @@ export async function POST(req: NextRequest) {
 
                 await new Promise(resolve => setTimeout(resolve, WHATSAPP_CONFIG.PROFILE_SYNC_DELAY_MS));
 
-            } catch (error: any) {
+            } catch (error: unknown) {
                 failCount++;
-                results.push({ cpf: contact.cpf, nome: contact.nome, status: 'error', message: error.message });
+                results.push({ cpf: contact.cpf, nome: contact.nome, status: 'error', message: getErrorMessage(error) });
                 console.error(`[Sync Profile Pics] Error for ${contact.nome}:`, error);
             }
         }
@@ -54,8 +56,8 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, total: contacts.length, successCount, failCount, results });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Sync Profile Pics] Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error', message: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Internal Server Error', message: getErrorMessage(error) }, { status: 500 });
     }
 }
