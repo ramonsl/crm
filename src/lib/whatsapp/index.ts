@@ -23,16 +23,51 @@ import { MessageEventHandler } from './events/messageHandler';
 import { WHATSAPP_CONFIG } from '../constants';
 
 // ============================================================================
-// SERVICE INSTANTIATION (Dependency Injection)
+// SERVICE INSTANTIATION (Dependency Injection with Global Singleton)
 // ============================================================================
 
-// Create instances with proper dependency injection
-const healthService = new HealthCheckService(state, WHATSAPP_CONFIG);
-const validator = new WhatsAppValidator(state);
-const messageHandler = new MessageEventHandler(state, true);
-const clientManager = new WhatsAppClientManager(state, healthService, messageHandler);
-const messenger = new WhatsAppMessenger(state, healthService);
-const groups = new WhatsAppGroups(state);
+// Declare global types for service instances
+declare global {
+    var whatsappHealthService: HealthCheckService | undefined;
+    var whatsappValidator: WhatsAppValidator | undefined;
+    var whatsappMessageHandler: MessageEventHandler | undefined;
+    var whatsappClientManager: WhatsAppClientManager | undefined;
+    var whatsappMessenger: WhatsAppMessenger | undefined;
+    var whatsappGroups: WhatsAppGroups | undefined;
+}
+
+// Create instances with proper dependency injection, using global singletons
+// This ensures the same instances are used across all module imports
+if (!global.whatsappHealthService) {
+    global.whatsappHealthService = new HealthCheckService(state, WHATSAPP_CONFIG);
+}
+if (!global.whatsappValidator) {
+    global.whatsappValidator = new WhatsAppValidator(state);
+}
+if (!global.whatsappMessageHandler) {
+    global.whatsappMessageHandler = new MessageEventHandler(state, true);
+}
+if (!global.whatsappClientManager) {
+    global.whatsappClientManager = new WhatsAppClientManager(
+        state,
+        global.whatsappHealthService,
+        global.whatsappMessageHandler
+    );
+}
+if (!global.whatsappMessenger) {
+    global.whatsappMessenger = new WhatsAppMessenger(state, global.whatsappHealthService);
+}
+if (!global.whatsappGroups) {
+    global.whatsappGroups = new WhatsAppGroups(state);
+}
+
+// Export references for internal use
+const healthService = global.whatsappHealthService;
+const validator = global.whatsappValidator;
+const messageHandler = global.whatsappMessageHandler;
+const clientManager = global.whatsappClientManager;
+const messenger = global.whatsappMessenger;
+const groups = global.whatsappGroups;
 
 // ============================================================================
 // PUBLIC API - Backwards Compatible Exports

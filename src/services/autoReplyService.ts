@@ -6,8 +6,12 @@
 import { autoReplyRepository } from '@/lib/repositories/AutoReplyRepository';
 import { intentDetectionService } from './intentDetectionService';
 import type { AutoReply } from '@/types/autoReply';
+import type { IAutoReplyService, AutoReplyConfig } from './interfaces';
 
-export class AutoReplyService {
+// Re-export types for backwards compatibility
+export type { AutoReplyConfig };
+
+export class AutoReplyService implements IAutoReplyService {
     private isEnabled: boolean = true;
     private blacklistedPhones: Set<string> = new Set();
     private rateLimitMinutes: number = 5; // Don't send auto-reply to same phone within 5 minutes

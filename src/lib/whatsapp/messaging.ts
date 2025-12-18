@@ -219,21 +219,34 @@ export class WhatsAppMessenger {
         messageQueue.addLog(`Tentando enviar para ${phone}...`, 'info');
 
         // Diagnostic logging
-        console.log(`[WhatsApp] DEBUG SEND: global.whatsappClient exists = ${!!global.whatsappClient}`);
-        console.log(`[WhatsApp] DEBUG SEND: global.whatsappStatus = ${global.whatsappStatus}`);
         console.log(`[WhatsApp] DEBUG SEND: this.state.client exists = ${!!this.state.client}`);
         console.log(`[WhatsApp] DEBUG SEND: this.state.status = ${this.state.status}`);
 
         // Robust check of client state
-        const clientReady = await this.healthService.isClientReady();
+        let clientReady = await this.healthService.isClientReady();
         console.log(`[WhatsApp] DEBUG SEND: clientReady = ${clientReady}`);
+
+        // If client is not ready, try to wait for reconnection (up to 5 seconds)
+        if (!clientReady && this.state.status === 'initializing') {
+            console.log('[WhatsApp] Cliente está inicializando. Aguardando...');
+            messageQueue.addLog('Cliente inicializando, aguardando...', 'info');
+
+            // Wait up to 5 seconds for client to become ready
+            for (let i = 0; i < 10; i++) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                clientReady = await this.healthService.isClientReady();
+                if (clientReady) {
+                    console.log(`[WhatsApp] Cliente ficou pronto após ${(i + 1) * 500}ms`);
+                    break;
+                }
+            }
+        }
 
         if (!clientReady) {
             const errorMsg = `Cliente WhatsApp não está pronto. Estado atual: ${this.state.status}`;
             console.error(`[WhatsApp] ${errorMsg}`);
             messageQueue.addLog(`Erro: ${errorMsg}`, 'error');
 
-            // Try to initialize client if it doesn't exist
             if (!this.state.client) {
                 console.log('[WhatsApp] Client não existe. Não é possível enviar mensagem.');
                 throw new Error('WhatsApp client is not ready and could not be initialized');
