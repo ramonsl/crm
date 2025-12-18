@@ -8,8 +8,9 @@
 
 import type { IActivityRepository } from '@/lib/repositories/interfaces';
 import type { ActivityRow } from '@/lib/types';
+import type { IActivityService } from './interfaces';
 
-export class ActivityService {
+export class ActivityService implements IActivityService {
     constructor(private activityRepo: IActivityRepository) { }
 
     /**

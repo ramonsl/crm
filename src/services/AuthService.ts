@@ -10,30 +10,20 @@ import bcrypt from 'bcryptjs';
 import { UserRepository } from '@/lib/repositories/UserRepository';
 import { SessionRepository } from '@/lib/repositories/SessionRepository';
 import type { UserRow } from '@/lib/types';
+import type {
+    IAuthService,
+    RegisterResult,
+    LoginResult,
+    SessionValidationResult
+} from './interfaces';
 
 const SALT_ROUNDS = 10;
 const SESSION_DURATION_DAYS = 30;
 
-export interface RegisterResult {
-    success: boolean;
-    user?: Omit<UserRow, 'password_hash'>;
-    error?: string;
-}
+// Re-export types for backwards compatibility
+export type { RegisterResult, LoginResult, SessionValidationResult };
 
-export interface LoginResult {
-    success: boolean;
-    sessionId?: string;
-    user?: Omit<UserRow, 'password_hash'>;
-    error?: string;
-}
-
-export interface SessionValidationResult {
-    valid: boolean;
-    user?: Omit<UserRow, 'password_hash'>;
-    error?: string;
-}
-
-export class AuthService {
+export class AuthService implements IAuthService {
     private userRepo: UserRepository;
     private sessionRepo: SessionRepository;
 
