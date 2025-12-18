@@ -36,6 +36,6 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Run Database Migrations
-        run: npx ts-node -O '{"module":"commonjs"}' scripts/migrate_prod.ts
+        run: npm run migrate:prod
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

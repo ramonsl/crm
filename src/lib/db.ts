@@ -12,9 +12,15 @@ export { pool, transaction, query, queryOne, execute, sql };
 
 /**
  * Initialize database schema
- * Creates all required tables if they don't exist
+ * ⚠️ WARNING: Use this ONLY for local development or initial setup.
+ * For production and managed schema changes, use the Migrations system:
+ * 
+ * - Create migration: npm run migrate:create -- name
+ * - Run migrations: npm run migrate:test (local) or npm run migrate:prod (production)
  */
 export async function initializeDatabase(): Promise<void> {
+  console.log('[DB] ⚠️  WARNING: Using legacy initializeDatabase().');
+  console.log('[DB] Consider using "npm run migrate:test" for managed migrations.');
   console.log('[DB] Initializing PostgreSQL schema...');
 
   try {
