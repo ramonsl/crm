@@ -58,7 +58,8 @@ Sistema completo de CRM desenvolvido com Next.js para gerenciamento de leads, co
 
 - **Framework**: Next.js 16.0.5
 - **Runtime**: React 19.2.0
-- **Banco de Dados**: SQLite (better-sqlite3)
+- **Banco de Dados**: PostgreSQL (Neon Serverless)
+- **Migrations**: node-pg-migrate
 - **WhatsApp**: whatsapp-web.js
 - **WebSocket**: Socket.io 4.8+ (comunicação em tempo real)
 - **IA**: OpenAI API
@@ -167,15 +168,27 @@ crm/
 └── package.json
 ```
 
-## 🗄️ Banco de Dados
+## 🗄️ Banco de Dados e Migrations
 
-O sistema utiliza SQLite com as seguintes tabelas principais:
+O sistema utiliza **PostgreSQL (Neon)** com gerenciamento de migrations via `node-pg-migrate`.
 
+### Scripts de Banco de Dados
+
+- `npm run migrate:test`: Executa migrations no banco de desenvolvimento/teste (`ep-winter-wind`).
+- `npm run migrate:prod`: Executa migrations no banco de produção (`ep-crimson-dawn`).
+- `npm run migrate:create -- <nome>`: Cria uma nova migration no diretório `migrations/`.
+- `npm run rollback:test`: Reverte a última migration aplicada no banco de teste.
+
+Para mais detalhes, consulte o [GUIA DE MIGRATIONS](./MIGRATIONS.md).
+
+### Tabelas Principais
 - **leads**: Informações de leads
 - **contacts**: Contatos sincronizados do WhatsApp
 - **messages**: Histórico de mensagens
 - **templates**: Templates de mensagens
 - **settings**: Configurações do sistema
+- **users**: Usuários e autenticação
+- **tags**: Sistema de segmentação
 
 ## 🔐 Segurança
 
