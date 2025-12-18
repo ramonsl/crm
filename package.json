@@ -11,7 +11,14 @@
     "lint": "eslint",
     "test": "jest",
     "seed:admin": "node scripts/seed-admin-neon.js",
-    "build:server": "tsc --project tsconfig.server.json && tsc-alias -p tsconfig.server.json"
+    "build:server": "tsc --project tsconfig.server.json && tsc-alias -p tsconfig.server.json",
+    "migrate": "npx node-pg-migrate up",
+    "migrate:down": "npx node-pg-migrate down",
+    "migrate:test": "ts-node scripts/migrate-test.ts",
+    "migrate:prod": "ts-node scripts/migrate.ts",
+    "migrate:create": "ts-node scripts/create-migration.ts",
+    "rollback": "ts-node scripts/rollback.ts",
+    "rollback:test": "ts-node -r dotenv/config scripts/rollback.ts dotenv_config_path=.env.local"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -38,6 +45,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
+    "@types/node-pg-migrate": "^2.3.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -48,6 +56,7 @@
     "identity-obj-proxy": "^3.0.0",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
+    "node-pg-migrate": "^8.0.4",
     "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
     "tsc-alias": "^1.8.16",
