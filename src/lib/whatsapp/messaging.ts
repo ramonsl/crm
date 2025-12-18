@@ -218,8 +218,15 @@ export class WhatsAppMessenger {
         console.log(`[WhatsApp] Attempting to send message to ${phone}`);
         messageQueue.addLog(`Tentando enviar para ${phone}...`, 'info');
 
+        // Diagnostic logging
+        console.log(`[WhatsApp] DEBUG SEND: global.whatsappClient exists = ${!!global.whatsappClient}`);
+        console.log(`[WhatsApp] DEBUG SEND: global.whatsappStatus = ${global.whatsappStatus}`);
+        console.log(`[WhatsApp] DEBUG SEND: this.state.client exists = ${!!this.state.client}`);
+        console.log(`[WhatsApp] DEBUG SEND: this.state.status = ${this.state.status}`);
+
         // Robust check of client state
         const clientReady = await this.healthService.isClientReady();
+        console.log(`[WhatsApp] DEBUG SEND: clientReady = ${clientReady}`);
 
         if (!clientReady) {
             const errorMsg = `Cliente WhatsApp não está pronto. Estado atual: ${this.state.status}`;
