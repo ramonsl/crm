@@ -46,17 +46,6 @@ if (typeof global.whatsappStatus === 'undefined') {
 class WhatsAppStateManager {
     private static instance: WhatsAppStateManager;
 
-    // Internal state - matches the old globals
-    private _client: Client | null = null;
-    private _status: WhatsAppStatus = 'disconnected';
-    private _qrCode: string | null = null;
-    private _phoneNumber: string | null = null;
-    private _reconnectAttempts: number = 0;
-    private _reconnectTimer: NodeJS.Timeout | null = null;
-    private _lastDisconnect: number | null = null;
-    private _healthCheckTimer: NodeJS.Timeout | null = null;
-    private _restartHistory: number[] = [];
-
     private constructor() {
         // Private constructor for singleton pattern
     }
@@ -72,107 +61,107 @@ class WhatsAppStateManager {
     }
 
     // ============================================================================
-    // CLIENT
+    // CLIENT - Uses global.whatsappClient directly
     // ============================================================================
 
     get client(): Client | null {
-        return this._client;
+        return global.whatsappClient;
     }
 
     set client(value: Client | null) {
-        this._client = value;
+        global.whatsappClient = value;
     }
 
     // ============================================================================
-    // STATUS
+    // STATUS - Uses global.whatsappStatus directly
     // ============================================================================
 
     get status(): WhatsAppStatus {
-        return this._status;
+        return global.whatsappStatus;
     }
 
     set status(value: WhatsAppStatus) {
-        this._status = value;
+        global.whatsappStatus = value;
     }
 
     // ============================================================================
-    // QR CODE
+    // QR CODE - Uses global.whatsappQrCode directly
     // ============================================================================
 
     get qrCode(): string | null {
-        return this._qrCode;
+        return global.whatsappQrCode;
     }
 
     set qrCode(value: string | null) {
-        this._qrCode = value;
+        global.whatsappQrCode = value;
     }
 
     // ============================================================================
-    // PHONE NUMBER
+    // PHONE NUMBER - Uses global.whatsappPhoneNumber directly
     // ============================================================================
 
     get phoneNumber(): string | null {
-        return this._phoneNumber;
+        return global.whatsappPhoneNumber;
     }
 
     set phoneNumber(value: string | null) {
-        this._phoneNumber = value;
+        global.whatsappPhoneNumber = value;
     }
 
     // ============================================================================
-    // RECONNECTION
+    // RECONNECTION - Uses globals directly
     // ============================================================================
 
     get reconnectAttempts(): number {
-        return this._reconnectAttempts;
+        return global.whatsappReconnectAttempts;
     }
 
     set reconnectAttempts(value: number) {
-        this._reconnectAttempts = value;
+        global.whatsappReconnectAttempts = value;
     }
 
     get reconnectTimer(): NodeJS.Timeout | null {
-        return this._reconnectTimer;
+        return global.whatsappReconnectTimer;
     }
 
     set reconnectTimer(value: NodeJS.Timeout | null) {
-        this._reconnectTimer = value;
+        global.whatsappReconnectTimer = value;
     }
 
     get lastDisconnect(): number | null {
-        return this._lastDisconnect;
+        return global.whatsappLastDisconnect;
     }
 
     set lastDisconnect(value: number | null) {
-        this._lastDisconnect = value;
+        global.whatsappLastDisconnect = value;
     }
 
     // ============================================================================
-    // HEALTH CHECK
+    // HEALTH CHECK - Uses global.whatsappHealthCheckTimer directly
     // ============================================================================
 
     get healthCheckTimer(): NodeJS.Timeout | null {
-        return this._healthCheckTimer;
+        return global.whatsappHealthCheckTimer;
     }
 
     set healthCheckTimer(value: NodeJS.Timeout | null) {
-        this._healthCheckTimer = value;
+        global.whatsappHealthCheckTimer = value;
     }
 
     // ============================================================================
-    // RESTART HISTORY
+    // RESTART HISTORY - Uses global.whatsappRestartHistory directly
     // ============================================================================
 
     get restartHistory(): number[] {
-        return this._restartHistory;
+        return global.whatsappRestartHistory;
     }
 
     set restartHistory(value: number[]) {
-        this._restartHistory = value;
+        global.whatsappRestartHistory = value;
     }
 
     addRestartTimestamp(timestamp: number): void {
-        this._restartHistory.push(timestamp);
+        global.whatsappRestartHistory.push(timestamp);
     }
 
     // ============================================================================
@@ -184,9 +173,9 @@ class WhatsAppStateManager {
      */
     getStatusResponse(): WhatsAppStatusResponse {
         return {
-            status: this._status,
-            qrCode: this._qrCode,
-            phoneNumber: this._phoneNumber,
+            status: global.whatsappStatus,
+            qrCode: global.whatsappQrCode,
+            phoneNumber: global.whatsappPhoneNumber,
         };
     }
 
@@ -195,15 +184,15 @@ class WhatsAppStateManager {
      */
     getSnapshot(): WhatsAppClientState {
         return {
-            client: this._client,
-            status: this._status,
-            qrCode: this._qrCode,
-            phoneNumber: this._phoneNumber,
-            reconnectAttempts: this._reconnectAttempts,
-            reconnectTimer: this._reconnectTimer,
-            lastDisconnect: this._lastDisconnect,
-            healthCheckTimer: this._healthCheckTimer,
-            restartHistory: [...this._restartHistory],
+            client: global.whatsappClient,
+            status: global.whatsappStatus,
+            qrCode: global.whatsappQrCode,
+            phoneNumber: global.whatsappPhoneNumber,
+            reconnectAttempts: global.whatsappReconnectAttempts,
+            reconnectTimer: global.whatsappReconnectTimer,
+            lastDisconnect: global.whatsappLastDisconnect,
+            healthCheckTimer: global.whatsappHealthCheckTimer,
+            restartHistory: [...global.whatsappRestartHistory],
         };
     }
 
@@ -211,28 +200,28 @@ class WhatsAppStateManager {
      * Reset all state to initial values
      */
     reset(): void {
-        this._client = null;
-        this._status = 'disconnected';
-        this._qrCode = null;
-        this._phoneNumber = null;
-        this._reconnectAttempts = 0;
-        if (this._reconnectTimer) {
-            clearTimeout(this._reconnectTimer);
+        global.whatsappClient = null;
+        global.whatsappStatus = 'disconnected';
+        global.whatsappQrCode = null;
+        global.whatsappPhoneNumber = null;
+        global.whatsappReconnectAttempts = 0;
+        if (global.whatsappReconnectTimer) {
+            clearTimeout(global.whatsappReconnectTimer);
         }
-        this._reconnectTimer = null;
-        this._lastDisconnect = null;
-        if (this._healthCheckTimer) {
-            clearInterval(this._healthCheckTimer);
+        global.whatsappReconnectTimer = null;
+        global.whatsappLastDisconnect = null;
+        if (global.whatsappHealthCheckTimer) {
+            clearInterval(global.whatsappHealthCheckTimer);
         }
-        this._healthCheckTimer = null;
-        this._restartHistory = [];
+        global.whatsappHealthCheckTimer = null;
+        global.whatsappRestartHistory = [];
     }
 
     /**
      * Check if client is available and ready
      */
     isClientAvailable(): boolean {
-        return this._client !== null && this._status === 'ready';
+        return global.whatsappClient !== null && global.whatsappStatus === 'ready';
     }
 }
 
