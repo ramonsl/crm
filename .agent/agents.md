@@ -36,10 +36,13 @@ Este arquivo serve como **fonte de verdade** para agentes de IA (como o Antigrav
 
 ### 🔄 Migrações e Schema
 - **Fluxo de Mudança:**
-    1. Alterar `src/lib/db.ts` (`initializeDatabase`).
-    2. Validar executando `npx ts-node -O '{"module":"commonjs"}' scripts/seed_test_db.ts` no banco de teste.
-    3. **Automação:** Ao mergear para `main`, uma **GitHub Action** roda automaticamente o script `scripts/migrate_prod.ts`, aplicando as migrações no banco de Produção antes do deploy.
-- **Regra:** Nunca quebre a compatibilidade com dados existentes (use `ADD COLUMN`, evite `DROP TABLE`).
+    1. **Toda alteração de banco deve seguir o sistema de migrations.** Nunca altere o schema manualmente ou apenas no `db.ts`.
+    2. Criar migration: `npm run migrate:create -- nome_da_mudanca`.
+    3. Implementar `up` e `down` no arquivo JS gerado em `migrations/`.
+    4. Validar localmente: `npm run migrate:test`.
+    5. **Automação:** Ao mergear para `main`, o CI/CD executa `npm run migrate:prod` automaticamente.
+- **Idempotência:** Sempre use `IF NOT EXISTS` ou a opção `ifNotExists: true` nas migrations.
+- **Aviso:** O arquivo `src/lib/db.ts` contém um snapshot para setups iniciais, mas não deve ser usado para evoluir o schema.
 
 ---
 
@@ -75,6 +78,7 @@ Este arquivo serve como **fonte de verdade** para agentes de IA (como o Antigrav
 - Use **English** para nomes de variáveis, funções e arquivos.
 - Use **Português** para textos de UI e comentários explicativos complexos.
 - Use o logger centralizado (`src/lib/logger.ts`) em vez de `console.log`.
+- **MIGRATIONS:** Toda alteração de schema **DEVE** ser feita via migration (`npm run migrate:create`).
 
 ### ❌ Don't (Não Faça)
 - Não escreva SQL direto nas rotas `/src/app/api`. Mova para Repositórios.
