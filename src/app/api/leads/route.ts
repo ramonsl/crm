@@ -4,6 +4,7 @@ import { LeadRepository, ActivityRepository } from '@/lib/repositories';
 import { normalizePhone } from '@/lib/utils';
 import type { LeadFilters, CreateLeadDto, UpdateLeadDto } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
+import { statusMessageService } from '@/services/StatusMessageService';
 
 // Initialize repositories and services
 const leadRepository = new LeadRepository();
@@ -259,6 +260,14 @@ export async function PUT(req: NextRequest) {
             try {
                 await activityService.logStatusChange(targetCpf, oldStatus, status);
                 console.log(`[API /api/leads PUT] Status change logged: ${oldStatus} → ${status}`);
+
+                // Trigger automated message if configured
+                const result = await statusMessageService.processStatusChange(targetCpf, oldStatus, status);
+                if (result.sent) {
+                    console.log(`[API /api/leads PUT] ✅ Automated message queued for status: ${status}`);
+                } else {
+                    console.log(`[API /api/leads PUT] ℹ️ No automated message: ${result.reason}`);
+                }
             } catch (activityError) {
                 console.error('[API /api/leads PUT] Error logging activity:', activityError);
             }

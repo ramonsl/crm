@@ -4,6 +4,7 @@ import { pool } from '@/lib/db';
 import { normalizePhone } from '@/lib/utils';
 import { ActivityRepository } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
+import { statusMessageService } from '@/services/StatusMessageService';
 import type { UploadRow } from '@/types/import';
 
 // Initialize activity service for logging
@@ -65,36 +66,69 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Import] Processed ${data.length} data rows`);
 
-        let created = 0;
-        let updated = 0;
-
-        // Process each row
-        for (const row of data) {
-            const getVal = (keywords: string[]) => {
-                let foundKey = Object.keys(row).find(k =>
-                    keywords.some(keyword => k.toLowerCase() === keyword.toLowerCase())
+        // Helper function to extract values from row
+        const getVal = (row: UploadRow, keywords: string[]) => {
+            let foundKey = Object.keys(row).find(k =>
+                keywords.some(keyword => k.toLowerCase() === keyword.toLowerCase())
+            );
+            if (!foundKey) {
+                foundKey = Object.keys(row).find(k =>
+                    keywords.some(keyword => k.toLowerCase().includes(keyword.toLowerCase())) &&
+                    !k.toLowerCase().startsWith('id ') &&
+                    !k.toLowerCase().startsWith('cod') &&
+                    !k.toLowerCase().startsWith('código')
                 );
-                if (!foundKey) {
-                    foundKey = Object.keys(row).find(k =>
-                        keywords.some(keyword => k.toLowerCase().includes(keyword.toLowerCase())) &&
-                        !k.toLowerCase().startsWith('id ') &&
-                        !k.toLowerCase().startsWith('cod') &&
-                        !k.toLowerCase().startsWith('código')
-                    );
-                }
-                return foundKey ? row[foundKey] : null;
-            };
+            }
+            return foundKey ? row[foundKey] : null;
+        };
 
-            const cpfRaw = getVal(['CPF']);
+        // ============================================================
+        // PRE-PROCESSING: Consolidate duplicates by CPF
+        // Keep only the row with the HIGHEST priority status
+        // This prevents multiple status changes for the same lead
+        // ============================================================
+        const consolidatedData = new Map<string, { row: UploadRow, status: string, priority: number }>();
+        let duplicatesFound = 0;
+
+        for (const row of data) {
+            const cpfRaw = getVal(row, ['CPF']);
             if (!cpfRaw) continue;
 
             const cpf = String(cpfRaw).replace(/\D/g, '');
             if (!cpf) continue;
 
-            const nome = getVal(['Nome', 'Candidato']) || '';
-            const email = getVal(['E-mail', 'Email']) || '';
+            const status = String(getVal(row, ['Situação', 'Status', 'Status da Inscrição']) || '').trim();
+            const priority = STATUS_PRIORITY[status] || 0;
 
-            let telefoneRaw = row['Celular'] || row['Fone Res.'] || getVal(['telefone', 'celular', 'fone']);
+            const existing = consolidatedData.get(cpf);
+            if (existing) {
+                duplicatesFound++;
+                // Keep the one with higher priority
+                if (priority > existing.priority) {
+                    console.log(`[Import] CPF ${cpf}: Keeping "${status}" (priority ${priority}) over "${existing.status}" (priority ${existing.priority})`);
+                    consolidatedData.set(cpf, { row, status, priority });
+                } else {
+                    console.log(`[Import] CPF ${cpf}: Ignoring "${status}" (priority ${priority}), keeping "${existing.status}" (priority ${existing.priority})`);
+                }
+            } else {
+                consolidatedData.set(cpf, { row, status, priority });
+            }
+        }
+
+        console.log(`[Import] Consolidated: ${data.length} rows -> ${consolidatedData.size} unique CPFs (${duplicatesFound} duplicates resolved)`);
+
+        let created = 0;
+        let updated = 0;
+
+        // Process each UNIQUE row (consolidated by CPF)
+        for (const [cpf, { row, status: consolidatedStatus }] of consolidatedData) {
+            // Use the helper function defined above with the current row
+            const getRowVal = (keywords: string[]) => getVal(row, keywords);
+
+            const nome = getRowVal(['Nome', 'Candidato']) || '';
+            const email = getRowVal(['E-mail', 'Email']) || '';
+
+            let telefoneRaw = row['Celular'] || row['Fone Res.'] || getRowVal(['telefone', 'celular', 'fone']);
             let telefone = '';
 
             if (telefoneRaw) {
@@ -104,10 +138,11 @@ export async function POST(req: NextRequest) {
                 }
             }
 
-            const status = getVal(['Situação', 'Status']) || '';
-            const data_inscricao = getVal(['Dt. Inscrição', 'Data Inscrição']) || null;
+            // Use consolidated status (highest priority from all rows with this CPF)
+            const status = consolidatedStatus;
+            const data_inscricao = getRowVal(['Dt. Inscrição', 'Data Inscrição']) || null;
 
-            const rawIngresso = getVal(['Processo de Ingresso', 'ingresso']) || '';
+            const rawIngresso = getRowVal(['Processo de Ingresso', 'ingresso']) || '';
             let tipo_ingresso = '';
             const semesterMatch = String(rawIngresso).match(/(\d{4}[./-]\d{1,2})/);
             if (semesterMatch) {
@@ -162,6 +197,12 @@ export async function POST(req: NextRequest) {
                     if (statusChanged) {
                         try {
                             await activityService.logStatusChange(cpf, existingStatus, finalStatus);
+
+                            // Trigger automated message if configured
+                            const result = await statusMessageService.processStatusChange(cpf, existingStatus, finalStatus);
+                            if (result.sent) {
+                                console.log(`[Import] ✅ Automated message queued for status: ${finalStatus}`);
+                            }
                         } catch (e) {
                             console.error('[Import] Error logging activity:', e);
                         }
@@ -205,6 +246,12 @@ export async function POST(req: NextRequest) {
                     if (existingByPhone.status !== finalStatus) {
                         try {
                             await activityService.logStatusChange(existingByPhone.cpf, existingByPhone.status, finalStatus);
+
+                            // Trigger automated message if configured
+                            const result = await statusMessageService.processStatusChange(existingByPhone.cpf, existingByPhone.status, finalStatus);
+                            if (result.sent) {
+                                console.log(`[Import] ✅ Automated message queued (merge) for status: ${finalStatus}`);
+                            }
                         } catch (e) {
                             console.error('[Import] Error logging merge activity:', e);
                         }

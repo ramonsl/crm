@@ -17,3 +17,5 @@ export { SettingRepository } from './SettingRepository';
 export { ActivityRepository } from './ActivityRepository';
 export { UserRepository } from './UserRepository';
 export { SessionRepository } from './SessionRepository';
+export { StatusTemplateRepository, statusTemplateRepository } from './StatusTemplateRepository';
+export { StatusMessageLogRepository, statusMessageLogRepository } from './StatusMessageLogRepository';

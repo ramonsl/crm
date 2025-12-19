@@ -1,0 +1,181 @@
+.container {
+    padding: 1.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.header {
+    margin-bottom: 1.5rem;
+}
+
+.title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0 0 0.25rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.subtitle {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+.section {
+    background: var(--bg-surface);
+    border-radius: 12px;
+    padding: 1.25rem;
+    border: 1px solid var(--border-color);
+    margin-bottom: 1rem;
+}
+
+.sectionTitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin: 0 0 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.description {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin: 0 0 1rem 0;
+    line-height: 1.5;
+}
+
+/* Card-based layout instead of table */
+.statusList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.statusCard {
+    background: var(--bg-body);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 1rem;
+}
+
+.statusHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.statusBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.select {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.switch {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    background: var(--border-color);
+    border-radius: 11px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: none;
+    flex-shrink: 0;
+}
+
+.switch.active {
+    background: var(--success);
+}
+
+.switch::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+}
+
+.switch.active::after {
+    transform: translateX(18px);
+}
+
+.switch:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.emptyState {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-muted);
+}
+
+.emptyState svg {
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.infoBox {
+    background: var(--bg-body);
+    border-radius: 8px;
+    padding: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+.infoBox p {
+    margin: 0 0 0.5rem 0;
+}
+
+.infoBox p:last-child {
+    margin-bottom: 0;
+}
+
+.warning {
+    color: var(--warning);
+    margin-top: 0.75rem !important;
+}
