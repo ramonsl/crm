@@ -136,16 +136,8 @@ export class WhatsAppMessenger {
         } catch (error1) {
             const error1Message = error1 instanceof Error ? error1.message : String(error1);
             console.warn(`[WhatsApp] Force Send 12-digit failed: ${error1Message}`);
-
-            // Check if it's a "not WhatsApp" error
-            if (error1Message.includes('No LID for user')) {
-                const friendlyMessage = `Número ${phone} não é WhatsApp`;
-                console.error(`[WhatsApp] ❌ ${friendlyMessage}`);
-                messageQueue.addLog(`❌ ${friendlyMessage}`, 'error');
-                throw new Error(friendlyMessage);
-            }
-
             messageQueue.addLog(`❌ Falha na tentativa 1: ${error1Message}`, 'error');
+            // Continue to try 13-digit variation
         }
 
         // Priority 2: Try 13-digit (New/9th digit)
