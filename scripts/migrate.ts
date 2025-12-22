@@ -26,6 +26,7 @@ async function runProductionMigrations() {
             direction: 'up',
             migrationsTable: 'pgmigrations',
             count: Infinity, // Roda todas as migrations pendentes
+            checkOrder: false, // Ignora validação de ordem (migrations antigas podem não ter rodado)
             verbose: true,
             log: (msg: string) => console.log(msg),
         });
