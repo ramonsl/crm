@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
-import { Zap, RefreshCw, MessageSquare, Info } from 'lucide-react';
+import { Zap, RefreshCw, MessageSquare, Timer, Clock, Users, Play, Pause } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 
 interface StatusItem {
@@ -25,6 +25,25 @@ interface StatusTemplateAssociation {
     template_name: string | null;
 }
 
+interface QueueAutomationConfig {
+    templateId: number | null;
+    targetStatus: string | null;
+    messageType: 'fixed' | 'ai';
+    isActive: boolean;
+    startHour: number;
+    endHour: number;
+}
+
+interface QueueAutomationStatus {
+    isActive: boolean;
+    isRunning: boolean;
+    isWithinOperatingHours: boolean;
+    currentHourBrazil: number;
+    totalSent: number;
+    lastSentAt: string | null;
+    queueLength: number;
+}
+
 export default function AutomationPage() {
     const { success: toastSuccess, error: toastError } = useToast();
 
@@ -34,6 +53,18 @@ export default function AutomationPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState<string | null>(null);
 
+    // Queue Automation states
+    const [queueConfig, setQueueConfig] = useState<QueueAutomationConfig>({
+        templateId: null,
+        targetStatus: null,
+        messageType: 'fixed',
+        isActive: false,
+        startHour: 8,
+        endHour: 21
+    });
+    const [queueStatus, setQueueStatus] = useState<QueueAutomationStatus | null>(null);
+    const [savingQueue, setSavingQueue] = useState(false);
+
     useEffect(() => {
         loadData();
     }, []);
@@ -41,21 +72,30 @@ export default function AutomationPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [statusRes, templateRes, assocRes] = await Promise.all([
+            const [statusRes, templateRes, assocRes, queueRes] = await Promise.all([
                 fetch('/api/statuses'),
                 fetch('/api/templates'),
-                fetch('/api/status-templates')
+                fetch('/api/status-templates'),
+                fetch('/api/automation/queue')
             ]);
 
-            const [statusData, templateData, assocData] = await Promise.all([
+            const [statusData, templateData, assocData, queueData] = await Promise.all([
                 statusRes.json(),
                 templateRes.json(),
-                assocRes.json()
+                assocRes.json(),
+                queueRes.json()
             ]);
 
             setStatuses(statusData.data || []);
             setTemplates(templateData.data || templateData || []);
             setAssociations(assocData.data || []);
+
+            if (queueData.config) {
+                setQueueConfig(queueData.config);
+            }
+            if (queueData.status) {
+                setQueueStatus(queueData.status);
+            }
         } catch (error) {
             console.error('Error loading data:', error);
             toastError('Erro ao carregar dados');
@@ -119,6 +159,135 @@ export default function AutomationPage() {
 
     const getAssociation = (statusName: string) => {
         return associations.find(a => a.status_name === statusName);
+    };
+
+    // Queue automation handlers
+    const handleQueueTemplateChange = async (templateId: number | null) => {
+        setSavingQueue(true);
+        try {
+            const res = await fetch('/api/automation/queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setQueueConfig(data.config);
+                toastSuccess('Template atualizado!');
+            } else {
+                toastError('Erro ao atualizar template');
+            }
+        } catch (error) {
+            toastError('Erro ao atualizar');
+        } finally {
+            setSavingQueue(false);
+        }
+    };
+
+    const handleQueueTypeChange = async (messageType: 'fixed' | 'ai') => {
+        setSavingQueue(true);
+        try {
+            const res = await fetch('/api/automation/queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messageType })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setQueueConfig(data.config);
+                toastSuccess('Tipo de mensagem atualizado!');
+            } else {
+                toastError('Erro ao atualizar');
+            }
+        } catch (error) {
+            toastError('Erro ao atualizar');
+        } finally {
+            setSavingQueue(false);
+        }
+    };
+
+    const handleQueueStatusChange = async (targetStatus: string | null) => {
+        setSavingQueue(true);
+        try {
+            const res = await fetch('/api/automation/queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetStatus })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setQueueConfig(data.config);
+                toastSuccess('Status atualizado!');
+            } else {
+                toastError('Erro ao atualizar');
+            }
+        } catch (error) {
+            toastError('Erro ao atualizar');
+        } finally {
+            setSavingQueue(false);
+        }
+    };
+
+    const handleQueueToggle = async () => {
+        if (!queueConfig.templateId) {
+            toastError('Selecione um template primeiro');
+            return;
+        }
+
+        setSavingQueue(true);
+        try {
+            const res = await fetch('/api/automation/queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isActive: !queueConfig.isActive })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setQueueConfig(data.config);
+                toastSuccess(data.config.isActive ? 'Automação ativada!' : 'Automação desativada');
+            } else {
+                toastError('Erro ao atualizar');
+            }
+        } catch (error) {
+            toastError('Erro ao atualizar');
+        } finally {
+            setSavingQueue(false);
+        }
+    };
+
+    const handlePlayPause = async () => {
+        if (!queueConfig.isActive) {
+            toastError('Ative a automação primeiro');
+            return;
+        }
+
+        setSavingQueue(true);
+        try {
+            const action = queueStatus?.isRunning ? 'stop' : 'start';
+            const res = await fetch('/api/automation/queue/trigger', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                toastSuccess(data.message);
+                // Refresh status
+                loadData();
+            } else {
+                toastError(data.message || 'Erro ao processar');
+            }
+        } catch (error) {
+            toastError('Erro ao processar');
+        } finally {
+            setSavingQueue(false);
+        }
     };
 
     if (loading) {
@@ -227,6 +396,156 @@ export default function AutomationPage() {
                         })}
                     </div>
                 )}
+            </div>
+
+            {/* Queue Automation Section */}
+            <div className={styles.section}>
+                <h2 className={styles.sectionTitle}>
+                    <Timer size={18} />
+                    Automação de Fila Vazia
+                </h2>
+
+                <div className={styles.infoBox}>
+                    <p><strong>Como funciona:</strong></p>
+                    <p>1. Quando a fila de mensagens esvazia, envia automaticamente para o próximo lead</p>
+                    <p>2. Cada lead recebe apenas <strong>uma mensagem</strong> dessa automação</p>
+                    <p className={styles.warning}>
+                        ⏰ Funciona apenas entre <strong>{queueConfig.startHour}h e {queueConfig.endHour}h</strong> (horário de Brasília)
+                    </p>
+                </div>
+
+                <div className={styles.statusCard} style={{ marginTop: '1rem' }}>
+                    <div className={styles.statusHeader}>
+                        <span className={styles.statusBadge} style={{
+                            backgroundColor: queueConfig.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                            color: queueConfig.isActive ? 'var(--success)' : 'var(--text-muted)',
+                            border: `1px solid ${queueConfig.isActive ? 'var(--success)' : 'var(--border-color)'}`
+                        }}>
+                            <Timer size={14} />
+                            Fila Vazia
+                            {queueStatus?.isRunning && (
+                                <span style={{
+                                    marginLeft: '0.5rem',
+                                    fontSize: '0.65rem',
+                                    backgroundColor: 'var(--success)',
+                                    color: 'white',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px'
+                                }}>
+                                    ENVIANDO
+                                </span>
+                            )}
+                        </span>
+
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            {/* Play/Pause Button */}
+                            <button
+                                onClick={handlePlayPause}
+                                disabled={savingQueue || !queueConfig.isActive}
+                                title={queueStatus?.isRunning ? 'Pausar envios' : 'Iniciar envios'}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '50%',
+                                    border: 'none',
+                                    cursor: queueConfig.isActive ? 'pointer' : 'not-allowed',
+                                    backgroundColor: queueStatus?.isRunning
+                                        ? 'var(--warning)'
+                                        : queueConfig.isActive
+                                            ? 'var(--success)'
+                                            : 'var(--border-color)',
+                                    color: 'white',
+                                    opacity: savingQueue ? 0.6 : 1,
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                {queueStatus?.isRunning ? <Pause size={16} /> : <Play size={16} />}
+                            </button>
+
+                            {/* Toggle Switch */}
+                            <button
+                                className={`${styles.switch} ${queueConfig.isActive ? styles.active : ''}`}
+                                onClick={handleQueueToggle}
+                                disabled={savingQueue || !queueConfig.templateId}
+                                title={!queueConfig.templateId ? 'Selecione um template' : queueConfig.isActive ? 'Desativar' : 'Ativar'}
+                            />
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                        <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
+                                Status do Lead
+                            </label>
+                            <select
+                                className={styles.select}
+                                value={queueConfig.targetStatus || ''}
+                                onChange={(e) => handleQueueStatusChange(
+                                    e.target.value || null
+                                )}
+                                disabled={savingQueue}
+                            >
+                                <option value="">Todos os status</option>
+                                {statuses.map((status) => (
+                                    <option key={status.id} value={status.name}>
+                                        {status.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div style={{ flex: 2 }}>
+                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
+                                Template
+                            </label>
+                            <select
+                                className={styles.select}
+                                value={queueConfig.templateId || ''}
+                                onChange={(e) => handleQueueTemplateChange(
+                                    e.target.value ? parseInt(e.target.value) : null
+                                )}
+                                disabled={savingQueue}
+                            >
+                                <option value="">Selecione um template</option>
+                                {templates.map((template) => (
+                                    <option key={template.id} value={template.id}>
+                                        {template.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Status Info */}
+                    {queueStatus && (
+                        <div style={{
+                            display: 'flex',
+                            gap: '1rem',
+                            fontSize: '0.75rem',
+                            color: 'var(--text-muted)',
+                            borderTop: '1px solid var(--border-color)',
+                            paddingTop: '0.75rem',
+                            marginTop: '0.5rem'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <Clock size={12} />
+                                <span>Hora Brasília: {queueStatus.currentHourBrazil}h</span>
+                                {queueStatus.isWithinOperatingHours ? (
+                                    <span style={{ color: 'var(--success)' }}>(ativo)</span>
+                                ) : (
+                                    <span style={{ color: 'var(--text-muted)' }}>(fora do horário)</span>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <Users size={12} />
+                                <span>Enviadas: {queueStatus.totalSent}</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

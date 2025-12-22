@@ -63,3 +63,13 @@ WHATSAPP_FIX.txt
 # Excel files with data
 crm.xlsx
 database.sqlite
+
+# Data extraction files (Mannesoft)
+alunos_*.csv
+error_mannesoft.png
+scripts/all_codes.txt
+scripts/codigos_*.txt
+scripts/extract_mannesoft.ts
+scripts/extract_pdf_codes.js
+scripts/extract_pdf_codes.mjs
+scripts/prime.pdf

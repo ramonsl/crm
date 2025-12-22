@@ -191,6 +191,29 @@ export class QueueManager {
     }
 
     /**
+     * Trigger queue automation to send message to next lead
+     * Uses dynamic import to avoid circular dependency
+     */
+    private async triggerQueueAutomation(): Promise<void> {
+        try {
+            const { queueAutomationService } = await import('@/services/QueueAutomationService');
+            const result = await queueAutomationService.onQueueEmpty();
+
+            if (result.sent) {
+                this.addLog(`[Automação] ${result.reason}`, 'success');
+            } else {
+                // Only log if automation is active but couldn't send
+                const config = await queueAutomationService.getConfig();
+                if (config?.isActive) {
+                    this.addLog(`[Automação] ${result.reason}`, 'info');
+                }
+            }
+        } catch (error) {
+            console.error('[QueueManager] Error triggering queue automation:', error);
+        }
+    }
+
+    /**
      * Process the queue
      */
     private async process(): Promise<void> {
@@ -254,5 +277,8 @@ export class QueueManager {
 
         this.processing = false;
         this.addLog('Queue processing finished.', 'info');
+
+        // Trigger queue automation when queue becomes empty
+        await this.triggerQueueAutomation();
     }
 }
