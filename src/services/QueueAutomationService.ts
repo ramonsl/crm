@@ -191,10 +191,8 @@ export class QueueAutomationService {
             return { sent: false, reason: `Nenhum lead elegível disponível${statusInfo}` };
         }
 
-        // 7. Queue message
+        // 7. Queue message (always use AI for automation)
         try {
-            const isAi = config.messageType === 'ai';
-
             messageQueue.enqueue([{
                 phone: lead.telefone,
                 name: lead.nome || '',
@@ -202,7 +200,7 @@ export class QueueAutomationService {
                 cpf: lead.cpf,
                 templateId: template.id,
                 templateName: template.name,
-                isAi
+                isAi: true // Always use AI for queue automation
             }]);
 
             // 8. Log the send
