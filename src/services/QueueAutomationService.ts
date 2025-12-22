@@ -276,29 +276,37 @@ export class QueueAutomationService {
     }
 
     /**
-     * Main loop - sends messages continuously while active
+     * Main loop - sends messages one at a time, waiting for queue to empty
      */
     private async runLoop(): Promise<void> {
         if (!this.loopRunning) return;
 
         try {
+            // Check if queue is currently processing - wait if so
+            const queueState = messageQueue.getState();
+            if (queueState.queueLength > 0 || queueState.processing) {
+                // Queue still has items, check again in 5 seconds
+                this.loopInterval = setTimeout(() => this.runLoop(), 5000);
+                return;
+            }
+
+            // Queue is empty, try to add next lead
             const result = await this.onQueueEmpty();
 
             if (result.sent) {
                 // Log success to WhatsApp terminal
                 messageQueue.addLog(`[Automação] ${result.reason}`, 'success');
+                // Wait for this message to be sent before checking for next
+                // Check every 5 seconds until queue is empty again
+                this.loopInterval = setTimeout(() => this.runLoop(), 5000);
             } else {
-                // Log reason if not outside hours
+                // No lead available or outside hours, check again in 1 minute
                 const config = await this.getConfig();
                 if (config?.isActive) {
                     messageQueue.addLog(`[Automação] ${result.reason}`, 'info');
                 }
+                this.loopInterval = setTimeout(() => this.runLoop(), 60000);
             }
-
-            // If sent, wait for message queue to process, otherwise check again in 1 minute
-            const delay = result.sent ? 5000 : 60000;
-
-            this.loopInterval = setTimeout(() => this.runLoop(), delay);
 
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
