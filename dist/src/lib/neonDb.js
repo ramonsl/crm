@@ -13,10 +13,11 @@ exports.execute = execute;
 exports.transaction = transaction;
 exports.closePool = closePool;
 const serverless_1 = require("@neondatabase/serverless");
+const logger_1 = require("../lib/logger");
 // Validate DATABASE_URL is present
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
-    console.warn('[DB] DATABASE_URL not set - database operations will fail');
+    logger_1.dbLogger.warn('DATABASE_URL not set - database operations will fail');
 }
 /**
  * SQL template function for HTTP queries (one-shot queries)
@@ -103,4 +104,4 @@ async function transaction(callback) {
 async function closePool() {
     await exports.pool.end();
 }
-console.log('[DB] Neon PostgreSQL driver initialized');
+logger_1.dbLogger.debug('Neon PostgreSQL driver initialized');

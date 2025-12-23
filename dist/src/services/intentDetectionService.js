@@ -5,6 +5,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.intentDetectionService = exports.IntentDetectionService = void 0;
+const logger_1 = require("../lib/logger");
 // Simple in-memory cache to avoid redundant API calls
 const intentCache = new Map();
 const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
@@ -20,11 +21,11 @@ class IntentDetectionService {
         const cacheKey = this.getCacheKey(message, availableIntents);
         const cached = this.getFromCache(cacheKey);
         if (cached) {
-            console.log('[IntentDetection] Cache hit for message:', message.substring(0, 50));
+            logger_1.logger.debug(`[IntentDetection] Cache hit for message: ${message.substring(0, 50)}`);
             return cached;
         }
         if (availableIntents.length === 0) {
-            console.log('[IntentDetection] No active intents available');
+            logger_1.logger.debug('[IntentDetection] No active intents available');
             return null;
         }
         try {
@@ -35,7 +36,7 @@ class IntentDetectionService {
             return result;
         }
         catch (error) {
-            console.error('[IntentDetection] Error detecting intent:', error);
+            logger_1.logger.error('[IntentDetection] Error detecting intent:', error);
             return null;
         }
     }
@@ -46,7 +47,7 @@ class IntentDetectionService {
         var _a, _b, _c;
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) {
-            console.error('[IntentDetection] OPENAI_API_KEY not set');
+            logger_1.logger.error('[IntentDetection] OPENAI_API_KEY not set');
             return null;
         }
         // Build the prompt with available intents
@@ -73,7 +74,7 @@ Responda em JSON no formato:
   "confidence": 0.95
 }`;
         try {
-            console.log('[IntentDetection] Calling OpenAI API...');
+            logger_1.logger.debug('[IntentDetection] Calling OpenAI API...');
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -98,17 +99,17 @@ Responda em JSON no formato:
             const data = await response.json();
             const content = (_c = (_b = (_a = data.choices) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.message) === null || _c === void 0 ? void 0 : _c.content;
             if (!content) {
-                console.error('[IntentDetection] Empty response from OpenAI');
+                logger_1.logger.error('[IntentDetection] Empty response from OpenAI');
                 return null;
             }
             const parsed = JSON.parse(content);
             // Find the matching intent from available intents
             const matchedIntent = availableIntents.find(intent => intent.name.toLowerCase() === parsed.intent.toLowerCase());
             if (!matchedIntent) {
-                console.log('[IntentDetection] Intent not found in available intents:', parsed.intent);
+                logger_1.logger.debug(`[IntentDetection] Intent not found in available intents: ${parsed.intent}`);
                 return null;
             }
-            console.log('[IntentDetection] Detected intent:', {
+            logger_1.logger.debug('[IntentDetection] Detected intent:', {
                 intent: matchedIntent.name,
                 confidence: parsed.confidence
             });
@@ -119,7 +120,7 @@ Responda em JSON no formato:
             };
         }
         catch (error) {
-            console.error('[IntentDetection] OpenAI API call failed:', error);
+            logger_1.logger.error('[IntentDetection] OpenAI API call failed:', error);
             throw error;
         }
     }

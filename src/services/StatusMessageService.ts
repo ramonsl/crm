@@ -88,6 +88,8 @@ export class StatusMessageService {
 
         // 5. Queue message for sending
         try {
+            queueLogger.info(`[StatusChange] Enfileirando mensagem para CPF ${cpf}, telefone: ${lead.telefone}, template: ${template.name}`);
+
             messageQueue.enqueue([{
                 phone: lead.telefone,
                 name: lead.nome || '',

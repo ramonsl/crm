@@ -300,12 +300,12 @@ export class WhatsAppMessenger {
             }
 
             // Check for critical errors that require client restart
+            // Note: "Evaluation failed" and undefined property errors are NOT critical
+            // They indicate temporary unavailability, not session failure
             if (errorMessage.includes('Session closed') ||
                 errorMessage.includes('Protocol error') ||
                 errorMessage.includes('Target closed') ||
-                errorMessage.includes('browser has disconnected') ||
-                errorMessage.includes('Evaluation failed') ||
-                errorMessage.includes('Timeout')) {
+                errorMessage.includes('browser has disconnected')) {
 
                 whatsappLogger.error(' Erro crítico ou timeout detectado durante envio de mensagem.');
                 messageQueue.addLog(`Erro crítico ou timeout (${errorMessage}). Verificando se pode reiniciar...`, 'error');

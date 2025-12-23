@@ -94,7 +94,7 @@ export class HealthCheckService {
     async isClientReady(): Promise<boolean> {
         try {
             if (!this.state.client) {
-                whatsappLogger.debug(' isClientReady: No client instance');
+                whatsappLogger.debug('⏸️ isClientReady: No client instance');
                 return false;
             }
 
@@ -114,7 +114,18 @@ export class HealthCheckService {
 
             return isReady;
         } catch (error) {
-            whatsappLogger.error(' Error checking client state:', error);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+
+            // If getState() fails with Puppeteer errors, but we have a client and status is ready,
+            // assume it's a temporary issue and trust the global state
+            if (this.state.client && this.state.status === 'ready' &&
+                (errorMsg.includes('Evaluation failed') ||
+                    errorMsg.includes('Cannot read properties of undefined'))) {
+                whatsappLogger.warn('⚠️ Client state check failed with Puppeteer error, but trusting global state (ready)');
+                return true;  // Trust the global state
+            }
+
+            whatsappLogger.error('❌ Error checking client state:', error);
             return false;
         }
     }

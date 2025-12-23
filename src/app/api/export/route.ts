@@ -1,138 +1,248 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
-import { removeNonDigits } from '@/lib/utils/phoneUtils';
 
+/**
+ * Export API - Generate CSV for Google Contacts
+ * 
+ * Exports selected leads in Google Contacts CSV format with all 35 standard fields.
+ * Receives CPFs via query string and returns a CSV file.
+ */
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
-        const status = searchParams.get('status') || '';
+        const cpfsParam = searchParams.get('cpfs');
 
-        // Build query based on status filter
-        let query = 'SELECT * FROM leads WHERE 1=1';
-        const params: any[] = [];
-        let paramIndex = 1;
-
-        if (status && status !== 'all') {
-            const statuses = status.split(',');
-            if (statuses.length > 0) {
-                const conditions = statuses.map(() => `status = $${paramIndex++}`).join(' OR ');
-                query += ` AND (${conditions})`;
-                statuses.forEach(s => params.push(s.trim()));
-            }
+        if (!cpfsParam) {
+            return NextResponse.json({ error: 'CPFs parameter is required' }, { status: 400 });
         }
 
-        // Exclude specific statuses
-        const excludeStatus = searchParams.get('exclude_status');
-        if (excludeStatus) {
-            const excluded = excludeStatus.split(',');
-            if (excluded.length > 0) {
-                const conditions = excluded.map(() => `status != $${paramIndex++}`).join(' AND ');
-                query += ` AND (${conditions})`;
-                excluded.forEach(s => params.push(s.trim()));
-            }
+        // Parse CPFs (comma-separated)
+        const cpfs = cpfsParam.split(',').map(cpf => cpf.trim()).filter(Boolean);
+
+        if (cpfs.length === 0) {
+            return NextResponse.json({ error: 'No valid CPFs provided' }, { status: 400 });
         }
 
-        query += ' ORDER BY nome ASC';
+        // Query database for selected leads
+        const result = await pool.query(`
+            SELECT 
+                cpf, nome, telefone, email,
+                escola, curso_interesse, tipo_ingresso,
+                status, whatsapp_valido, last_message_time, notes
+            FROM leads
+            WHERE cpf = ANY($1)
+            ORDER BY nome
+        `, [cpfs]);
 
-        const result = await pool.query(query, params);
         const leads = result.rows;
 
-        // Google Contacts CSV headers
-        const headers = [
-            'Name Prefix', 'First Name', 'Middle Name', 'Last Name', 'Name Suffix',
-            'Phonetic First Name', 'Phonetic Middle Name', 'Phonetic Last Name',
-            'Nickname', 'File As',
-            'E-mail 1 - Label', 'E-mail 1 - Value',
-            'Phone 1 - Label', 'Phone 1 - Value',
-            'Address 1 - Label', 'Address 1 - Country', 'Address 1 - Street',
-            'Address 1 - Extended Address', 'Address 1 - City', 'Address 1 - Region',
-            'Address 1 - Postal Code', 'Address 1 - PO Box',
-            'Organization Name', 'Organization Title', 'Organization Department',
-            'Birthday',
-            'Event 1 - Label', 'Event 1 - Value',
-            'Relation 1 - Label', 'Relation 1 - Value',
-            'Website 1 - Label', 'Website 1 - Value',
-            'Custom Field 1 - Label', 'Custom Field 1 - Value',
-            'Notes', 'Labels'
-        ];
+        if (leads.length === 0) {
+            return NextResponse.json({ error: 'No contacts found' }, { status: 404 });
+        }
 
-        // Helper function to escape CSV values
-        const escapeCsv = (value: any): string => {
-            if (value === null || value === undefined) return '';
-            const str = String(value);
-            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                return `"${str.replace(/"/g, '""')}"`;
-            }
-            return str;
-        };
+        // Load tags for each lead
+        const tagsMap = new Map<string, string>();
+        await Promise.all(
+            leads.map(async (lead) => {
+                try {
+                    const tagsResult = await pool.query(
+                        'SELECT name FROM tags WHERE id IN (SELECT tag_id FROM lead_tags WHERE lead_cpf = $1)',
+                        [lead.cpf]
+                    );
+                    const tagNames = tagsResult.rows.map(row => row.name).join(', ');
+                    tagsMap.set(lead.cpf, tagNames);
+                } catch (error) {
+                    console.error(`Error loading tags for ${lead.cpf}:`, error);
+                    tagsMap.set(lead.cpf, '');
+                }
+            })
+        );
 
-        // Helper to split name into parts
-        const splitName = (fullName: string) => {
-            const parts = fullName.trim().split(' ');
-            if (parts.length === 1) {
-                return { firstName: parts[0], lastName: '' };
-            }
-            const firstName = parts[0];
-            const lastName = parts.slice(1).join(' ');
-            return { firstName, lastName };
-        };
+        // Generate CSV content
+        const csv = generateGoogleContactsCSV(leads, tagsMap);
 
-        // Format phone number for Google
-        const formatPhone = (phone: string): string => {
-            if (!phone) return '';
-            const digits = removeNonDigits(phone);
-            if (digits.length === 10 || digits.length === 11) {
-                return `+55 ${digits}`;
-            }
-            if (digits.length > 11) {
-                return `+${digits}`;
-            }
-            return digits;
-        };
-
-        // Build CSV rows
-        const rows = leads.map(lead => {
-            const { firstName, lastName } = splitName(lead.nome || '');
-            const formattedPhone = formatPhone(lead.telefone || '');
-
-            let notes = lead.notes || '';
-            if (lead.curso_interesse) {
-                notes += (notes ? '\n' : '') + `Curso de Interesse: ${lead.curso_interesse}`;
-            }
-            if (lead.escola) {
-                notes += (notes ? '\n' : '') + `Escola: ${lead.escola}`;
-            }
-            if (lead.tipo_ingresso) {
-                notes += (notes ? '\n' : '') + `Semestre: ${lead.tipo_ingresso}`;
-            }
-            if (lead.cpf) {
-                notes += (notes ? '\n' : '') + `CPF: ${lead.cpf}`;
-            }
-
-            return [
-                '', escapeCsv(firstName), '', escapeCsv(lastName), '',
-                '', '', '', '', '',
-                'Email', escapeCsv(lead.email || ''),
-                'Mobile', escapeCsv(formattedPhone),
-                '', '', '', '', '', '', '', '',
-                'ULBRA', '', escapeCsv(lead.curso_interesse || ''),
-                '', '', '', '', '', '', '',
-                'Status', escapeCsv(lead.status || ''),
-                escapeCsv(notes), 'CRM'
-            ].join(',');
-        });
-
-        const csv = [headers.join(','), ...rows].join('\n');
-
+        // Return CSV file with proper headers
         return new NextResponse(csv, {
             status: 200,
             headers: {
                 'Content-Type': 'text/csv; charset=utf-8',
-                'Content-Disposition': `attachment; filename="contatos-crm-${new Date().toISOString().split('T')[0]}.csv"`,
+                'Content-Disposition': `attachment; filename="contatos.csv"`,
             },
         });
     } catch (error) {
-        console.error('Export error:', error);
+        console.error('[API /api/export] Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
+}
+
+/**
+ * Generate CSV in Google Contacts format
+ * Includes all 35 standard fields required by Google Contacts
+ */
+function generateGoogleContactsCSV(leads: any[], tagsMap: Map<string, string>): string {
+    // Google Contacts CSV header (35 fields)
+    const header = [
+        'Name Prefix',
+        'First Name',
+        'Middle Name',
+        'Last Name',
+        'Name Suffix',
+        'Phonetic First Name',
+        'Phonetic Middle Name',
+        'Phonetic Last Name',
+        'Nickname',
+        'File As',
+        'E-mail 1 - Label',
+        'E-mail 1 - Value',
+        'Phone 1 - Label',
+        'Phone 1 - Value',
+        'Address 1 - Label',
+        'Address 1 - Country',
+        'Address 1 - Street',
+        'Address 1 - Extended Address',
+        'Address 1 - City',
+        'Address 1 - Region',
+        'Address 1 - Postal Code',
+        'Address 1 - PO Box',
+        'Organization Name',
+        'Organization Title',
+        'Organization Department',
+        'Birthday',
+        'Event 1 - Label',
+        'Event 1 - Value',
+        'Relation 1 - Label',
+        'Relation 1 - Value',
+        'Website 1 - Label',
+        'Website 1 - Value',
+        'Custom Field 1 - Label',
+        'Custom Field 1 - Value',
+        'Notes',
+        'Labels'
+    ];
+
+    // Build CSV rows
+    const rows = leads.map(lead => {
+        // Split name into parts
+        const nameParts = (lead.nome || '').trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+        const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+
+        // Format phone with international code
+        const phone = lead.telefone ? formatPhoneInternational(lead.telefone) : '';
+
+        // Build Notes field
+        const notes = buildNotesField(lead);
+
+        // Get tags
+        const labels = tagsMap.get(lead.cpf) || '';
+
+        return [
+            '', // Name Prefix
+            escapeCSV(firstName),
+            escapeCSV(middleName),
+            escapeCSV(lastName),
+            '', // Name Suffix
+            '', // Phonetic First Name
+            '', // Phonetic Middle Name
+            '', // Phonetic Last Name
+            '', // Nickname
+            escapeCSV(lead.nome || ''), // File As
+            'Work', // E-mail 1 - Label
+            escapeCSV(lead.email || ''), // E-mail 1 - Value
+            'Mobile', // Phone 1 - Label
+            escapeCSV(phone), // Phone 1 - Value
+            'Home', // Address 1 - Label
+            'Brasil', // Address 1 - Country
+            '', // Address 1 - Street (no address field)
+            '', // Address 1 - Extended Address
+            '', // Address 1 - City
+            '', // Address 1 - Region
+            '', // Address 1 - Postal Code
+            '', // Address 1 - PO Box
+            escapeCSV(lead.escola || ''), // Organization Name
+            escapeCSV(lead.status || ''), // Organization Title
+            escapeCSV(lead.curso_interesse || ''), // Organization Department
+            '', // Birthday
+            '', // Event 1 - Label
+            '', // Event 1 - Value
+            '', // Relation 1 - Label
+            '', // Relation 1 - Value
+            '', // Website 1 - Label
+            '', // Website 1 - Value
+            'Semestre', // Custom Field 1 - Label
+            escapeCSV(lead.tipo_ingresso || ''), // Custom Field 1 - Value
+            escapeCSV(notes), // Notes
+            escapeCSV(labels) // Labels
+        ];
+    });
+
+    // Combine header and rows into CSV
+    const csvLines = [header, ...rows].map(row => row.join(',')).join('\n');
+
+    // Add UTF-8 BOM for proper encoding in Excel/Google
+    return '\uFEFF' + csvLines;
+}
+
+/**
+ * Build Notes field with multiple information
+ */
+function buildNotesField(lead: any): string {
+    const parts: string[] = [];
+
+    if (lead.status) {
+        parts.push(`Status: ${lead.status}`);
+    }
+
+    if (lead.curso_interesse) {
+        parts.push(`Curso: ${lead.curso_interesse}`);
+    }
+
+    if (lead.tipo_ingresso) {
+        parts.push(`Semestre: ${lead.tipo_ingresso}`);
+    }
+
+    if (lead.whatsapp_valido !== null && lead.whatsapp_valido !== undefined) {
+        parts.push(`WhatsApp: ${lead.whatsapp_valido ? 'Sim' : 'Não'}`);
+    }
+
+    if (lead.last_message_time) {
+        const date = new Date(lead.last_message_time);
+        parts.push(`Última Mensagem: ${date.toLocaleString('pt-BR')}`);
+    }
+
+    if (lead.notes) {
+        parts.push(`Observações: ${lead.notes}`);
+    }
+
+    return parts.join('\n');
+}
+
+/**
+ * Format phone number with international code
+ */
+function formatPhoneInternational(phone: string): string {
+    // Remove all non-digits
+    const digits = phone.replace(/\D/g, '');
+
+    // Add +55 if not present
+    if (digits.startsWith('55')) {
+        return '+' + digits;
+    } else {
+        return '+55' + digits;
+    }
+}
+
+/**
+ * Escape CSV field (handle commas and quotes)
+ */
+function escapeCSV(value: string): string {
+    if (!value) return '';
+
+    // If value contains comma, quote, or newline, wrap in quotes and escape quotes
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return '"' + value.replace(/"/g, '""') + '"';
+    }
+
+    return value;
 }

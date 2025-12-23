@@ -119,6 +119,12 @@ export async function POST(req: NextRequest) {
 
         let created = 0;
         let updated = 0;
+        let statusChanges = 0;  // Track actual status changes separately
+
+        // Detailed tracking
+        const createdLeads: Array<{ nome: string; cpf: string; status: string }> = [];
+        const updatedLeads: Array<{ nome: string; cpf: string; oldStatus: string; newStatus: string }> = [];
+        const skippedDowngrades: Array<{ nome: string; cpf: string; currentStatus: string; attemptedStatus: string }> = [];
 
         // Process each UNIQUE row (consolidated by CPF)
         for (const [cpf, { row, status: consolidatedStatus }] of consolidatedData) {
@@ -175,12 +181,15 @@ export async function POST(req: NextRequest) {
                         statusChanged = 1;
                         anyDataChanged = true;
                         finalStatus = newStatus;
+                        statusChanges++;
+                        updatedLeads.push({ nome: String(nome || cpf), cpf, oldStatus: existingStatus, newStatus });
                     }
                 } else if (newStatus !== '' && newPriority < existingPriority) {
                     // New status has lower priority - log but don't downgrade
                     const date = new Date().toLocaleDateString('pt-BR');
                     notes = `${notes ? notes + '\n' : ''}[${date}] Importação ignorada: tentativa de alterar ${existingStatus} para ${newStatus} (prioridade menor)`;
                     anyDataChanged = true;
+                    skippedDowngrades.push({ nome: String(nome || cpf), cpf, currentStatus: existingStatus, attemptedStatus: newStatus });
                     console.log(`[Import] Skipping status downgrade for CPF ${cpf}: ${existingStatus} (${existingPriority}) -> ${newStatus} (${newPriority})`);
                 }
 
@@ -263,6 +272,7 @@ export async function POST(req: NextRequest) {
                         VALUES ($1, $2, $3, $4, $5, $6, $7, 1, NOW())
                     `, [cpf, nome, email, telefone, tipo_ingresso, status, data_inscricao]);
                     created++;
+                    createdLeads.push({ nome: String(nome || cpf), cpf, status: String(status) });
 
                     try {
                         await activityService.logLeadCreated(cpf, String(nome || cpf), 'importação Prime');
@@ -273,7 +283,17 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        return NextResponse.json({ message: 'Success', created, updated });
+        return NextResponse.json({
+            message: 'Success',
+            created,
+            updated,
+            statusChanges,  // Separate counter for actual status changes
+            details: {
+                createdLeads,
+                updatedLeads,
+                skippedDowngrades
+            }
+        });
     } catch (error) {
         console.error('Import error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

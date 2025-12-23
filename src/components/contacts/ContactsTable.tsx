@@ -11,6 +11,7 @@ import { useContacts } from '@/hooks/useContacts';
 import { useContactsFilters } from '@/hooks/useContactsFilters';
 import { useContactsSelection } from '@/hooks/useContactsSelection';
 import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus';
+import { uiLogger } from '@/lib/logger';
 import { ContactsTabs } from './ContactsTabs';
 import { ContactsFilters } from './ContactsFilters';
 import { ContactEditModal } from './ContactEditModal';
@@ -124,26 +125,26 @@ export function ContactsTable({
         loadTagsForContacts();
     }, [contacts]);
 
-    const handleExport = async () => {
-        try {
-            const params = new URLSearchParams();
-            if (filters.search) params.append('search', filters.search);
-            if (filters.status && filters.status.length > 0) params.append('status', filters.status.join(','));
 
-            const response = await fetch(`/api/leads/export?${params.toString()}`);
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `contacts_${new Date().toISOString().split('T')[0]}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-        } catch (err) {
-            console.error('Export error:', err);
+    const handleExport = () => {
+        if (selectedCount === 0) {
+            toastError('Selecione contatos para exportar');
+            return;
         }
+
+        const cpfs = selected.join(',');
+        const url = `/api/export?cpfs=${encodeURIComponent(cpfs)}`;
+
+        // Force download with anchor tag
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `contatos-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     };
+
+
 
     const handleSendMessage = (contact: Contact) => {
         setSelectedContact(contact);
@@ -297,14 +298,25 @@ export function ContactsTable({
                 </div>
                 <div className={styles.headerActions}>
                     {selectedCount > 0 && (
-                        <button
-                            className={styles.bulkActionButton}
-                            onClick={() => setBulkMessageModalOpen(true)}
-                            title="Enviar mensagem para selecionados"
-                        >
-                            <MessageSquare size={18} />
-                            Enviar Mensagem ({selectedCount})
-                        </button>
+                        <>
+                            <button
+                                className={styles.bulkActionButton}
+                                onClick={handleExport}
+                                title="Exportar contatos selecionados para CSV"
+                            >
+                                <Download size={18} />
+                                Exportar CSV ({selectedCount})
+                            </button>
+
+                            <button
+                                className={styles.bulkActionButton}
+                                onClick={() => setBulkMessageModalOpen(true)}
+                                title="Enviar mensagem para selecionados"
+                            >
+                                <MessageSquare size={18} />
+                                Enviar Mensagem ({selectedCount})
+                            </button>
+                        </>
                     )}
                     <button onClick={() => setCreateModalOpen(true)} className={styles.newContactButton}>
                         <UserPlus size={18} />
@@ -313,9 +325,7 @@ export function ContactsTable({
                     <button onClick={refresh} className={styles.iconButton} title="Atualizar">
                         <RefreshCw size={18} className={loading ? styles.spinning : ''} />
                     </button>
-                    <button onClick={handleExport} className={styles.iconButton} title="Exportar CSV">
-                        <Download size={18} />
-                    </button>
+
                     <ColumnSelector
                         visibleColumns={visibleColumns}
                         onToggle={toggleColumn}

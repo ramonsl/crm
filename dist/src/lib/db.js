@@ -16,12 +16,19 @@ Object.defineProperty(exports, "query", { enumerable: true, get: function () { r
 Object.defineProperty(exports, "queryOne", { enumerable: true, get: function () { return neonDb_1.queryOne; } });
 Object.defineProperty(exports, "execute", { enumerable: true, get: function () { return neonDb_1.execute; } });
 Object.defineProperty(exports, "sql", { enumerable: true, get: function () { return neonDb_1.sql; } });
+const logger_1 = require("../lib/logger");
 /**
  * Initialize database schema
- * Creates all required tables if they don't exist
+ * ⚠️ WARNING: Use this ONLY for local development or initial setup.
+ * For production and managed schema changes, use the Migrations system:
+ *
+ * - Create migration: npm run migrate:create -- name
+ * - Run migrations: npm run migrate:test (local) or npm run migrate:prod (production)
  */
 async function initializeDatabase() {
-    console.log('[DB] Initializing PostgreSQL schema...');
+    logger_1.dbLogger.info(' ⚠️  WARNING: Using legacy initializeDatabase().');
+    logger_1.dbLogger.info(' Consider using "npm run migrate:test" for managed migrations.');
+    logger_1.dbLogger.info(' Initializing PostgreSQL schema...');
     try {
         // Create leads table
         await neonDb_1.pool.query(`
@@ -53,7 +60,7 @@ async function initializeDatabase() {
         last_template_sent_at TIMESTAMP
       )
     `);
-        console.log('[DB] ✅ Table: leads');
+        logger_1.dbLogger.info(' ✅ Table: leads');
         // Create templates table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS templates (
@@ -64,7 +71,7 @@ async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        console.log('[DB] ✅ Table: templates');
+        logger_1.dbLogger.info(' ✅ Table: templates');
         // Create settings table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS settings (
@@ -72,7 +79,7 @@ async function initializeDatabase() {
         value TEXT
       )
     `);
-        console.log('[DB] ✅ Table: settings');
+        logger_1.dbLogger.info(' ✅ Table: settings');
         // Create system_notifications table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS system_notifications (
@@ -84,7 +91,7 @@ async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        console.log('[DB] ✅ Table: system_notifications');
+        logger_1.dbLogger.info(' ✅ Table: system_notifications');
         // Create message_history table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS message_history (
@@ -99,7 +106,7 @@ async function initializeDatabase() {
         CONSTRAINT fk_message_history_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL
       )
     `);
-        console.log('[DB] ✅ Table: message_history');
+        logger_1.dbLogger.info(' ✅ Table: message_history');
         // Create template_history table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS template_history (
@@ -112,7 +119,7 @@ async function initializeDatabase() {
         error_message TEXT
       )
     `);
-        console.log('[DB] ✅ Table: template_history');
+        logger_1.dbLogger.info(' ✅ Table: template_history');
         // Create statuses table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS statuses (
@@ -125,7 +132,7 @@ async function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        console.log('[DB] ✅ Table: statuses');
+        logger_1.dbLogger.info(' ✅ Table: statuses');
         // Create users table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -139,7 +146,7 @@ async function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        console.log('[DB] ✅ Table: users');
+        logger_1.dbLogger.info(' ✅ Table: users');
         // Create sessions table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -150,7 +157,7 @@ async function initializeDatabase() {
         CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-        console.log('[DB] ✅ Table: sessions');
+        logger_1.dbLogger.info(' ✅ Table: sessions');
         // Create activities table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS activities (
@@ -165,7 +172,7 @@ async function initializeDatabase() {
         CONSTRAINT fk_activity_contact FOREIGN KEY (contact_cpf) REFERENCES leads(cpf) ON DELETE CASCADE
       )
     `);
-        console.log('[DB] ✅ Table: activities');
+        logger_1.dbLogger.info(' ✅ Table: activities');
         // Create messages table for WhatsApp chat history
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS messages (
@@ -179,7 +186,7 @@ async function initializeDatabase() {
         read BOOLEAN DEFAULT false
       )
     `);
-        console.log('[DB] ✅ Table: messages');
+        logger_1.dbLogger.info(' ✅ Table: messages');
         // Create tags table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS tags (
@@ -192,7 +199,7 @@ async function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        console.log('[DB] ✅ Table: tags');
+        logger_1.dbLogger.info(' ✅ Table: tags');
         // Create lead_tags junction table
         await neonDb_1.pool.query(`
       CREATE TABLE IF NOT EXISTS lead_tags (
@@ -205,15 +212,15 @@ async function initializeDatabase() {
         CONSTRAINT unique_lead_tag UNIQUE (lead_cpf, tag_id)
       )
     `);
-        console.log('[DB] ✅ Table: lead_tags');
+        logger_1.dbLogger.info(' ✅ Table: lead_tags');
         // Create indexes
         await createIndexes();
         // Seed default data
         await seedDefaultData();
-        console.log('[DB] ✅ PostgreSQL schema initialized successfully');
+        logger_1.dbLogger.info(' ✅ PostgreSQL schema initialized successfully');
     }
     catch (error) {
-        console.error('[DB] ❌ Failed to initialize database:', error);
+        logger_1.dbLogger.error(' ❌ Failed to initialize database:', error);
         throw error;
     }
 }
@@ -244,7 +251,7 @@ async function createIndexes() {
             // Index might already exist, ignore
         }
     }
-    console.log('[DB] ✅ Indexes created');
+    logger_1.dbLogger.info(' ✅ Indexes created');
 }
 /**
  * Seed default data if tables are empty
@@ -265,7 +272,7 @@ async function seedDefaultData() {
             'Olá {nome}! Notei que você ainda não finalizou sua matrícula. Precisa de alguma ajuda ou tem alguma dúvida sobre o processo?',
             'fixed'
         ]);
-        console.log('[DB] ✅ Default templates seeded');
+        logger_1.dbLogger.info(' ✅ Default templates seeded');
     }
     // Seed default statuses
     const statusCount = await (0, neonDb_1.queryOne)('SELECT COUNT(*) as count FROM statuses');
@@ -283,7 +290,7 @@ async function seedDefaultData() {
         for (let i = 0; i < defaultStatuses.length; i++) {
             await neonDb_1.pool.query('INSERT INTO statuses (name, color, display_order, active) VALUES ($1, $2, $3, 1)', [defaultStatuses[i].name, defaultStatuses[i].color, i]);
         }
-        console.log('[DB] ✅ Default statuses seeded');
+        logger_1.dbLogger.info(' ✅ Default statuses seeded');
     }
 }
 /**
@@ -295,7 +302,7 @@ async function checkDatabaseConnection() {
         return true;
     }
     catch (error) {
-        console.error('[DB] Connection check failed:', error);
+        logger_1.dbLogger.error(' Connection check failed:', error);
         return false;
     }
 }

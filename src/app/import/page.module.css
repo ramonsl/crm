@@ -106,7 +106,7 @@
 .stats {
     margin-top: 2rem;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
 }
 
@@ -147,4 +147,102 @@
 
 .textCenter {
     text-align: center;
+}
+
+.results {
+    margin-top: 2rem;
+}
+
+.details {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.detailSection {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.detailHeader {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 1rem;
+    color: var(--text-main);
+    font-weight: 500;
+}
+
+.detailHeader:hover {
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+.toggleIcon {
+    margin-left: auto;
+    font-size: 1.5rem;
+    font-weight: 300;
+}
+
+.detailContent {
+    padding: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.1);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.detailItem {
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.detailItem:last-child {
+    border-bottom: none;
+}
+
+.leadName {
+    font-weight: 500;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
+}
+
+.leadInfo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    flex-wrap: wrap;
+}
+
+.statusChange {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background-color: var(--primary);
+    color: white;
+}
+
+.badgeFaded {
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    text-decoration: line-through;
 }

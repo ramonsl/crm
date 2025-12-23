@@ -75,6 +75,13 @@ export class WhatsAppValidator {
      */
     async validate(phone: string): Promise<string | null> {
         if (!this.state.isClientAvailable()) {
+            whatsappLogger.debug('⚠️ Client not available for validation');
+            return null;
+        }
+
+        // Additional safety check: ensure client is not null
+        if (!this.state.client) {
+            whatsappLogger.debug('⚠️ Client is null, cannot validate');
             return null;
         }
 
@@ -100,7 +107,9 @@ export class WhatsAppValidator {
                             'Timeout checking 12-digit'
                         );
                     } catch (e) {
-                        whatsappLogger.warn(` 12-digit lookup failed: ${e}`);
+                        const errorMsg = e instanceof Error ? e.message : String(e);
+                        whatsappLogger.warn(` 12-digit lookup failed: ${errorMsg}`);
+                        // Continue to try other variations even on Puppeteer errors
                     }
 
                     // If found, great! If not, try original 13 digits
@@ -116,7 +125,9 @@ export class WhatsAppValidator {
                                 'Timeout checking 13-digit'
                             );
                         } catch (e) {
-                            whatsappLogger.warn(` 13-digit lookup failed: ${e}`);
+                            const errorMsg = e instanceof Error ? e.message : String(e);
+                            whatsappLogger.warn(` 13-digit lookup failed: ${errorMsg}`);
+                            // Continue to try other variations even on Puppeteer errors
                         }
                     }
                 }
@@ -131,7 +142,9 @@ export class WhatsAppValidator {
                             'Timeout checking 12-digit'
                         );
                     } catch (e) {
-                        whatsappLogger.warn(` 12-digit lookup failed: ${e}`);
+                        const errorMsg = e instanceof Error ? e.message : String(e);
+                        whatsappLogger.warn(` 12-digit lookup failed: ${errorMsg}`);
+                        // Continue trying other variations
                     }
 
                     // If found, great! If not, try adding 9
@@ -148,7 +161,14 @@ export class WhatsAppValidator {
                                 'Timeout checking 13-digit'
                             );
                         } catch (e) {
-                            whatsappLogger.warn(` 13-digit lookup failed: ${e}`);
+                            const errorMsg = e instanceof Error ? e.message : String(e);
+                            whatsappLogger.warn(` 13-digit lookup failed: ${errorMsg}`);
+
+                            if (errorMsg.includes('Evaluation failed') ||
+                                errorMsg.includes('Cannot read properties of undefined')) {
+                                whatsappLogger.error('⚠️ Critical browser context error during validation');
+                                return null;
+                            }
                         }
                     }
                 }

@@ -316,13 +316,18 @@ export class WhatsAppClientManager {
                 whatsappLogger.error('Error logging out:', e);
                 messageQueue.addLog('Erro ao executar logout.', 'error');
             }
-            try {
-                await this.state.client.destroy();
-                messageQueue.addLog('Cliente destruído com sucesso.', 'success');
-            } catch (e) {
-                whatsappLogger.error('Error destroying client:', e);
-                messageQueue.addLog('Erro ao destruir cliente.', 'error');
+
+            // Check again if client still exists before destroying
+            if (this.state.client) {
+                try {
+                    await this.state.client.destroy();
+                    messageQueue.addLog('Cliente destruído com sucesso.', 'success');
+                } catch (e) {
+                    whatsappLogger.error('Error destroying client:', e);
+                    messageQueue.addLog('Erro ao destruir cliente.', 'error');
+                }
             }
+
             this.state.client = null;
             this.state.status = 'disconnected';
             this.state.qrCode = null;
