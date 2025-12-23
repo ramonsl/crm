@@ -4,6 +4,7 @@
  */
 
 import { pool } from '../db';
+import { dbLogger } from '@/lib/logger';
 import type { LeadRow } from '../types';
 import type { QueryParams } from '@/types/database';
 import type {
@@ -249,18 +250,18 @@ export class LeadRepository implements ILeadRepository {
 
     // Synchronous wrappers for backward compatibility (deprecated - use async versions)
     findAllSync(filters?: LeadFilters): LeadRow[] {
-        console.warn('[LeadRepository] findAllSync is deprecated. Use findAll() instead.');
+        dbLogger.warn('findAllSync is deprecated. Use findAll() instead.');
         // Return empty array - callers need to migrate to async
         return [];
     }
 
     findByIdSync(id: number): LeadRow | null {
-        console.warn('[LeadRepository] findByIdSync is deprecated. Use findById() instead.');
+        dbLogger.warn('findByIdSync is deprecated. Use findById() instead.');
         return null;
     }
 
     findByCpfSync(cpf: string): LeadRow | null {
-        console.warn('[LeadRepository] findByCpfSync is deprecated. Use findByCpf() instead.');
+        dbLogger.warn('findByCpfSync is deprecated. Use findByCpf() instead.');
         return null;
     }
 }

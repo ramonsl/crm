@@ -10,6 +10,7 @@
  */
 
 import type { WhatsAppStateManager } from './state';
+import { whatsappLogger } from '@/lib/logger';
 import { WHATSAPP_CONFIG } from '../constants';
 
 export class WhatsAppValidator {
@@ -82,7 +83,7 @@ export class WhatsAppValidator {
         try {
             let registeredUser = null;
 
-            console.log(`[WhatsApp] Validating number: ${formattedPhone}`);
+            whatsappLogger.debug(` Validating number: ${formattedPhone}`);
 
             // Special handling for Brazil
             if (formattedPhone.startsWith('55')) {
@@ -90,7 +91,7 @@ export class WhatsAppValidator {
                 if (formattedPhone.length === 13) {
                     // Try 12 digits FIRST (remove 9)
                     const phoneWithout9 = formattedPhone.substring(0, 4) + formattedPhone.substring(5);
-                    console.log(`[WhatsApp] Validation: Trying 12-digit version first: +${phoneWithout9}`);
+                    whatsappLogger.debug(` Validation: Trying 12-digit version first: +${phoneWithout9}`);
 
                     try {
                         registeredUser = await this.withTimeout(
@@ -99,15 +100,15 @@ export class WhatsAppValidator {
                             'Timeout checking 12-digit'
                         );
                     } catch (e) {
-                        console.warn(`[WhatsApp] 12-digit lookup failed: ${e}`);
+                        whatsappLogger.warn(` 12-digit lookup failed: ${e}`);
                     }
 
                     // If found, great! If not, try original 13 digits
                     if (registeredUser) {
-                        console.log(`[WhatsApp] Validation: Found on 12-digit: ${registeredUser._serialized}`);
+                        whatsappLogger.debug(` Validation: Found on 12-digit: ${registeredUser._serialized}`);
                         return registeredUser._serialized;
                     } else {
-                        console.log(`[WhatsApp] Validation: 12-digit failed, trying original 13-digit: +${formattedPhone}`);
+                        whatsappLogger.debug(` Validation: 12-digit failed, trying original 13-digit: +${formattedPhone}`);
                         try {
                             registeredUser = await this.withTimeout(
                                 this.state.client!.getNumberId(`+${formattedPhone}`),
@@ -115,14 +116,14 @@ export class WhatsAppValidator {
                                 'Timeout checking 13-digit'
                             );
                         } catch (e) {
-                            console.warn(`[WhatsApp] 13-digit lookup failed: ${e}`);
+                            whatsappLogger.warn(` 13-digit lookup failed: ${e}`);
                         }
                     }
                 }
                 // Case B: Input has 12 digits (e.g. 55 51 8888 8888)
                 else if (formattedPhone.length === 12) {
                     // Try 12 digits FIRST (as is)
-                    console.log(`[WhatsApp] Validation: Trying 12-digit version first: +${formattedPhone}`);
+                    whatsappLogger.debug(` Validation: Trying 12-digit version first: +${formattedPhone}`);
                     try {
                         registeredUser = await this.withTimeout(
                             this.state.client!.getNumberId(`+${formattedPhone}`),
@@ -130,16 +131,16 @@ export class WhatsAppValidator {
                             'Timeout checking 12-digit'
                         );
                     } catch (e) {
-                        console.warn(`[WhatsApp] 12-digit lookup failed: ${e}`);
+                        whatsappLogger.warn(` 12-digit lookup failed: ${e}`);
                     }
 
                     // If found, great! If not, try adding 9
                     if (registeredUser) {
-                        console.log(`[WhatsApp] Validation: Found on 12-digit: ${registeredUser._serialized}`);
+                        whatsappLogger.debug(` Validation: Found on 12-digit: ${registeredUser._serialized}`);
                         return registeredUser._serialized;
                     } else {
                         const phoneWith9 = formattedPhone.substring(0, 4) + '9' + formattedPhone.substring(4);
-                        console.log(`[WhatsApp] Validation: 12-digit failed, trying 13-digit (add 9): +${phoneWith9}`);
+                        whatsappLogger.debug(` Validation: 12-digit failed, trying 13-digit (add 9): +${phoneWith9}`);
                         try {
                             registeredUser = await this.withTimeout(
                                 this.state.client!.getNumberId(`+${phoneWith9}`),
@@ -147,7 +148,7 @@ export class WhatsAppValidator {
                                 'Timeout checking 13-digit'
                             );
                         } catch (e) {
-                            console.warn(`[WhatsApp] 13-digit lookup failed: ${e}`);
+                            whatsappLogger.warn(` 13-digit lookup failed: ${e}`);
                         }
                     }
                 }
@@ -160,7 +161,7 @@ export class WhatsAppValidator {
                             'Timeout checking registration'
                         );
                     } catch (e) {
-                        console.warn(`[WhatsApp] Lookup failed: ${e}`);
+                        whatsappLogger.warn(` Lookup failed: ${e}`);
                     }
                 }
             }
@@ -175,7 +176,7 @@ export class WhatsAppValidator {
                         'Timeout checking number registration (+)'
                     );
                 } catch (e) {
-                    console.warn(`[WhatsApp] Lookup with + failed: ${e}`);
+                    whatsappLogger.warn(` Lookup with + failed: ${e}`);
                 }
 
                 // Attempt 2: Without '+'
@@ -187,20 +188,20 @@ export class WhatsAppValidator {
                             'Timeout checking number registration (raw)'
                         );
                     } catch (e) {
-                        console.warn(`[WhatsApp] Lookup raw failed: ${e}`);
+                        whatsappLogger.warn(` Lookup raw failed: ${e}`);
                     }
                 }
             }
 
             if (registeredUser) {
-                console.log(`[WhatsApp] Validation: Found user: ${registeredUser._serialized}`);
+                whatsappLogger.debug(` Validation: Found user: ${registeredUser._serialized}`);
                 return registeredUser._serialized;
             }
         } catch (error) {
-            console.error('Error validating number:', error);
+            whatsappLogger.error('Error validating number:', error);
         }
 
-        console.log('[WhatsApp] Validation: No user found.');
+        whatsappLogger.debug(' Validation: No user found.');
         return null;
     }
 
@@ -208,40 +209,40 @@ export class WhatsAppValidator {
      * Get contact profile picture URL
      */
     async getProfilePicture(phone: string): Promise<string | null> {
-        console.log(`[WhatsApp] Attempting to get profile picture for ${phone}`);
+        whatsappLogger.debug(` Attempting to get profile picture for ${phone}`);
 
         if (!this.state.isClientAvailable()) {
-            console.error('[WhatsApp] Client not ready');
+            whatsappLogger.error(' Client not ready');
             return null;
         }
 
         try {
             const variations = this.getPhoneVariations(phone);
-            console.log(`[WhatsApp] Trying variations for profile pic: ${variations.join(', ')}`);
+            whatsappLogger.debug(` Trying variations for profile pic: ${variations.join(', ')}`);
 
             // Try each variation
             for (const phoneVariation of variations) {
                 try {
                     const chatId = `${phoneVariation}@c.us`;
-                    console.log(`[WhatsApp] Trying profile pic for chatId: ${chatId}`);
+                    whatsappLogger.debug(` Trying profile pic for chatId: ${chatId}`);
 
                     const profilePicUrl = await this.state.client!.getProfilePicUrl(chatId);
 
                     if (profilePicUrl) {
-                        console.log(`[WhatsApp] ✓ Profile picture found for ${phone} using ${phoneVariation}`);
+                        whatsappLogger.debug(` ✓ Profile picture found for ${phone} using ${phoneVariation}`);
                         return profilePicUrl;
                     }
                 } catch (err) {
                     // Continue to next variation
-                    console.log(`[WhatsApp] No picture with variation ${phoneVariation}`);
+                    whatsappLogger.debug(` No picture with variation ${phoneVariation}`);
                 }
             }
 
-            console.log(`[WhatsApp] No profile picture available for ${phone} (tried all variations)`);
+            whatsappLogger.debug(` No profile picture available for ${phone} (tried all variations)`);
             return null;
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            console.log(`[WhatsApp] Could not get profile picture for ${phone}: ${errorMessage}`);
+            whatsappLogger.debug(` Could not get profile picture for ${phone}: ${errorMessage}`);
             return null;
         }
     }

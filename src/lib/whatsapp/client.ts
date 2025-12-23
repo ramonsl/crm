@@ -15,6 +15,7 @@
 import fs from 'fs';
 import { Client, LocalAuth } from 'whatsapp-web.js';
 import { getErrorMessage } from '@/lib/types';
+import { whatsappLogger } from '@/lib/logger';
 import type { WhatsAppStateManager } from './state';
 import type { HealthCheckService } from './health';
 import type { MessageEventHandler } from './events/messageHandler';
@@ -47,7 +48,7 @@ export class WhatsAppClientManager {
                 [title, message, type]
             );
         } catch (e) {
-            console.error('Error adding system alert:', e);
+            whatsappLogger.error('Error adding system alert:', e);
         }
     }
 
@@ -75,22 +76,22 @@ export class WhatsAppClientManager {
     initialize(): Client {
         // If client exists but is disconnected, destroy it to force fresh init
         if (this.state.client && this.state.status === 'disconnected') {
-            console.log('Client exists but is disconnected. Destroying for fresh init...');
+            whatsappLogger.debug('Client exists but is disconnected. Destroying for fresh init...');
             try {
                 this.state.client.destroy();
             } catch (e) {
-                console.error('Error destroying stale client:', e);
+                whatsappLogger.error('Error destroying stale client:', e);
             }
             this.state.client = null;
         }
 
         if (!this.state.client) {
-            console.log('Initializing WhatsApp Client...');
+            whatsappLogger.info('Initializing WhatsApp Client...');
             messageQueue.addLog('Inicializando cliente WhatsApp...', 'info');
             this.state.status = 'initializing';
 
             const sessionPath = this.getSessionPath();
-            console.log(`[WhatsApp] Using session path: ${sessionPath}`);
+            whatsappLogger.debug(`Using session path: ${sessionPath}`);
 
             const client = new Client({
                 authStrategy: new LocalAuth({ dataPath: sessionPath }),
@@ -104,7 +105,7 @@ export class WhatsAppClientManager {
             this.registerEventHandlers(client);
 
             client.initialize().catch(err => {
-                console.error('Failed to initialize client:', err);
+                whatsappLogger.error('Failed to initialize client:', err);
                 messageQueue.addLog(`Falha ao inicializar: ${getErrorMessage(err)}`, 'error');
                 this.state.status = 'disconnected';
                 this.state.client = null;
@@ -122,7 +123,7 @@ export class WhatsAppClientManager {
         client.on('qr', (qr) => {
             this.state.qrCode = qr;
             this.state.status = 'initializing';
-            console.log('QR RECEIVED');
+            whatsappLogger.info('QR Code received');
             messageQueue.addLog('QR Code recebido! Escaneie agora.', 'info');
         });
 
@@ -136,13 +137,13 @@ export class WhatsAppClientManager {
                 const info = client.info;
                 if (info && info.wid) {
                     this.state.phoneNumber = info.wid.user;
-                    console.log(`[WhatsApp] Connected phone number: ${this.state.phoneNumber}`);
+                    whatsappLogger.info(`Connected phone number: ${this.state.phoneNumber}`);
                 }
             } catch (e) {
-                console.error('[WhatsApp] Error getting connected phone:', e);
+                whatsappLogger.error('Error getting connected phone:', e);
             }
 
-            console.log('🟢🟢🟢 CLIENT IS READY! WHATSAPP CONNECTED! 🟢🟢🟢');
+            whatsappLogger.info('🟢 CLIENT IS READY! WHATSAPP CONNECTED!');
             messageQueue.addLog('WhatsApp Conectado e Pronto!', 'success');
             this.addSystemAlert('WhatsApp Conectado', 'A conexão com o WhatsApp foi estabelecida com sucesso.', 'success');
 
@@ -156,9 +157,9 @@ export class WhatsAppClientManager {
             try {
                 const adminPhone = '555181636027@c.us';
                 await client.sendMessage(adminPhone, '🤖 Sistema CRM: Conexão com WhatsApp estabelecida com sucesso!');
-                console.log(`[WhatsApp] Connection notification sent to ${adminPhone}`);
+                whatsappLogger.debug(`Connection notification sent to ${adminPhone}`);
             } catch (e) {
-                console.error('[WhatsApp] Failed to send connection notification:', e);
+                whatsappLogger.error('Failed to send connection notification:', e);
             }
         });
 
@@ -166,7 +167,7 @@ export class WhatsAppClientManager {
         client.on('authenticated', () => {
             this.state.status = 'ready';
             this.state.qrCode = null;
-            console.log('AUTHENTICATED');
+            whatsappLogger.info('Authenticated successfully');
             messageQueue.addLog('Autenticado com sucesso!', 'success');
         });
 
@@ -174,13 +175,13 @@ export class WhatsAppClientManager {
         client.on('auth_failure', () => {
             this.state.status = 'disconnected';
             this.state.qrCode = null;
-            console.error('AUTHENTICATION FAILURE');
+            whatsappLogger.error('Authentication failure');
             messageQueue.addLog('Falha na autenticação.', 'error');
             this.addSystemAlert('Falha na Autenticação', 'O WhatsApp falhou ao autenticar. Por favor, reconecte.', 'error');
             this.state.client = null;
             this.state.lastDisconnect = Date.now();
 
-            console.log('[WhatsApp] Falha de autenticação detectada. Tentando reconectar...');
+            whatsappLogger.warn('Auth failure detected. Attempting reconnect...');
             this.healthService.attemptReconnect();
         });
 
@@ -189,7 +190,7 @@ export class WhatsAppClientManager {
             this.state.status = 'disconnected';
             this.state.qrCode = null;
             const reasonStr = reason || 'unknown';
-            console.log(`[WhatsApp] Cliente desconectado. Motivo: ${reasonStr}`);
+            whatsappLogger.warn(`Client disconnected. Reason: ${reasonStr}`);
             messageQueue.addLog(`Cliente desconectado. Motivo: ${reasonStr}`, 'error');
             this.addSystemAlert('WhatsApp Desconectado', `O cliente WhatsApp foi desconectado. Motivo: ${reasonStr}`, 'error');
             this.state.client = null;
@@ -198,47 +199,47 @@ export class WhatsAppClientManager {
             // Stop health check while disconnected
             this.healthService.stop();
 
-            console.log('[WhatsApp] Iniciando reconexão automática...');
+            whatsappLogger.info('Starting automatic reconnection...');
             this.healthService.attemptReconnect();
         });
 
         // Error
         client.on('error', (error) => {
-            console.error('[WhatsApp] ❌ Client error:', error);
+            whatsappLogger.error('❌ Client error:', error);
             messageQueue.addLog(`❌ Erro no cliente: ${error.message || error}`, 'error');
 
             const errorStr = String(error);
             if (errorStr.includes('Protocol error') ||
                 errorStr.includes('Session closed') ||
                 errorStr.includes('Target closed')) {
-                console.error('[WhatsApp] Erro crítico detectado via event "error". Tentando reconectar...');
+                whatsappLogger.error('Critical error detected. Attempting reconnect...');
                 this.healthService.attemptReconnect();
             }
         });
 
         // Remote session saved
         client.on('remote_session_saved', () => {
-            console.log('[WhatsApp] ✅ Sessão remota salva com sucesso');
+            whatsappLogger.info('✅ Remote session saved successfully');
             messageQueue.addLog('✅ Sessão salva', 'success');
         });
 
         // Loading screen
         client.on('loading_screen', (percent, message) => {
-            console.log(`[WhatsApp] 📱 Carregando... ${percent}% - ${message}`);
+            whatsappLogger.debug(`📱 Loading... ${percent}% - ${message}`);
         });
 
         // State change
         client.on('change_state', (state) => {
-            console.log(`[WhatsApp] 🔄 Estado mudou para: ${state}`);
+            whatsappLogger.debug(`🔄 State changed to: ${state}`);
         });
 
         // Message create - the main event handler
-        console.log('🎯 Registrando event listener para message_create...');
+        whatsappLogger.debug('🎯 Registering message_create event listener...');
         client.on('message_create', (msg) => this.messageHandler.handle(msg as any));
 
         // Message acknowledgment
         client.on('message_ack', async (msg, ack) => {
-            console.log(`[WhatsApp] ACK received for message ${msg.id.id}: ${ack}`);
+            whatsappLogger.debug(`ACK received for message ${msg.id.id}: ${ack}`);
 
             let status = 'sent';
             if (ack === 1) status = 'sent';
@@ -250,12 +251,12 @@ export class WhatsAppClientManager {
                 const result = await pool.query('UPDATE messages SET type = $1 WHERE id = $2', [status, msg.id.id]);
 
                 if (result.rowCount && result.rowCount > 0) {
-                    console.log(`[WhatsApp] Message ${msg.id.id} updated to status: ${status}`);
+                    whatsappLogger.debug(`Message ${msg.id.id} updated to status: ${status}`);
                 } else {
-                    console.log(`[WhatsApp] Message ${msg.id.id} not found in DB to update status.`);
+                    whatsappLogger.debug(`Message ${msg.id.id} not found in DB to update status.`);
                 }
             } catch (error) {
-                console.error('[WhatsApp] Error updating message status:', error);
+                whatsappLogger.error('Error updating message status:', error);
             }
         });
     }
@@ -270,10 +271,10 @@ export class WhatsAppClientManager {
                 const info = this.state.client.info;
                 if (info && info.wid) {
                     this.state.phoneNumber = info.wid.user;
-                    console.log(`[WhatsApp] Captured phone number from existing session: ${this.state.phoneNumber}`);
+                    whatsappLogger.debug(`Captured phone number from existing session: ${this.state.phoneNumber}`);
                 }
             } catch (e) {
-                console.error('[WhatsApp] Error getting phone from existing session:', e);
+                whatsappLogger.error('Error getting phone from existing session:', e);
             }
         }
 
@@ -284,14 +285,14 @@ export class WhatsAppClientManager {
      * Restart the client
      */
     async restart(): Promise<void> {
-        console.log('[WhatsApp] Restarting client...');
+        whatsappLogger.info('Restarting client...');
         messageQueue.addLog('Reiniciando cliente WhatsApp...', 'info');
 
         if (this.state.client) {
             try {
                 await this.state.client.destroy();
             } catch (e) {
-                console.error('[WhatsApp] Error destroying client:', e);
+                whatsappLogger.error('Error destroying client:', e);
             }
             this.state.client = null;
             this.state.status = 'disconnected';
@@ -304,7 +305,7 @@ export class WhatsAppClientManager {
      * Logout from WhatsApp
      */
     async logout(): Promise<void> {
-        console.log('[WhatsApp] Logging out...');
+        whatsappLogger.info('Logging out...');
         messageQueue.addLog('Desconectando WhatsApp...', 'info');
 
         if (this.state.client) {
@@ -312,14 +313,14 @@ export class WhatsAppClientManager {
                 await this.state.client.logout();
                 messageQueue.addLog('Logout executado com sucesso.', 'success');
             } catch (e) {
-                console.error('Error logging out:', e);
+                whatsappLogger.error('Error logging out:', e);
                 messageQueue.addLog('Erro ao executar logout.', 'error');
             }
             try {
                 await this.state.client.destroy();
                 messageQueue.addLog('Cliente destruído com sucesso.', 'success');
             } catch (e) {
-                console.error('Error destroying client:', e);
+                whatsappLogger.error('Error destroying client:', e);
                 messageQueue.addLog('Erro ao destruir cliente.', 'error');
             }
             this.state.client = null;
@@ -333,7 +334,7 @@ export class WhatsAppClientManager {
      * Reset session (delete auth folder)
      */
     async resetSession(autoReconnect: boolean = false): Promise<void> {
-        console.log('[WhatsApp] Resetting session...');
+        whatsappLogger.info('Resetting session...');
         messageQueue.addLog('Resetando sessão e apagando dados de autenticação...', 'info');
 
         // Force destroy first
@@ -341,7 +342,7 @@ export class WhatsAppClientManager {
             try {
                 await this.state.client.destroy();
             } catch (e) {
-                console.error('Error destroying client:', e);
+                whatsappLogger.error('Error destroying client:', e);
             }
             this.state.client = null;
             this.state.status = 'disconnected';
@@ -358,20 +359,20 @@ export class WhatsAppClientManager {
 
         try {
             await fsPromises.rm(authPath, { recursive: true, force: true });
-            console.log('[WhatsApp] Auth folder deleted');
+            whatsappLogger.info('Auth folder deleted');
             messageQueue.addLog('Dados de autenticação apagados.', 'success');
         } catch (e) {
-            console.error('[WhatsApp] Error deleting auth folder:', e);
+            whatsappLogger.error('Error deleting auth folder:', e);
             messageQueue.addLog('Erro ao apagar dados de autenticação (pode estar em uso).', 'error');
         }
 
         // Re-initialize automatically only if requested
         if (autoReconnect) {
-            console.log('[WhatsApp] Session reset complete. Re-initializing...');
+            whatsappLogger.info('Session reset complete. Re-initializing...');
             messageQueue.addLog('Sessão resetada. Reiniciando cliente...', 'info');
             this.initialize();
         } else {
-            console.log('[WhatsApp] Session reset complete.');
+            whatsappLogger.info('Session reset complete.');
             messageQueue.addLog('Sessão resetada com sucesso.', 'success');
         }
     }

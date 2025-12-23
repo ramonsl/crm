@@ -15,6 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import { MessageMedia } from 'whatsapp-web.js';
+import { whatsappLogger } from '@/lib/logger';
 import type { WhatsAppStateManager } from './state';
 import type { HealthCheckService } from './health';
 import { WhatsAppValidator } from './validation';
@@ -53,22 +54,22 @@ export class WhatsAppMessenger {
             if (mediaUrl.startsWith('/')) {
                 // Local file path
                 const absolutePath = path.join(process.cwd(), 'public', mediaUrl);
-                console.log(`[WhatsApp] Reading media from file: ${absolutePath}`);
+                whatsappLogger.debug(` Reading media from file: ${absolutePath}`);
                 const fileData = fs.readFileSync(absolutePath, { encoding: 'base64' });
                 const filename = path.basename(absolutePath);
                 const mime = mediaType || 'application/octet-stream';
                 const media = new MessageMedia(mime, fileData, filename);
-                console.log(`[WhatsApp] Media created manually. Mime: ${mime}`);
+                whatsappLogger.debug(` Media created manually. Mime: ${mime}`);
                 return media;
             } else {
                 // Remote URL
-                console.log(`[WhatsApp] Creating media from URL: ${mediaUrl}`);
+                whatsappLogger.debug(` Creating media from URL: ${mediaUrl}`);
                 const media = await MessageMedia.fromUrl(mediaUrl);
-                console.log(`[WhatsApp] Media created from URL. Mime: ${media.mimetype}`);
+                whatsappLogger.debug(` Media created from URL. Mime: ${media.mimetype}`);
                 return media;
             }
         } catch (e) {
-            console.error('[WhatsApp] Error creating media:', e);
+            whatsappLogger.error(' Error creating media:', e);
             return null;
         }
     }
@@ -84,7 +85,7 @@ export class WhatsAppMessenger {
                 [`(Enviada) ${message}`, phone, phoneWithoutCountry]
             );
         } catch (dbError) {
-            console.error('[WhatsApp] Error updating last_message_time:', dbError);
+            whatsappLogger.error(' Error updating last_message_time:', dbError);
         }
     }
 
@@ -123,7 +124,7 @@ export class WhatsAppMessenger {
 
         // Priority 1: Try 12-digit (Legacy/Standard)
         const chatId12 = `${phone12}@c.us`;
-        console.log(`[WhatsApp] Force Send Attempt 1: ${chatId12}`);
+        whatsappLogger.debug(` Force Send Attempt 1: ${chatId12}`);
         messageQueue.addLog(`Tentativa 1 (Forçada): ${chatId12}`, 'info');
 
         try {
@@ -135,14 +136,14 @@ export class WhatsAppMessenger {
             }
         } catch (error1) {
             const error1Message = error1 instanceof Error ? error1.message : String(error1);
-            console.warn(`[WhatsApp] Force Send 12-digit failed: ${error1Message}`);
+            whatsappLogger.warn(` Force Send 12-digit failed: ${error1Message}`);
             messageQueue.addLog(`❌ Falha na tentativa 1: ${error1Message}`, 'error');
             // Continue to try 13-digit variation
         }
 
         // Priority 2: Try 13-digit (New/9th digit)
         const chatId13 = `${phone13}@c.us`;
-        console.log(`[WhatsApp] Force Send Attempt 2: ${chatId13}`);
+        whatsappLogger.debug(` Force Send Attempt 2: ${chatId13}`);
         messageQueue.addLog(`Tentativa 2 (Forçada): ${chatId13}`, 'info');
 
         try {
@@ -154,11 +155,11 @@ export class WhatsAppMessenger {
             }
         } catch (error2) {
             const error2Message = error2 instanceof Error ? error2.message : String(error2);
-            console.error(`[WhatsApp] Force Send 13-digit failed: ${error2Message}`);
+            whatsappLogger.error(` Force Send 13-digit failed: ${error2Message}`);
 
             if (error2Message.includes('No LID for user')) {
                 const friendlyMessage = `Número ${phone} não é WhatsApp`;
-                console.error(`[WhatsApp] ❌ ${friendlyMessage}`);
+                whatsappLogger.error(` ❌ ${friendlyMessage}`);
                 messageQueue.addLog(`❌ ${friendlyMessage}`, 'error');
                 throw new Error(friendlyMessage);
             }
@@ -198,7 +199,7 @@ export class WhatsAppMessenger {
             'Timeout sending message'
         );
 
-        console.log(`[WhatsApp] Message sent successfully. ID: ${msg.id.id} | ACK: ${msg.ack} | To: ${msg.to}`);
+        whatsappLogger.debug(` Message sent successfully. ID: ${msg.id.id} | ACK: ${msg.ack} | To: ${msg.to}`);
         return { success: true, id: msg.id.id };
     }
 
@@ -207,20 +208,20 @@ export class WhatsAppMessenger {
      * Main entry point for message sending
      */
     async send(phone: string, message: string, options?: SendMessageOptions): Promise<SendMessageResult> {
-        console.log(`[WhatsApp] Attempting to send message to ${phone}`);
+        whatsappLogger.debug(` Attempting to send message to ${phone}`);
         messageQueue.addLog(`Tentando enviar para ${phone}...`, 'info');
 
         // Diagnostic logging
-        console.log(`[WhatsApp] DEBUG SEND: this.state.client exists = ${!!this.state.client}`);
-        console.log(`[WhatsApp] DEBUG SEND: this.state.status = ${this.state.status}`);
+        whatsappLogger.debug(` DEBUG SEND: this.state.client exists = ${!!this.state.client}`);
+        whatsappLogger.debug(` DEBUG SEND: this.state.status = ${this.state.status}`);
 
         // Robust check of client state
         let clientReady = await this.healthService.isClientReady();
-        console.log(`[WhatsApp] DEBUG SEND: clientReady = ${clientReady}`);
+        whatsappLogger.debug(` DEBUG SEND: clientReady = ${clientReady}`);
 
         // If client is not ready, try to wait for reconnection (up to 5 seconds)
         if (!clientReady && this.state.status === 'initializing') {
-            console.log('[WhatsApp] Cliente está inicializando. Aguardando...');
+            whatsappLogger.debug(' Cliente está inicializando. Aguardando...');
             messageQueue.addLog('Cliente inicializando, aguardando...', 'info');
 
             // Wait up to 5 seconds for client to become ready
@@ -228,7 +229,7 @@ export class WhatsAppMessenger {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 clientReady = await this.healthService.isClientReady();
                 if (clientReady) {
-                    console.log(`[WhatsApp] Cliente ficou pronto após ${(i + 1) * 500}ms`);
+                    whatsappLogger.debug(` Cliente ficou pronto após ${(i + 1) * 500}ms`);
                     break;
                 }
             }
@@ -236,25 +237,25 @@ export class WhatsAppMessenger {
 
         if (!clientReady) {
             const errorMsg = `Cliente WhatsApp não está pronto. Estado atual: ${this.state.status}`;
-            console.error(`[WhatsApp] ${errorMsg}`);
+            whatsappLogger.error(` ${errorMsg}`);
             messageQueue.addLog(`Erro: ${errorMsg}`, 'error');
 
             if (!this.state.client) {
-                console.log('[WhatsApp] Client não existe. Não é possível enviar mensagem.');
+                whatsappLogger.debug(' Client não existe. Não é possível enviar mensagem.');
                 throw new Error('WhatsApp client is not ready and could not be initialized');
             } else {
                 throw new Error('WhatsApp client is not ready');
             }
         }
 
-        console.log('[WhatsApp] ✅ Cliente verificado e pronto para enviar mensagem');
+        whatsappLogger.debug(' ✅ Cliente verificado e pronto para enviar mensagem');
 
         let chatId = '';
 
         // If phone already has @c.us suffix, use it directly
         if (phone.endsWith('@c.us')) {
             chatId = phone;
-            console.log(`[WhatsApp] Using provided chatId: ${chatId}`);
+            whatsappLogger.debug(` Using provided chatId: ${chatId}`);
             messageQueue.addLog(`Usando ID fornecido: ${chatId}`, 'info');
         } else {
             // Use validation to resolve the WhatsApp ID
@@ -262,10 +263,10 @@ export class WhatsAppMessenger {
 
             if (resolvedId) {
                 chatId = resolvedId;
-                console.log(`[WhatsApp] Number resolved to: ${chatId}`);
+                whatsappLogger.debug(` Number resolved to: ${chatId}`);
                 messageQueue.addLog(`Número encontrado no WhatsApp: ${chatId}`, 'info');
             } else {
-                console.warn('[WhatsApp] Number not found in WhatsApp registry. Using fallback strategy...');
+                whatsappLogger.warn(' Number not found in WhatsApp registry. Using fallback strategy...');
                 messageQueue.addLog(`⚠️ Número não validado. Iniciando envio forçado...`, 'info');
 
                 // Fallback: Try to send using the fallback strategy
@@ -274,7 +275,7 @@ export class WhatsAppMessenger {
         }
 
         try {
-            console.log(`[WhatsApp] Sending message to chatId: ${chatId}`);
+            whatsappLogger.debug(` Sending message to chatId: ${chatId}`);
 
             const result = await this.sendToChat(chatId, message, options);
 
@@ -286,14 +287,14 @@ export class WhatsAppMessenger {
 
             return result;
         } catch (error: unknown) {
-            console.error('[WhatsApp] Error sending message:', error);
+            whatsappLogger.error(' Error sending message:', error);
 
             const errorMessage = error instanceof Error ? error.message : String(error);
 
             // LID errors mean the number is invalid - NOT critical
             if (errorMessage.includes('No LID for user')) {
                 const friendlyMessage = `Número ${phone} não é WhatsApp`;
-                console.error(`[WhatsApp] ❌ ${friendlyMessage}`);
+                whatsappLogger.error(` ❌ ${friendlyMessage}`);
                 messageQueue.addLog(`❌ ${friendlyMessage}`, 'error');
                 throw new Error(friendlyMessage);
             }
@@ -306,23 +307,23 @@ export class WhatsAppMessenger {
                 errorMessage.includes('Evaluation failed') ||
                 errorMessage.includes('Timeout')) {
 
-                console.error('[WhatsApp] Erro crítico ou timeout detectado durante envio de mensagem.');
+                whatsappLogger.error(' Erro crítico ou timeout detectado durante envio de mensagem.');
                 messageQueue.addLog(`Erro crítico ou timeout (${errorMessage}). Verificando se pode reiniciar...`, 'error');
 
                 // Check if we can restart (not in a restart loop)
                 if (this.healthService.canRestart()) {
-                    console.log('[WhatsApp] Dentro dos limites de restart. Reiniciando WhatsApp...');
+                    whatsappLogger.debug(' Dentro dos limites de restart. Reiniciando WhatsApp...');
                     messageQueue.addLog('🔄 Reiniciando WhatsApp devido a erro crítico...', 'info');
 
                     // Wait before restart to allow things to settle
                     await new Promise(resolve => setTimeout(resolve, WHATSAPP_CONFIG.RESTART_COOLDOWN_MS));
 
                     // Trigger reconnect asynchronously
-                    this.healthService.attemptReconnect().catch(console.error);
+                    this.healthService.attemptReconnect().catch(e => whatsappLogger.error('Reconnect failed:', e));
 
                     throw new Error('CRITICAL_SESSION_ERROR');
                 } else {
-                    console.error('[WhatsApp] ❌ Muitos restarts consecutivos. NÃO reiniciando para evitar loop.');
+                    whatsappLogger.error(' ❌ Muitos restarts consecutivos. NÃO reiniciando para evitar loop.');
                     messageQueue.addLog('❌ Muitos restarts. Intervenção manual necessária.', 'error');
                     throw new Error('TOO_MANY_RESTARTS');
                 }

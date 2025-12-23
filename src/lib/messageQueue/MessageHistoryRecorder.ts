@@ -8,6 +8,7 @@
 import type { IMessageHistoryRecorder } from './interfaces';
 import type { QueueItem } from './types';
 import { pool } from '../db';
+import { queueLogger } from '@/lib/logger';
 
 export class MessageHistoryRecorder implements IMessageHistoryRecorder {
     /**
@@ -27,7 +28,7 @@ export class MessageHistoryRecorder implements IMessageHistoryRecorder {
                 [item.templateName, item.cpf]
             );
         } catch (error) {
-            console.error('[MessageHistoryRecorder] Error recording success:', error);
+            queueLogger.error('Error recording success:', error);
         }
     }
 
@@ -43,7 +44,7 @@ export class MessageHistoryRecorder implements IMessageHistoryRecorder {
                 VALUES ($1, $2, $3, $4, 'failed')
             `, [item.cpf, item.templateId || null, item.templateName, item.message]);
         } catch (error) {
-            console.error('[MessageHistoryRecorder] Error recording failure:', error);
+            queueLogger.error('Error recording failure:', error);
         }
     }
 }

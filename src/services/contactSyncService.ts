@@ -7,6 +7,7 @@
 
 import type { WhatsAppValidator, ValidationResult } from './whatsappValidator';
 import type { IContactRepository, WhatsAppData } from '@/repositories/contactRepository';
+import { syncLogger } from '@/lib/logger';
 
 export interface SyncResult {
     valid: boolean;
@@ -65,7 +66,7 @@ export class ContactSyncService {
             };
 
         } catch (error) {
-            console.error('[ContactSyncService] Sync error:', error);
+            syncLogger.error('Sync error:', error);
             return {
                 valid: false,
                 chatId: null,
@@ -86,7 +87,7 @@ export class ContactSyncService {
             const { getContactProfilePicture } = await import('@/lib/whatsapp');
             return await getContactProfilePicture(phone);
         } catch (error) {
-            console.warn('[ContactSyncService] Failed to fetch profile picture:', error);
+            syncLogger.warn('Failed to fetch profile picture:', error);
             return null;
         }
     }
@@ -107,7 +108,7 @@ export class ContactSyncService {
                 };
             }
         } catch (error) {
-            console.warn('[ContactSyncService] Failed to fetch last chat:', error);
+            syncLogger.warn('Failed to fetch last chat:', error);
         }
 
         return null;

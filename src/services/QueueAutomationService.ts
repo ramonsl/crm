@@ -21,6 +21,7 @@ import {
 } from '@/repositories/QueueAutomationRepository';
 import { LeadRepository } from '@/lib/repositories/LeadRepository';
 import { TemplateRepository } from '@/lib/repositories/TemplateRepository';
+import { queueLogger } from '@/lib/logger';
 
 // Brazil timezone offset (UTC-3)
 const BRAZIL_TIMEZONE_OFFSET = -3;
@@ -33,6 +34,10 @@ interface EligibleLead {
     nome: string | null;
     telefone: string;
 }
+
+// Loop intervals
+const LOOP_INTERVAL_WORKING_MS = 5 * 60 * 1000; // 5 minutes
+const LOOP_INTERVAL_IDLE_MS = 10 * 60 * 1000;   // 10 minutes
 
 /**
  * QueueAutomationService handles sending messages when queue is idle
@@ -203,10 +208,9 @@ export class QueueAutomationService {
                 isAi: true // Always use AI for queue automation
             }]);
 
-            // 8. Log the send
             await this.automationRepo.logSend(lead.cpf, config.templateId, true);
 
-            console.log(`[QueueAutomationService] ✅ Message queued for ${lead.nome || lead.cpf}`);
+            queueLogger.info(`Message queued for ${lead.nome || lead.cpf}`);
             return { sent: true, reason: 'Mensagem enfileirada com sucesso' };
 
         } catch (error) {
@@ -215,7 +219,7 @@ export class QueueAutomationService {
             // Log the failure
             await this.automationRepo.logSend(lead.cpf, config.templateId, false, errorMessage);
 
-            console.error('[QueueAutomationService] Error queueing message:', error);
+            queueLogger.error('Error queueing message:', error);
             return { sent: false, reason: `Erro ao enfileirar: ${errorMessage}` };
         }
     }
@@ -254,7 +258,7 @@ export class QueueAutomationService {
 
         this.loopRunning = true;
         messageQueue.addLog('▶️ Automação de Fila Vazia iniciada', 'success');
-        console.log('[QueueAutomationService] ▶️ Loop iniciado');
+        queueLogger.info('Loop iniciado');
 
         // Start the continuous loop
         this.runLoop();
@@ -272,7 +276,7 @@ export class QueueAutomationService {
             this.loopInterval = null;
         }
         messageQueue.addLog('⏸️ Automação de Fila Vazia pausada', 'info');
-        console.log('[QueueAutomationService] ⏸️ Loop pausado');
+        queueLogger.info('Loop pausado');
     }
 
     /**
@@ -285,8 +289,8 @@ export class QueueAutomationService {
             // Check if queue is currently processing - wait if so
             const queueState = messageQueue.getState();
             if (queueState.queueLength > 0 || queueState.processing) {
-                // Queue still has items, check again in 5 seconds
-                this.loopInterval = setTimeout(() => this.runLoop(), 5000);
+                // Queue still has items, check again in 5 minutes
+                this.loopInterval = setTimeout(() => this.runLoop(), LOOP_INTERVAL_WORKING_MS);
                 return;
             }
 
@@ -297,23 +301,23 @@ export class QueueAutomationService {
                 // Log success to WhatsApp terminal
                 messageQueue.addLog(`[Automação] ${result.reason}`, 'success');
                 // Wait for this message to be sent before checking for next
-                // Check every 5 seconds until queue is empty again
-                this.loopInterval = setTimeout(() => this.runLoop(), 5000);
+                // Check every 5 minutes until queue is empty again
+                this.loopInterval = setTimeout(() => this.runLoop(), LOOP_INTERVAL_WORKING_MS);
             } else {
-                // No lead available or outside hours, check again in 1 minute
+                // No lead available or outside hours, check again in 10 minutes
                 const config = await this.getConfig();
                 if (config?.isActive) {
                     messageQueue.addLog(`[Automação] ${result.reason}`, 'info');
                 }
-                this.loopInterval = setTimeout(() => this.runLoop(), 60000);
+                this.loopInterval = setTimeout(() => this.runLoop(), LOOP_INTERVAL_IDLE_MS);
             }
 
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
             messageQueue.addLog(`[Automação] Erro: ${errorMsg}`, 'error');
-            console.error('[QueueAutomationService] Loop error:', error);
-            // Retry in 1 minute on error
-            this.loopInterval = setTimeout(() => this.runLoop(), 60000);
+            queueLogger.error('Loop error:', error);
+            // Retry in 10 minutes on error
+            this.loopInterval = setTimeout(() => this.runLoop(), LOOP_INTERVAL_IDLE_MS);
         }
     }
 }

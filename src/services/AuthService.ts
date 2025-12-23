@@ -16,6 +16,7 @@ import type {
     LoginResult,
     SessionValidationResult
 } from './interfaces';
+import { authLogger } from '@/lib/logger';
 
 const SALT_ROUNDS = 10;
 const SESSION_DURATION_DAYS = 30;
@@ -67,7 +68,7 @@ export class AuthService implements IAuthService {
                 user: userWithoutPassword
             };
         } catch (error) {
-            console.error('[AuthService] Registration error:', error);
+            authLogger.error('Registration error:', error);
             return {
                 success: false,
                 error: 'Erro ao registrar usuário'
@@ -116,7 +117,7 @@ export class AuthService implements IAuthService {
                 user: userWithoutPassword
             };
         } catch (error) {
-            console.error('[AuthService] Login error:', error);
+            authLogger.error('Login error:', error);
             return {
                 success: false,
                 error: 'Erro ao fazer login'
@@ -131,7 +132,7 @@ export class AuthService implements IAuthService {
         try {
             await this.sessionRepo.delete(sessionId);
         } catch (error) {
-            console.error('[AuthService] Logout error:', error);
+            authLogger.error('Logout error:', error);
         }
     }
 
@@ -178,7 +179,7 @@ export class AuthService implements IAuthService {
                 user: userWithoutPassword
             };
         } catch (error) {
-            console.error('[AuthService] Session validation error:', error);
+            authLogger.error('Session validation error:', error);
             return {
                 valid: false,
                 error: 'Erro ao validar sessão'
@@ -201,7 +202,7 @@ export class AuthService implements IAuthService {
         try {
             await this.sessionRepo.deleteExpired();
         } catch (error) {
-            console.error('[AuthService] Cleanup error:', error);
+            authLogger.error('Cleanup error:', error);
         }
     }
 }

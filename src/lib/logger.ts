@@ -111,11 +111,29 @@ export const logger = createLogger();
 
 /**
  * Pre-configured loggers for common modules
+ * 
+ * Following DIP: Each module imports the logger it needs,
+ * allowing for easy testing and configuration changes.
  */
+
+// Infrastructure loggers
 export const whatsappLogger = createLogger({ prefix: 'WhatsApp' });
 export const socketLogger = createLogger({ prefix: 'Socket' });
 export const dbLogger = createLogger({ prefix: 'DB' });
+
+// API layer loggers
 export const apiLogger = createLogger({ prefix: 'API' });
+
+// Service layer loggers
+export const autoReplyLogger = createLogger({ prefix: 'AutoReply' });
+export const chatLogger = createLogger({ prefix: 'Chat' });
+export const tagLogger = createLogger({ prefix: 'Tags' });
+export const syncLogger = createLogger({ prefix: 'Sync' });
+export const queueLogger = createLogger({ prefix: 'Queue' });
+export const authLogger = createLogger({ prefix: 'Auth' });
+
+// Frontend loggers (for React components/contexts)
+export const uiLogger = createLogger({ prefix: 'UI' });
 
 /**
  * Export factory for custom loggers

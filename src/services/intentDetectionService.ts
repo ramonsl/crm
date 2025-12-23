@@ -4,6 +4,7 @@
  */
 
 import type { AutoReply, IntentDetectionResult } from '@/types/autoReply';
+import { logger } from '@/lib/logger';
 
 // Simple in-memory cache to avoid redundant API calls
 const intentCache = new Map<string, IntentDetectionResult>();
@@ -28,12 +29,12 @@ export class IntentDetectionService {
         const cacheKey = this.getCacheKey(message, availableIntents);
         const cached = this.getFromCache(cacheKey);
         if (cached) {
-            console.log('[IntentDetection] Cache hit for message:', message.substring(0, 50));
+            logger.debug(`[IntentDetection] Cache hit for message: ${message.substring(0, 50)}`);
             return cached;
         }
 
         if (availableIntents.length === 0) {
-            console.log('[IntentDetection] No active intents available');
+            logger.debug('[IntentDetection] No active intents available');
             return null;
         }
 
@@ -46,7 +47,7 @@ export class IntentDetectionService {
 
             return result;
         } catch (error) {
-            console.error('[IntentDetection] Error detecting intent:', error);
+            logger.error('[IntentDetection] Error detecting intent:', error);
             return null;
         }
     }
@@ -61,7 +62,7 @@ export class IntentDetectionService {
         const apiKey = process.env.OPENAI_API_KEY;
 
         if (!apiKey) {
-            console.error('[IntentDetection] OPENAI_API_KEY not set');
+            logger.error('[IntentDetection] OPENAI_API_KEY not set');
             return null;
         }
 
@@ -95,7 +96,7 @@ Responda em JSON no formato:
 }`;
 
         try {
-            console.log('[IntentDetection] Calling OpenAI API...');
+            logger.debug('[IntentDetection] Calling OpenAI API...');
 
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
@@ -124,7 +125,7 @@ Responda em JSON no formato:
             const content = data.choices?.[0]?.message?.content;
 
             if (!content) {
-                console.error('[IntentDetection] Empty response from OpenAI');
+                logger.error('[IntentDetection] Empty response from OpenAI');
                 return null;
             }
 
@@ -136,11 +137,11 @@ Responda em JSON no formato:
             );
 
             if (!matchedIntent) {
-                console.log('[IntentDetection] Intent not found in available intents:', parsed.intent);
+                logger.debug(`[IntentDetection] Intent not found in available intents: ${parsed.intent}`);
                 return null;
             }
 
-            console.log('[IntentDetection] Detected intent:', {
+            logger.debug('[IntentDetection] Detected intent:', {
                 intent: matchedIntent.name,
                 confidence: parsed.confidence
             });
@@ -151,7 +152,7 @@ Responda em JSON no formato:
                 autoReplyId: matchedIntent.id
             };
         } catch (error) {
-            console.error('[IntentDetection] OpenAI API call failed:', error);
+            logger.error('[IntentDetection] OpenAI API call failed:', error);
             throw error;
         }
     }

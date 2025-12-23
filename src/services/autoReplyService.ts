@@ -5,6 +5,7 @@
 
 import { autoReplyRepository } from '@/lib/repositories/AutoReplyRepository';
 import { intentDetectionService } from './intentDetectionService';
+import { autoReplyLogger } from '@/lib/logger';
 import type { AutoReply } from '@/types/autoReply';
 import type { IAutoReplyService, AutoReplyConfig } from './interfaces';
 
@@ -24,13 +25,13 @@ export class AutoReplyService implements IAutoReplyService {
         try {
             // Check if auto-reply is globally enabled
             if (!this.isEnabled) {
-                console.log('[AutoReply] Auto-reply is disabled globally');
+                autoReplyLogger.debug('Auto-reply is disabled globally');
                 return null;
             }
 
             // Check blacklist
             if (this.isBlacklisted(phone)) {
-                console.log('[AutoReply] Phone is blacklisted:', phone);
+                autoReplyLogger.debug(`Phone is blacklisted: ${phone}`);
                 return null;
             }
 
@@ -40,23 +41,23 @@ export class AutoReplyService implements IAutoReplyService {
                 this.rateLimitMinutes
             );
             if (hasRecent) {
-                console.log('[AutoReply] Rate limit: phone received auto-reply recently:', phone);
+                autoReplyLogger.debug(`Rate limit: phone received auto-reply recently: ${phone}`);
                 return null;
             }
 
             // Get active auto-replies
             const activeReplies = await autoReplyRepository.findActive();
             if (activeReplies.length === 0) {
-                console.log('[AutoReply] No active auto-replies configured');
+                autoReplyLogger.debug('No active auto-replies configured');
                 return null;
             }
 
             // Detect intent
-            console.log('[AutoReply] Detecting intent for message:', message.substring(0, 50));
+            autoReplyLogger.debug(`Detecting intent for message: ${message.substring(0, 50)}`);
             const detection = await intentDetectionService.detectIntent(message, activeReplies);
 
             if (!detection) {
-                console.log('[AutoReply] No intent detected');
+                autoReplyLogger.debug('No intent detected');
                 await this.logNoMatch(phone, message);
                 return null;
             }
@@ -64,13 +65,13 @@ export class AutoReplyService implements IAutoReplyService {
             // Find the matching auto-reply
             const autoReply = activeReplies.find(r => r.id === detection.autoReplyId);
             if (!autoReply) {
-                console.log('[AutoReply] Auto-reply not found for detected intent');
+                autoReplyLogger.warn('Auto-reply not found for detected intent');
                 return null;
             }
 
             // Check confidence threshold
             if (detection.confidence < autoReply.confidence_threshold) {
-                console.log('[AutoReply] Confidence too low:', {
+                autoReplyLogger.debug('Confidence too low', {
                     confidence: detection.confidence,
                     threshold: autoReply.confidence_threshold
                 });
@@ -85,7 +86,7 @@ export class AutoReplyService implements IAutoReplyService {
             });
 
             // Send the response (this will be handled by WhatsApp integration)
-            console.log('[AutoReply] Sending response:', {
+            autoReplyLogger.info('Sending response', {
                 phone,
                 intent: detection.intent,
                 confidence: detection.confidence,
@@ -105,7 +106,7 @@ export class AutoReplyService implements IAutoReplyService {
             // Return the response to be sent by WhatsApp handler
             return response;
         } catch (error) {
-            console.error('[AutoReply] Error processing message:', error);
+            autoReplyLogger.error('Error processing message:', error);
             throw error;
         }
     }
@@ -189,7 +190,7 @@ export class AutoReplyService implements IAutoReplyService {
      */
     setEnabled(enabled: boolean): void {
         this.isEnabled = enabled;
-        console.log('[AutoReply] Auto-reply globally', enabled ? 'enabled' : 'disabled');
+        autoReplyLogger.info(`Auto-reply globally ${enabled ? 'enabled' : 'disabled'}`);
     }
 
     /**
@@ -204,7 +205,7 @@ export class AutoReplyService implements IAutoReplyService {
      */
     addToBlacklist(phone: string): void {
         this.blacklistedPhones.add(phone);
-        console.log('[AutoReply] Added to blacklist:', phone);
+        autoReplyLogger.info(`Added to blacklist: ${phone}`);
     }
 
     /**
@@ -212,7 +213,7 @@ export class AutoReplyService implements IAutoReplyService {
      */
     removeFromBlacklist(phone: string): void {
         this.blacklistedPhones.delete(phone);
-        console.log('[AutoReply] Removed from blacklist:', phone);
+        autoReplyLogger.info(`Removed from blacklist: ${phone}`);
     }
 
     /**
@@ -227,7 +228,7 @@ export class AutoReplyService implements IAutoReplyService {
      */
     setRateLimitMinutes(minutes: number): void {
         this.rateLimitMinutes = minutes;
-        console.log('[AutoReply] Rate limit set to', minutes, 'minutes');
+        autoReplyLogger.info(`Rate limit set to ${minutes} minutes`);
     }
 
     /**

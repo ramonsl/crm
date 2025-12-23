@@ -6,6 +6,7 @@
  */
 
 import type { BrazilianPhoneFormatter, PhoneVariation } from './phoneFormatter';
+import { whatsappLogger } from '@/lib/logger';
 
 export interface ValidationResult {
     valid: boolean;
@@ -33,18 +34,18 @@ export class WhatsAppValidator {
         }
 
         const variations = this.formatter.format(phone);
-        console.log(`[WhatsAppValidator] Trying ${variations.length} variations for ${phone}`);
+        whatsappLogger.debug(`Trying ${variations.length} variations for ${phone}`);
 
         for (const variation of variations) {
             const result = await this.tryValidation(variation);
 
             if (result.valid) {
-                console.log(`[WhatsAppValidator] ✅ Valid: ${variation.formatted}`);
+                whatsappLogger.debug(`Valid: ${variation.formatted}`);
                 return result;
             }
         }
 
-        console.log(`[WhatsAppValidator] ❌ No valid variation found`);
+        whatsappLogger.debug('No valid variation found');
         return { valid: false, chatId: null, variation: null };
     }
 
@@ -76,8 +77,8 @@ export class WhatsAppValidator {
                 };
             }
         } catch (error) {
-            console.warn(
-                `[WhatsAppValidator] Validation failed for ${variation.formatted}:`,
+            whatsappLogger.warn(
+                `Validation failed for ${variation.formatted}:`,
                 error instanceof Error ? error.message : error
             );
         }

@@ -6,12 +6,13 @@
  */
 
 import { Pool, neon, NeonQueryFunction } from '@neondatabase/serverless';
+import { dbLogger } from '@/lib/logger';
 
 // Validate DATABASE_URL is present
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-    console.warn('[DB] DATABASE_URL not set - database operations will fail');
+    dbLogger.warn('DATABASE_URL not set - database operations will fail');
 }
 
 /**
@@ -105,4 +106,4 @@ export async function closePool(): Promise<void> {
     await pool.end();
 }
 
-console.log('[DB] Neon PostgreSQL driver initialized');
+dbLogger.debug('Neon PostgreSQL driver initialized');

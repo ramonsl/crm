@@ -21,6 +21,7 @@ import { StatusMessageLogRepository, statusMessageLogRepository } from '@/lib/re
 import { LeadRepository } from '@/lib/repositories/LeadRepository';
 import { TemplateRepository } from '@/lib/repositories/TemplateRepository';
 import { messageQueue } from '@/lib/messageQueue';
+import { queueLogger } from '@/lib/logger';
 
 export interface ProcessStatusChangeResult {
     sent: boolean;
@@ -56,7 +57,7 @@ export class StatusMessageService {
         // 2. Check if message was already sent for this CPF+status
         const alreadySent = await this.statusMessageLogRepo.hasBeenSent(cpf, newStatus);
         if (alreadySent) {
-            console.log(`[StatusMessageService] Message already sent for CPF ${cpf} + status "${newStatus}"`);
+            queueLogger.debug(`Message already sent for CPF ${cpf} + status "${newStatus}"`);
             return { sent: false, reason: 'Mensagem já enviada anteriormente para este status' };
         }
 
@@ -104,11 +105,11 @@ export class StatusMessageService {
                 undefined // messageId will be set by queue processor
             );
 
-            console.log(`[StatusMessageService] ✅ Message queued for CPF ${cpf} on status change to "${newStatus}"`);
+            queueLogger.info(`Message queued for CPF ${cpf} on status change to "${newStatus}"`);
             return { sent: true, reason: 'Mensagem enfileirada com sucesso' };
 
         } catch (error) {
-            console.error('[StatusMessageService] Error queueing message:', error);
+            queueLogger.error('Error queueing message:', error);
             return { sent: false, reason: 'Erro ao enfileirar mensagem' };
         }
     }

@@ -12,6 +12,7 @@
  */
 
 import type { WhatsAppStateManager } from './state';
+import { whatsappLogger } from '@/lib/logger';
 import { pool } from '../db';
 import { messageQueue } from '../messageQueue';
 import { WHATSAPP_CONFIG } from '../constants';
@@ -50,7 +51,7 @@ export class HealthCheckService {
                 [title, message, type]
             );
         } catch (e) {
-            console.error('Error adding system alert:', e);
+            whatsappLogger.error('Error adding system alert:', e);
         }
     }
 
@@ -67,8 +68,8 @@ export class HealthCheckService {
 
         // Check if we're within limits
         if (this.state.restartHistory.length >= this.config.MAX_RESTARTS_PER_WINDOW) {
-            console.error(
-                `[WhatsApp] ❌ Muitos restarts detectados! ${this.state.restartHistory.length} restarts nos últimos ${this.config.RESTART_WINDOW_MS / 60000} minutos.`
+            whatsappLogger.error(
+                `❌ Too many restarts detected! ${this.state.restartHistory.length} restarts in the last ${this.config.RESTART_WINDOW_MS / 60000} minutes.`
             );
             messageQueue.addLog(
                 `❌ Loop de restart detectado! ${this.state.restartHistory.length} restarts recentes. Parando para evitar loop infinito.`,
@@ -93,27 +94,27 @@ export class HealthCheckService {
     async isClientReady(): Promise<boolean> {
         try {
             if (!this.state.client) {
-                console.log('[WhatsApp] isClientReady: No client instance');
+                whatsappLogger.debug(' isClientReady: No client instance');
                 return false;
             }
 
             const clientState = await this.state.client.getState();
-            console.log(`[WhatsApp] isClientReady: Client state = ${clientState}, global status = ${this.state.status}`);
+            whatsappLogger.debug(` isClientReady: Client state = ${clientState}, global status = ${this.state.status}`);
 
             const isReady = clientState === 'CONNECTED';
 
             // Sync global status if out of sync
             if (isReady && this.state.status !== 'ready') {
-                console.log('[WhatsApp] ⚠️ Status dessincronizado! Cliente está CONNECTED mas status não está "ready". Corrigindo...');
+                whatsappLogger.debug(' ⚠️ Status dessincronizado! Cliente está CONNECTED mas status não está "ready". Corrigindo...');
                 this.state.status = 'ready';
             } else if (!isReady && this.state.status === 'ready') {
-                console.log('[WhatsApp] ⚠️ Status dessincronizado! Status está "ready" mas cliente não está CONNECTED. Corrigindo...');
+                whatsappLogger.debug(' ⚠️ Status dessincronizado! Status está "ready" mas cliente não está CONNECTED. Corrigindo...');
                 this.state.status = 'disconnected';
             }
 
             return isReady;
         } catch (error) {
-            console.error('[WhatsApp] Error checking client state:', error);
+            whatsappLogger.error(' Error checking client state:', error);
             return false;
         }
     }
@@ -127,31 +128,31 @@ export class HealthCheckService {
             clearInterval(this.state.healthCheckTimer);
         }
 
-        console.log(`[WhatsApp] 🏥 Iniciando health check periódico (intervalo: ${this.config.HEALTH_CHECK_INTERVAL_MS / 60000} minutos)`);
+        whatsappLogger.debug(` 🏥 Iniciando health check periódico (intervalo: ${this.config.HEALTH_CHECK_INTERVAL_MS / 60000} minutos)`);
 
         this.state.healthCheckTimer = setInterval(async () => {
-            console.log('[WhatsApp] 🏥 Executando health check...');
+            whatsappLogger.debug(' 🏥 Executando health check...');
 
             try {
                 const isReady = await this.isClientReady();
 
                 if (!isReady && this.state.status === 'ready') {
-                    console.warn('[WhatsApp] ⚠️ Health check detectou inconsistência: status "ready" mas cliente não está CONNECTED');
+                    whatsappLogger.warn(' ⚠️ Health check detectou inconsistência: status "ready" mas cliente não está CONNECTED');
                     messageQueue.addLog('⚠️ Health check: cliente não está realmente conectado. Tentando reconectar...', 'info');
 
                     // Trigger reconnection
                     this.state.status = 'disconnected';
                     this.attemptReconnect();
                 } else if (isReady && this.state.status !== 'ready') {
-                    console.log('[WhatsApp] ✅ Health check: corrigindo status dessincronizado para "ready"');
+                    whatsappLogger.debug(' ✅ Health check: corrigindo status dessincronizado para "ready"');
                     this.state.status = 'ready';
                 } else if (isReady) {
-                    console.log('[WhatsApp] ✅ Health check: OK - Cliente conectado e funcionando');
+                    whatsappLogger.debug(' ✅ Health check: OK - Cliente conectado e funcionando');
                 } else {
-                    console.log('[WhatsApp] 🟡 Health check: Cliente não conectado (esperado se ainda não autenticou)');
+                    whatsappLogger.debug(' 🟡 Health check: Cliente não conectado (esperado se ainda não autenticou)');
                 }
             } catch (error) {
-                console.error('[WhatsApp] ❌ Erro durante health check:', error);
+                whatsappLogger.error(' ❌ Erro durante health check:', error);
             }
         }, this.config.HEALTH_CHECK_INTERVAL_MS);
     }
@@ -178,7 +179,7 @@ export class HealthCheckService {
 
         // Check if we've exceeded max attempts
         if (this.state.reconnectAttempts >= this.config.RECONNECT_MAX_ATTEMPTS) {
-            console.error('[WhatsApp] ❌ Máximo de tentativas de reconexão atingido. Intervenção manual necessária.');
+            whatsappLogger.error(' ❌ Máximo de tentativas de reconexão atingido. Intervenção manual necessária.');
             messageQueue.addLog(`❌ Falha após ${this.config.RECONNECT_MAX_ATTEMPTS} tentativas. Reconecte manualmente.`, 'error');
             this.addSystemAlert(
                 'WhatsApp - Reconexão Falhada',
@@ -195,7 +196,7 @@ export class HealthCheckService {
                     );
                 }
             } catch (e) {
-                console.error('[WhatsApp] Falha ao notificar admin sobre erro crítico:', e);
+                whatsappLogger.error(' Falha ao notificar admin sobre erro crítico:', e);
             }
 
             return;
@@ -204,12 +205,12 @@ export class HealthCheckService {
         const attempt = this.state.reconnectAttempts;
         const delay = this.config.RECONNECT_DELAYS_MS[Math.min(attempt, this.config.RECONNECT_DELAYS_MS.length - 1)];
 
-        console.log(`[WhatsApp] 🔄 Agendando reconexão (tentativa ${attempt + 1}/${this.config.RECONNECT_MAX_ATTEMPTS}) em ${delay / 1000}s...`);
+        whatsappLogger.debug(` 🔄 Agendando reconexão (tentativa ${attempt + 1}/${this.config.RECONNECT_MAX_ATTEMPTS}) em ${delay / 1000}s...`);
         messageQueue.addLog(`🔄 Reconexão automática em ${delay / 1000}s (tentativa ${attempt + 1}/${this.config.RECONNECT_MAX_ATTEMPTS})`, 'info');
 
         // Notify admin after 3 failed attempts
         if (attempt === 2) {
-            console.log('[WhatsApp] ⚠️ Notificando admin sobre problemas de conexão...');
+            whatsappLogger.debug(' ⚠️ Notificando admin sobre problemas de conexão...');
             try {
                 if (this.state.client) {
                     await this.state.client.sendMessage(
@@ -218,13 +219,13 @@ export class HealthCheckService {
                     );
                 }
             } catch (e) {
-                console.error('[WhatsApp] Falha ao notificar admin:', e);
+                whatsappLogger.error(' Falha ao notificar admin:', e);
             }
         }
 
         this.state.reconnectTimer = setTimeout(async () => {
             this.state.reconnectAttempts++;
-            console.log(`[WhatsApp] 🔄 Tentativa de reconexão ${this.state.reconnectAttempts}/${this.config.RECONNECT_MAX_ATTEMPTS}...`);
+            whatsappLogger.debug(` 🔄 Tentativa de reconexão ${this.state.reconnectAttempts}/${this.config.RECONNECT_MAX_ATTEMPTS}...`);
             messageQueue.addLog(`🔄 Tentando reconectar (${this.state.reconnectAttempts}/${this.config.RECONNECT_MAX_ATTEMPTS})...`, 'info');
 
             try {
@@ -233,7 +234,7 @@ export class HealthCheckService {
                     try {
                         await this.state.client.destroy();
                     } catch (e) {
-                        console.error('[WhatsApp] Erro ao destruir cliente antigo:', e);
+                        whatsappLogger.error(' Erro ao destruir cliente antigo:', e);
                     }
                     this.state.client = null;
                 }
@@ -243,16 +244,16 @@ export class HealthCheckService {
                 this.state.qrCode = null;
 
                 // Re-initialize client using the injected initializer
-                console.log('[WhatsApp] Reinicializando cliente...');
+                whatsappLogger.debug(' Reinicializando cliente...');
                 if (this.clientInitializer) {
                     this.clientInitializer();
                 } else {
-                    console.error('[WhatsApp] No client initializer set! Cannot reinitialize.');
+                    whatsappLogger.error(' No client initializer set! Cannot reinitialize.');
                 }
 
                 // If initialization succeeds, reconnect attempts will be reset in the 'ready' handler
             } catch (error) {
-                console.error('[WhatsApp] Erro durante reconexão:', error);
+                whatsappLogger.error(' Erro durante reconexão:', error);
                 // Schedule another attempt
                 this.attemptReconnect();
             }
@@ -264,7 +265,7 @@ export class HealthCheckService {
      */
     resetReconnectState(): void {
         if (this.state.reconnectAttempts > 0) {
-            console.log(`[WhatsApp] ✅ Reconexão bem-sucedida após ${this.state.reconnectAttempts} tentativa(s)!`);
+            whatsappLogger.debug(` ✅ Reconexão bem-sucedida após ${this.state.reconnectAttempts} tentativa(s)!`);
             messageQueue.addLog(`✅ Reconectado com sucesso após ${this.state.reconnectAttempts} tentativa(s)!`, 'success');
         }
         this.state.reconnectAttempts = 0;

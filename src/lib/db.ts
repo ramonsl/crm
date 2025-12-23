@@ -6,6 +6,7 @@
  */
 
 import { pool, transaction, query, queryOne, execute, sql } from './neonDb';
+import { dbLogger } from '@/lib/logger';
 
 // Re-export all database functions for backwards compatibility
 export { pool, transaction, query, queryOne, execute, sql };
@@ -19,9 +20,9 @@ export { pool, transaction, query, queryOne, execute, sql };
  * - Run migrations: npm run migrate:test (local) or npm run migrate:prod (production)
  */
 export async function initializeDatabase(): Promise<void> {
-  console.log('[DB] ⚠️  WARNING: Using legacy initializeDatabase().');
-  console.log('[DB] Consider using "npm run migrate:test" for managed migrations.');
-  console.log('[DB] Initializing PostgreSQL schema...');
+  dbLogger.info(' ⚠️  WARNING: Using legacy initializeDatabase().');
+  dbLogger.info(' Consider using "npm run migrate:test" for managed migrations.');
+  dbLogger.info(' Initializing PostgreSQL schema...');
 
   try {
     // Create leads table
@@ -54,7 +55,7 @@ export async function initializeDatabase(): Promise<void> {
         last_template_sent_at TIMESTAMP
       )
     `);
-    console.log('[DB] ✅ Table: leads');
+    dbLogger.info(' ✅ Table: leads');
 
     // Create templates table
     await pool.query(`
@@ -66,7 +67,7 @@ export async function initializeDatabase(): Promise<void> {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('[DB] ✅ Table: templates');
+    dbLogger.info(' ✅ Table: templates');
 
     // Create settings table
     await pool.query(`
@@ -75,7 +76,7 @@ export async function initializeDatabase(): Promise<void> {
         value TEXT
       )
     `);
-    console.log('[DB] ✅ Table: settings');
+    dbLogger.info(' ✅ Table: settings');
 
     // Create system_notifications table
     await pool.query(`
@@ -88,7 +89,7 @@ export async function initializeDatabase(): Promise<void> {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('[DB] ✅ Table: system_notifications');
+    dbLogger.info(' ✅ Table: system_notifications');
 
     // Create message_history table
     await pool.query(`
@@ -104,7 +105,7 @@ export async function initializeDatabase(): Promise<void> {
         CONSTRAINT fk_message_history_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL
       )
     `);
-    console.log('[DB] ✅ Table: message_history');
+    dbLogger.info(' ✅ Table: message_history');
 
     // Create template_history table
     await pool.query(`
@@ -118,7 +119,7 @@ export async function initializeDatabase(): Promise<void> {
         error_message TEXT
       )
     `);
-    console.log('[DB] ✅ Table: template_history');
+    dbLogger.info(' ✅ Table: template_history');
 
     // Create statuses table
     await pool.query(`
@@ -132,7 +133,7 @@ export async function initializeDatabase(): Promise<void> {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('[DB] ✅ Table: statuses');
+    dbLogger.info(' ✅ Table: statuses');
 
     // Create users table
     await pool.query(`
@@ -147,7 +148,7 @@ export async function initializeDatabase(): Promise<void> {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('[DB] ✅ Table: users');
+    dbLogger.info(' ✅ Table: users');
 
     // Create sessions table
     await pool.query(`
@@ -159,7 +160,7 @@ export async function initializeDatabase(): Promise<void> {
         CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-    console.log('[DB] ✅ Table: sessions');
+    dbLogger.info(' ✅ Table: sessions');
 
     // Create activities table
     await pool.query(`
@@ -175,7 +176,7 @@ export async function initializeDatabase(): Promise<void> {
         CONSTRAINT fk_activity_contact FOREIGN KEY (contact_cpf) REFERENCES leads(cpf) ON DELETE CASCADE
       )
     `);
-    console.log('[DB] ✅ Table: activities');
+    dbLogger.info(' ✅ Table: activities');
 
     // Create messages table for WhatsApp chat history
     await pool.query(`
@@ -190,7 +191,7 @@ export async function initializeDatabase(): Promise<void> {
         read BOOLEAN DEFAULT false
       )
     `);
-    console.log('[DB] ✅ Table: messages');
+    dbLogger.info(' ✅ Table: messages');
 
     // Create tags table
     await pool.query(`
@@ -204,7 +205,7 @@ export async function initializeDatabase(): Promise<void> {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('[DB] ✅ Table: tags');
+    dbLogger.info(' ✅ Table: tags');
 
     // Create lead_tags junction table
     await pool.query(`
@@ -218,7 +219,7 @@ export async function initializeDatabase(): Promise<void> {
         CONSTRAINT unique_lead_tag UNIQUE (lead_cpf, tag_id)
       )
     `);
-    console.log('[DB] ✅ Table: lead_tags');
+    dbLogger.info(' ✅ Table: lead_tags');
 
     // Create indexes
     await createIndexes();
@@ -226,10 +227,10 @@ export async function initializeDatabase(): Promise<void> {
     // Seed default data
     await seedDefaultData();
 
-    console.log('[DB] ✅ PostgreSQL schema initialized successfully');
+    dbLogger.info(' ✅ PostgreSQL schema initialized successfully');
 
   } catch (error) {
-    console.error('[DB] ❌ Failed to initialize database:', error);
+    dbLogger.error(' ❌ Failed to initialize database:', error);
     throw error;
   }
 }
@@ -261,7 +262,7 @@ async function createIndexes(): Promise<void> {
       // Index might already exist, ignore
     }
   }
-  console.log('[DB] ✅ Indexes created');
+  dbLogger.info(' ✅ Indexes created');
 }
 
 /**
@@ -283,7 +284,7 @@ async function seedDefaultData(): Promise<void> {
       'Olá {nome}! Notei que você ainda não finalizou sua matrícula. Precisa de alguma ajuda ou tem alguma dúvida sobre o processo?',
       'fixed'
     ]);
-    console.log('[DB] ✅ Default templates seeded');
+    dbLogger.info(' ✅ Default templates seeded');
   }
 
   // Seed default statuses
@@ -306,7 +307,7 @@ async function seedDefaultData(): Promise<void> {
         [defaultStatuses[i].name, defaultStatuses[i].color, i]
       );
     }
-    console.log('[DB] ✅ Default statuses seeded');
+    dbLogger.info(' ✅ Default statuses seeded');
   }
 }
 
@@ -318,7 +319,7 @@ export async function checkDatabaseConnection(): Promise<boolean> {
     await pool.query('SELECT 1');
     return true;
   } catch (error) {
-    console.error('[DB] Connection check failed:', error);
+    dbLogger.error(' Connection check failed:', error);
     return false;
   }
 }

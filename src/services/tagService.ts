@@ -15,6 +15,8 @@ interface Tag {
     color: string;
 }
 
+import { tagLogger } from '@/lib/logger';
+
 interface TagOperationResult {
     success: boolean;
     tagId?: number;
@@ -28,7 +30,7 @@ export async function findTagByName(tagName: string): Promise<Tag | null> {
     try {
         const response = await fetch('/api/tags');
         if (!response.ok) {
-            console.error('[TagService] Failed to fetch tags');
+            tagLogger.error('Failed to fetch tags');
             return null;
         }
 
@@ -37,7 +39,7 @@ export async function findTagByName(tagName: string): Promise<Tag | null> {
 
         return tags.find(tag => tag.name === tagName) || null;
     } catch (error) {
-        console.error('[TagService] Error finding tag:', error);
+        tagLogger.error('Error finding tag:', error);
         return null;
     }
 }
@@ -55,15 +57,15 @@ export async function createTag(name: string, color: string = '#10b981'): Promis
 
         if (!response.ok) {
             const errorData = await response.json();
-            console.error('[TagService] Failed to create tag:', errorData);
+            tagLogger.error('Failed to create tag:', errorData);
             return null;
         }
 
         const data = await response.json();
-        console.log(`[TagService] Tag created: ${data.data.id}`);
+        tagLogger.info(`Tag created: ${data.data.id}`);
         return data.data;
     } catch (error) {
-        console.error('[TagService] Error creating tag:', error);
+        tagLogger.error('Error creating tag:', error);
         return null;
     }
 }
@@ -81,14 +83,14 @@ export async function associateTagWithLead(cpf: string, tagId: number): Promise<
 
         if (!response.ok) {
             const errorData = await response.json();
-            console.error('[TagService] Failed to associate tag:', errorData);
+            tagLogger.error('Failed to associate tag:', errorData);
             return false;
         }
 
-        console.log(`[TagService] Tag ${tagId} associated with lead ${cpf}`);
+        tagLogger.info(`Tag ${tagId} associated with lead ${cpf}`);
         return true;
     } catch (error) {
-        console.error('[TagService] Error associating tag:', error);
+        tagLogger.error('Error associating tag:', error);
         return false;
     }
 }
@@ -104,14 +106,14 @@ export async function addTagToLead(
     tagName: string,
     tagColor: string = '#10b981'
 ): Promise<TagOperationResult> {
-    console.log(`[TagService] Adding tag "${tagName}" to lead ${cpf}...`);
+    tagLogger.debug(`Adding tag "${tagName}" to lead ${cpf}...`);
 
     // Step 1: Try to find existing tag
     let tag = await findTagByName(tagName);
 
     // Step 2: Create tag if it doesn't exist
     if (!tag) {
-        console.log(`[TagService] Tag "${tagName}" not found, creating...`);
+        tagLogger.debug(`Tag "${tagName}" not found, creating...`);
         tag = await createTag(tagName, tagColor);
 
         if (!tag) {
@@ -133,7 +135,7 @@ export async function addTagToLead(
         };
     }
 
-    console.log(`[TagService] Tag "${tagName}" successfully added to lead ${cpf}`);
+    tagLogger.info(`Tag "${tagName}" successfully added to lead ${cpf}`);
     return {
         success: true,
         tagId: tag.id

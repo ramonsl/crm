@@ -5,6 +5,7 @@
  */
 
 import type { ITemplateHistoryRepository, TemplateHistoryEntry } from '@/repositories/templateHistoryRepository';
+import { logger } from '@/lib/logger';
 
 export interface TemplateSentEvent {
     phone: string;
@@ -23,7 +24,7 @@ export class TemplateHistoryService {
      * Record a template being sent to a contact
      */
     async recordTemplateSent(event: TemplateSentEvent): Promise<void> {
-        console.log(`[TemplateHistory] Recording: ${event.templateName} → ${event.phone}`);
+        logger.debug(`[TemplateHistory] Recording: ${event.templateName} → ${event.phone}`);
 
         try {
             // Save to history table
@@ -44,9 +45,9 @@ export class TemplateHistoryService {
                 );
             }
 
-            console.log(`[TemplateHistory] ✅ Recorded successfully`);
+            logger.debug(`[TemplateHistory] ✅ Recorded successfully`);
         } catch (error) {
-            console.error('[TemplateHistory] ❌ Failed to record:', error);
+            logger.error('[TemplateHistory] ❌ Failed to record:', error);
             throw error;
         }
     }
@@ -55,14 +56,14 @@ export class TemplateHistoryService {
      * Get template history for a phone number
      */
     async getPhoneHistory(phone: string, limit: number = 50): Promise<TemplateHistoryEntry[]> {
-        console.log(`[TemplateHistory] Fetching history for ${phone}`);
+        logger.debug(`[TemplateHistory] Fetching history for ${phone}`);
 
         try {
             const history = await this.repository.findByPhone(phone, limit);
-            console.log(`[TemplateHistory] Found ${history.length} entries`);
+            logger.debug(`[TemplateHistory] Found ${history.length} entries`);
             return history;
         } catch (error) {
-            console.error('[TemplateHistory] ❌ Failed to fetch:', error);
+            logger.error('[TemplateHistory] ❌ Failed to fetch:', error);
             throw error;
         }
     }
@@ -74,7 +75,7 @@ export class TemplateHistoryService {
         try {
             return await this.repository.getLastTemplateSent(phone);
         } catch (error) {
-            console.error('[TemplateHistory] ❌ Failed to get last template:', error);
+            logger.error('[TemplateHistory] ❌ Failed to get last template:', error);
             return null;
         }
     }

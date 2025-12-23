@@ -7,6 +7,7 @@
 
 import type { ISettingsProvider } from './interfaces';
 import { pool } from '../db';
+import { queueLogger } from '@/lib/logger';
 
 export class SettingsProvider implements ISettingsProvider {
     /**
@@ -20,7 +21,7 @@ export class SettingsProvider implements ISettingsProvider {
             );
             return result.rows[0]?.value || null;
         } catch (error) {
-            console.error('[SettingsProvider] Error getting setting:', error);
+            queueLogger.error('Error getting setting:', error);
             return null;
         }
     }
@@ -37,7 +38,7 @@ export class SettingsProvider implements ISettingsProvider {
             );
             return result.rows;
         } catch (error) {
-            console.error('[SettingsProvider] Error getting multiple settings:', error);
+            queueLogger.error('Error getting multiple settings:', error);
             return [];
         }
     }

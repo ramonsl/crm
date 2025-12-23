@@ -8,6 +8,7 @@
 import { getClient, getStatus } from '@/lib/whatsapp';
 import type { WhatsAppChat, WhatsAppMessage, WhatsAppWebChat, WhatsAppWebMessage } from '@/lib/types';
 import { pool } from '@/lib/db';
+import { chatLogger } from '@/lib/logger';
 
 export interface ChatInfo {
     id: string;
@@ -53,10 +54,10 @@ export class WhatsAppChatService {
         }
 
         try {
-            console.log('[WhatsAppChatService] Fetching all chats...');
+            chatLogger.debug('Fetching all chats...');
 
             const chats: WhatsAppWebChat[] = await client.getChats();
-            console.log(`[WhatsAppChatService] Found ${chats.length} chats`);
+            chatLogger.debug(`Found ${chats.length} chats`);
 
             const chatInfos: ChatInfo[] = [];
 
@@ -86,7 +87,7 @@ export class WhatsAppChatService {
             const leadsMap = new Map<string, { nome: string; cpf: string; status: string; telefone: string; profile_image: string | null }>();
 
             if (phoneNumbers.length > 0) {
-                console.log(`[WhatsAppChatService] Batch looking up ${phoneNumbers.length} phones...`);
+                chatLogger.debug(`Batch looking up ${phoneNumbers.length} phones...`);
 
                 // Build OR conditions for last 8 digits of each phone
                 const last8Conditions = phoneNumbers.map(phone => {
@@ -106,7 +107,7 @@ export class WhatsAppChatService {
                     leadsMap.set(leadLast8, lead);
                 }
 
-                console.log(`[WhatsAppChatService] Found ${result.rows.length} matching leads`);
+                chatLogger.debug(`Found ${result.rows.length} matching leads`);
             }
 
             // Now process each chat with the pre-loaded data
@@ -184,10 +185,10 @@ export class WhatsAppChatService {
                 return timeB - timeA;
             });
 
-            console.log(`[WhatsAppChatService] Returning ${chatInfos.length} chats`);
+            chatLogger.debug(`Returning ${chatInfos.length} chats`);
             return chatInfos;
         } catch (error) {
-            console.error('[WhatsAppChatService] Error fetching chats:', error);
+            chatLogger.error('Error fetching chats:', error);
             throw error;
         }
     }
@@ -203,13 +204,13 @@ export class WhatsAppChatService {
         }
 
         try {
-            console.log(`[WhatsAppChatService] Fetching ${limit} messages for chat ${chatId}...`);
+            chatLogger.debug(`Fetching ${limit} messages for chat ${chatId}...`);
 
             const chat = await client.getChatById(chatId);
-            console.log(`[WhatsAppChatService] Chat found: ${chat.name}`);
+            chatLogger.debug(`Chat found: ${chat.name}`);
 
             const messages: WhatsAppWebMessage[] = await chat.fetchMessages({ limit });
-            console.log(`[WhatsAppChatService] Raw messages fetched: ${messages.length}`);
+            chatLogger.debug(`Raw messages fetched: ${messages.length}`);
 
             const chatMessages: ChatMessage[] = messages.map(msg => {
                 let status: 'sent' | 'delivered' | 'read' | 'failed' = 'sent';
@@ -232,10 +233,10 @@ export class WhatsAppChatService {
                 };
             });
 
-            console.log(`[WhatsAppChatService] Returning ${chatMessages.length} formatted messages`);
+            chatLogger.debug(`Returning ${chatMessages.length} formatted messages`);
             return chatMessages;
         } catch (error) {
-            console.error('[WhatsAppChatService] Error fetching messages:', error);
+            chatLogger.error('Error fetching messages:', error);
             throw error;
         }
     }
@@ -253,9 +254,9 @@ export class WhatsAppChatService {
         try {
             const chat = await client.getChatById(chatId);
             await chat.sendSeen();
-            console.log(`[WhatsAppChatService] Marked chat ${chatId} as read`);
+            chatLogger.debug(`Marked chat ${chatId} as read`);
         } catch (error) {
-            console.error('[WhatsAppChatService] Error marking as read:', error);
+            chatLogger.error('Error marking as read:', error);
             throw error;
         }
     }

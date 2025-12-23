@@ -15,10 +15,11 @@ import type {
     ContactUpdatedEvent,
     WhatsAppStatusEvent
 } from './types';
+import { socketLogger } from '@/lib/logger';
 
 // Unique ID to detect duplicate module instances
 const MODULE_ID = `emitter-${Date.now()}-${Math.random()}`;
-console.log(`[Socket/Emitter] Module loaded with ID: ${MODULE_ID}`);
+socketLogger.debug(`[${MODULE_ID}] Module loaded`);
 
 /**
  * Global singleton for Socket.io server
@@ -39,9 +40,9 @@ if (!globalThis.__socketio) {
         io: null,
         pendingEvents: []
     };
-    console.log(`[Socket/${MODULE_ID}] ✅ Global singleton initialized`);
+    socketLogger.debug(`[${MODULE_ID}] ✅ Global singleton initialized`);
 } else {
-    console.log(`[Socket/${MODULE_ID}] ℹ️ Using existing global singleton`);
+    socketLogger.debug(`[${MODULE_ID}] ℹ️ Using existing global singleton`);
 }
 
 // Local references to global singleton
@@ -61,24 +62,24 @@ export function setSocketServer(
     server: SocketServer<ClientToServerEvents, ServerToClientEvents, {}, SocketData>
 ): void {
     setIo(server);
-    console.log('========================================');
-    console.log(`🚀 [Socket/${MODULE_ID}] Server instance REGISTERED in GLOBAL singleton!`);
-    console.log(`🚀 [Socket/${MODULE_ID}] Socket.io is NOW READY to emit events`);
+    socketLogger.info('========================================');
+    socketLogger.info(`🚀 [${MODULE_ID}] Server instance REGISTERED in GLOBAL singleton!`);
+    socketLogger.info(`🚀 [${MODULE_ID}] Socket.io is NOW READY to emit events`);
 
     // Process pending events
     const pending = getPendingEvents();
     if (pending.length > 0) {
-        console.log(`🚀 [Socket/${MODULE_ID}] Processing ${pending.length} pending events...`);
+        socketLogger.info(`🚀 [${MODULE_ID}] Processing ${pending.length} pending events...`);
         for (const event of pending) {
             if (event.type === 'message') {
                 emitNewMessage(event.data);
             }
         }
         setPendingEvents([]); // Clear queue
-        console.log(`🚀 [Socket/${MODULE_ID}] All pending events processed!`);
+        socketLogger.info(`🚀 [${MODULE_ID}] All pending events processed!`);
     }
 
-    console.log('========================================');
+    socketLogger.info('========================================');
 }
 
 /**
@@ -94,7 +95,7 @@ export function getSocketServer(): SocketServer<ClientToServerEvents, ServerToCl
 export function emitNewMessage(data: NewMessageEvent): boolean {
     const io = getIo();
     if (!io) {
-        console.warn(`[Socket/${MODULE_ID}] ⏳ Socket not ready (io is null in global singleton), queueing message for contact: ${data.contactCpf}`);
+        socketLogger.warn(`[${MODULE_ID}] ⏳ Socket not ready (io is null in global singleton), queueing message for contact: ${data.contactCpf}`);
         const pending = getPendingEvents();
         pending.push({ type: 'message', data });
         setPendingEvents(pending);
@@ -103,7 +104,7 @@ export function emitNewMessage(data: NewMessageEvent): boolean {
 
     const room = `contact:${data.contactCpf}`;
     io.to(room).emit('message:new', data);
-    console.log(`[Socket/${MODULE_ID}] ✅ Emitted message:new to room ${room}`);
+    socketLogger.debug(`[${MODULE_ID}] ✅ Emitted message:new to room ${room}`);
     return true;
 }
 
@@ -114,7 +115,7 @@ export function emitNewMessageToPhone(phone: string, data: Omit<NewMessageEvent,
     const io = getIo();
 
     if (!io) {
-        console.error(`[Socket/${MODULE_ID}] Cannot emit - Socket.io not initialized`);
+        socketLogger.error(`[${MODULE_ID}] Cannot emit - Socket.io not initialized`);
         return false;
     }
 
@@ -123,11 +124,11 @@ export function emitNewMessageToPhone(phone: string, data: Omit<NewMessageEvent,
 
     // Emit to specific phone room (for chat page)
     io.to(room).emit('message:new', messageData);
-    console.log(`[Socket/${MODULE_ID}] ✅ Emitted message:new to PHONE room ${room}`);
+    socketLogger.debug(`[${MODULE_ID}] ✅ Emitted message:new to PHONE room ${room}`);
 
     // BROADCAST to ALL connected clients (for global notifications)
     io.sockets.emit('message:new', messageData);
-    console.log(`[Socket/${MODULE_ID}] 🌍 BROADCAST message:new to ALL ${io.sockets.sockets.size} connected clients`);
+    socketLogger.debug(`[${MODULE_ID}] 🌍 BROADCAST message:new to ALL ${io.sockets.sockets.size} connected clients`);
 
     return true;
 }
@@ -138,13 +139,13 @@ export function emitNewMessageToPhone(phone: string, data: Omit<NewMessageEvent,
 export function emitSentMessage(data: SentMessageEvent): void {
     const io = getIo();
     if (!io) {
-        console.warn('[Socket] Server not initialized, cannot emit message:sent');
+        socketLogger.warn('Server not initialized, cannot emit message:sent');
         return;
     }
 
     const room = `contact:${data.contactCpf}`;
     io.to(room).emit('message:sent', data);
-    console.log(`[Socket] Emitted message:sent to room ${room}`);
+    socketLogger.debug(`Emitted message:sent to room ${room}`);
 }
 
 /**
@@ -153,12 +154,12 @@ export function emitSentMessage(data: SentMessageEvent): void {
 export function emitContactUpdated(data: ContactUpdatedEvent): void {
     const io = getIo();
     if (!io) {
-        console.warn('[Socket] Server not initialized, cannot emit contact:updated');
+        socketLogger.warn('Server not initialized, cannot emit contact:updated');
         return;
     }
 
     io.emit('contact:updated', data);
-    console.log(`[Socket] Emitted contact:updated for CPF ${data.cpf}`);
+    socketLogger.debug(`Emitted contact:updated for CPF ${data.cpf}`);
 }
 
 /**
@@ -167,12 +168,12 @@ export function emitContactUpdated(data: ContactUpdatedEvent): void {
 export function emitWhatsAppStatus(data: WhatsAppStatusEvent): void {
     const io = getIo();
     if (!io) {
-        console.warn('[Socket] Server not initialized, cannot emit whatsapp:status');
+        socketLogger.warn('Server not initialized, cannot emit whatsapp:status');
         return;
     }
 
     io.emit('whatsapp:status', data);
-    console.log(`[Socket] Emitted whatsapp:status: ${data.status}`);
+    socketLogger.debug(`Emitted whatsapp:status: ${data.status}`);
 }
 
 /**

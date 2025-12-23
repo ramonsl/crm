@@ -17,6 +17,7 @@
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { whatsappLogger } from '@/lib/logger';
 import type { WhatsAppStateManager } from '../state';
 import type { ContactInfo, MessageDirection } from '../types';
 import type { WhatsAppMessage } from '../../types';
@@ -83,10 +84,10 @@ export class MessageEventHandler {
                 media.mimetype.startsWith('audio') ? 'audio' :
                     media.mimetype.startsWith('video') ? 'video' : 'document';
 
-            console.log(`[WhatsApp] Media saved: ${mediaUrl} (${mediaType})`);
+            whatsappLogger.debug(` Media saved: ${mediaUrl} (${mediaType})`);
             return { url: mediaUrl, type: mediaType };
         } catch (mediaError) {
-            console.error('[WhatsApp] Error downloading media:', mediaError);
+            whatsappLogger.error(' Error downloading media:', mediaError);
             return { url: null, type: null };
         }
     }
@@ -96,7 +97,7 @@ export class MessageEventHandler {
      */
     private async findContact(phone: string): Promise<ContactInfo | null> {
         const variations = getPhoneVariations(phone);
-        console.log(`🔍 Buscando no banco por variações: ${variations.join(', ')}`);
+        whatsappLogger.debug(`🔍 Buscando no banco por variações: ${variations.join(', ')}`);
 
         // Create placeholders for PostgreSQL ($1, $2, etc)
         const placeholders = variations.map((_, i) => `$${i + 1}`).join(',');
@@ -112,7 +113,7 @@ export class MessageEventHandler {
         // Fallback: Try matching by last 8 digits
         if (!contact && phone.length >= 8) {
             const last8 = phone.slice(-8);
-            console.log(`⚠️ Contato não encontrado por variações exatas. Tentando fallback pelos últimos 8 dígitos: ${last8}`);
+            whatsappLogger.debug(`⚠️ Contato não encontrado por variações exatas. Tentando fallback pelos últimos 8 dígitos: ${last8}`);
 
             const fallbackResult = await pool.query(
                 'SELECT cpf, nome, telefone FROM leads WHERE telefone LIKE $1',
@@ -121,7 +122,7 @@ export class MessageEventHandler {
             contact = fallbackResult.rows[0] as ContactInfo | undefined;
 
             if (contact) {
-                console.log(`✅ Contato encontrado via fallback (últimos 8 dígitos): ${contact.nome}`);
+                whatsappLogger.debug(`✅ Contato encontrado via fallback (últimos 8 dígitos): ${contact.nome}`);
             }
         }
 
@@ -146,7 +147,7 @@ export class MessageEventHandler {
     `, [contact.cpf, msg.id.id, msg.body, direction === 'outgoing', messageTime]);
 
         const insertedId = insertResult.rows[0]?.id || 0;
-        console.log(`💾 Mensagem ${direction} salva no banco! ID: ${insertedId}`);
+        whatsappLogger.debug(`💾 Mensagem ${direction} salva no banco! ID: ${insertedId}`);
         messageQueue.addLog(`💾 Mensagem salva! ID: ${insertedId}`, 'success');
 
         return insertedId;
@@ -161,7 +162,7 @@ export class MessageEventHandler {
         messageTime: string,
         mediaType: string | null
     ): Promise<void> {
-        console.log(`[WhatsApp] 🔄 Tentando atualizar last_message para CPF: ${cpf}`);
+        whatsappLogger.debug(` 🔄 Tentando atualizar last_message para CPF: ${cpf}`);
 
         try {
             const updateResult = await pool.query(`
@@ -171,13 +172,13 @@ export class MessageEventHandler {
         WHERE cpf = $3
       `, [body || (mediaType ? `[${mediaType}]` : 'Mensagem'), messageTime, cpf]);
 
-            console.log(`✅ Lead ${cpf} UPDATE executado! Changes: ${updateResult.rowCount}`);
+            whatsappLogger.debug(`✅ Lead ${cpf} UPDATE executado! Changes: ${updateResult.rowCount}`);
 
             if (updateResult.rowCount === 0) {
-                console.warn(`⚠️ UPDATE não afetou nenhuma linha! CPF ${cpf} pode não existir na tabela leads`);
+                whatsappLogger.warn(`⚠️ UPDATE não afetou nenhuma linha! CPF ${cpf} pode não existir na tabela leads`);
             }
         } catch (updateError) {
-            console.error('[WhatsApp] ❌ Error updating lead last_message:', updateError);
+            whatsappLogger.error(' ❌ Error updating lead last_message:', updateError);
         }
     }
 
@@ -195,7 +196,7 @@ export class MessageEventHandler {
         mediaType: string | null
     ): void {
         if (direction !== 'incoming') {
-            console.log(`[Socket] ⏭️ Skipping emit for OUTGOING message (no notification needed)`);
+            whatsappLogger.debug(`[Socket] ⏭️ Skipping emit for OUTGOING message (no notification needed)`);
             return;
         }
 
@@ -232,12 +233,12 @@ export class MessageEventHandler {
             });
 
             if (emittedToCpf || emittedToPhone) {
-                console.log(`[Socket] ✅ Event emitted for INCOMING message from CPF:${contact.cpf} Phone:${phone}`);
+                whatsappLogger.debug(`[Socket] ✅ Event emitted for INCOMING message from CPF:${contact.cpf} Phone:${phone}`);
             } else {
-                console.error(`[Socket] ❌ FAILED to emit - Socket.io not ready!`);
+                whatsappLogger.error(`[Socket] ❌ FAILED to emit - Socket.io not ready!`);
             }
         } catch (socketError) {
-            console.warn('[Socket] Could not emit message event:', socketError);
+            whatsappLogger.warn('[Socket] Could not emit message event:', socketError);
         }
     }
 
@@ -269,14 +270,14 @@ export class MessageEventHandler {
                 }
             });
         } catch (socketError) {
-            console.warn('[Socket] Could not emit contact update:', socketError);
+            whatsappLogger.warn('[Socket] Could not emit contact update:', socketError);
         }
 
         // Log activity: WhatsApp received
         try {
             activityService.logWhatsAppReceived(contact.cpf, body || `[${mediaType || 'mídia'}]`);
         } catch (activityError) {
-            console.error('[WhatsApp] Error logging activity:', activityError);
+            whatsappLogger.error(' Error logging activity:', activityError);
         }
     }
 
@@ -284,7 +285,7 @@ export class MessageEventHandler {
      * Create a new lead for unknown contact
      */
     private async createNewLead(phone: string, msg: WhatsAppMessage): Promise<ContactInfo> {
-        console.log(`⚠️ Contato não encontrado. Criando novo lead para: ${phone}`);
+        whatsappLogger.debug(`⚠️ Contato não encontrado. Criando novo lead para: ${phone}`);
 
         // Get contact info
         let contactName = phone;
@@ -292,7 +293,7 @@ export class MessageEventHandler {
             const chatContact = await msg.getContact();
             contactName = chatContact.pushname || chatContact.name || chatContact.number || phone;
         } catch (e) {
-            console.error('Error fetching contact info:', e);
+            whatsappLogger.error('Error fetching contact info:', e);
             contactName = (msg as any)._data?.notifyName || phone;
         }
 
@@ -320,12 +321,12 @@ export class MessageEventHandler {
             // Import auto-reply service dynamically to avoid circular dependencies
             const { autoReplyService } = await import('../../../services/autoReplyService');
 
-            console.log(`🤖 Processing auto-reply for message from ${phone}: "${body}"`);
+            whatsappLogger.debug(`🤖 Processing auto-reply for message from ${phone}: "${body}"`);
 
             const response = await autoReplyService.processIncomingMessage(phone, body);
 
             if (response && typeof response === 'string') {
-                console.log(`🤖 Sending auto-reply to ${phone}: "${response}"`);
+                whatsappLogger.debug(`🤖 Sending auto-reply to ${phone}: "${response}"`);
 
                 // Add a small delay to seem more human
                 await new Promise(resolve => setTimeout(resolve, 1500));
@@ -333,13 +334,13 @@ export class MessageEventHandler {
                 if (msg.reply) {
                     await msg.reply(response);
                     messageQueue.addLog(`🤖 Auto-resposta enviada para ${phone}`, 'success');
-                    console.log(`✅ Auto-reply sent successfully to ${phone}`);
+                    whatsappLogger.debug(`✅ Auto-reply sent successfully to ${phone}`);
                 }
             } else {
-                console.log(`ℹ️ No auto-reply triggered for message from ${phone}`);
+                whatsappLogger.debug(`ℹ️ No auto-reply triggered for message from ${phone}`);
             }
         } catch (error) {
-            console.error('[WhatsApp] Error processing auto-reply:', error);
+            whatsappLogger.error(' Error processing auto-reply:', error);
         }
     }
 
@@ -347,7 +348,7 @@ export class MessageEventHandler {
      * Main handler for message_create event
      */
     async handle(msg: WhatsAppMessage): Promise<void> {
-        console.log('🔔 EVENT message_create DISPARADO!');
+        whatsappLogger.debug('🔔 EVENT message_create DISPARADO!');
 
         // Only process direct messages (not groups)
         if (!msg.from.endsWith('@c.us') && !msg.to?.endsWith('@c.us')) {
@@ -373,9 +374,9 @@ export class MessageEventHandler {
             await this.handleAutoReply(phone, msg.body, msg);
         }
 
-        console.log('='.repeat(60));
-        console.log(`📱 MENSAGEM ${direction.toUpperCase()} ${direction === 'outgoing' ? 'para' : 'de'} ${phone}`);
-        console.log(`📝 Conteúdo: ${msg.body}`);
+        whatsappLogger.debug('='.repeat(60));
+        whatsappLogger.debug(`📱 MENSAGEM ${direction.toUpperCase()} ${direction === 'outgoing' ? 'para' : 'de'} ${phone}`);
+        whatsappLogger.debug(`📝 Conteúdo: ${msg.body}`);
         messageQueue.addLog(`📱 ${direction === 'outgoing' ? 'Enviada para' : 'Recebida de'} ${phone}: ${msg.body}`, 'info');
 
         try {
@@ -386,7 +387,7 @@ export class MessageEventHandler {
             const { url: mediaUrl, type: mediaType } = await this.downloadMedia(msg);
 
             if (contact) {
-                console.log(`✅ Contato cadastrado: ${contact.nome} (CPF: ${contact.cpf}, Tel: ${contact.telefone})`);
+                whatsappLogger.debug(`✅ Contato cadastrado: ${contact.nome} (CPF: ${contact.cpf}, Tel: ${contact.telefone})`);
                 messageQueue.addLog(`✅ ${contact.nome}: ${msg.body}`, 'success');
 
                 // Save message
@@ -411,13 +412,13 @@ export class MessageEventHandler {
                                 'UPDATE leads SET profile_image = $1 WHERE cpf = $2',
                                 [profilePicUrl, contact!.cpf]
                             );
-                            console.log(`[WhatsApp] ✓ Profile picture updated for ${contact!.nome}`);
+                            whatsappLogger.debug(` ✓ Profile picture updated for ${contact!.nome}`);
                         } catch (err) {
-                            console.error('[WhatsApp] Error updating profile picture:', err);
+                            whatsappLogger.error(' Error updating profile picture:', err);
                         }
                     }
                 }).catch(err => {
-                    console.error('[WhatsApp] Error fetching profile picture:', err);
+                    whatsappLogger.error(' Error fetching profile picture:', err);
                 });
 
             } else {
@@ -427,7 +428,7 @@ export class MessageEventHandler {
 
                     // Save message for new lead
                     const insertedId = await this.saveMessage(contact, msg, direction, messageTime, mediaUrl);
-                    console.log(`💾 Mensagem ${direction} salva para novo lead! ID: ${insertedId}`);
+                    whatsappLogger.debug(`💾 Mensagem ${direction} salva para novo lead! ID: ${insertedId}`);
 
                     // Update lead's last message
                     if (direction === 'incoming') {
@@ -446,22 +447,22 @@ export class MessageEventHandler {
                             try {
                                 await pool.query('UPDATE leads SET profile_image = $1 WHERE cpf = $2', [profilePicUrl, contact!.cpf]);
                             } catch (err) {
-                                console.error('[WhatsApp] Error updating profile picture:', err);
+                                whatsappLogger.error(' Error updating profile picture:', err);
                             }
                         }
                     });
 
                 } catch (err) {
-                    console.error('Erro ao criar novo lead:', err);
+                    whatsappLogger.error('Erro ao criar novo lead:', err);
                     messageQueue.addLog(`❌ Erro ao criar lead: ${err}`, 'error');
                 }
             }
 
         } catch (error) {
-            console.error('Erro ao processar mensagem:', error);
+            whatsappLogger.error('Erro ao processar mensagem:', error);
             messageQueue.addLog(`❌ Erro: ${error}`, 'error');
         }
 
-        console.log('='.repeat(60));
+        whatsappLogger.debug('='.repeat(60));
     }
 }

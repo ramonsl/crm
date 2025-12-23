@@ -1,4 +1,5 @@
 /**
+import { whatsappLogger } from '@/lib/logger';
  * WhatsApp Groups - Group Operations
  * 
  * Handles all WhatsApp group-related operations:
@@ -28,13 +29,13 @@ export class WhatsAppGroups {
     private ensureClientReady(): void {
         if (!this.state.client) {
             const errorMsg = `WhatsApp client is not initialized. Status: ${this.state.status}`;
-            console.error(`[WhatsApp] ${errorMsg}`);
+            whatsappLogger.error(` ${errorMsg}`);
             throw new Error('WhatsApp client is not ready');
         }
 
         if (this.state.status !== 'ready') {
             const errorMsg = `WhatsApp is not in ready state. Current status: ${this.state.status}`;
-            console.error(`[WhatsApp] ${errorMsg}`);
+            whatsappLogger.error(` ${errorMsg}`);
             throw new Error('WhatsApp client is not ready');
         }
     }
@@ -43,7 +44,7 @@ export class WhatsAppGroups {
      * List all available groups
      */
     async listAll(): Promise<GroupInfo[]> {
-        console.log('[WhatsApp] Listando todos os grupos');
+        whatsappLogger.debug(' Listando todos os grupos');
         this.ensureClientReady();
 
         try {
@@ -61,7 +62,7 @@ export class WhatsAppGroups {
                 participantCount: (group as GroupChat).participants?.length || 0
             }));
 
-            console.log(`[WhatsApp] Total de grupos: ${groupList.length}`);
+            whatsappLogger.debug(` Total de grupos: ${groupList.length}`);
             return groupList;
 
         } catch (error: unknown) {
@@ -72,11 +73,11 @@ export class WhatsAppGroups {
             if (errorString.includes('Cannot read properties of undefined') ||
                 errorString.includes('pptr://') ||
                 errorString.includes('evaluation_script')) {
-                console.error('[WhatsApp] Cliente WhatsApp foi destruído ou está em estado inválido');
+                whatsappLogger.error(' Cliente WhatsApp foi destruído ou está em estado inválido');
                 throw new Error('WhatsApp client is not ready');
             }
 
-            console.error(`[WhatsApp] Erro ao listar grupos: ${errorMessage}`);
+            whatsappLogger.error(` Erro ao listar grupos: ${errorMessage}`);
             throw error;
         }
     }
@@ -85,7 +86,7 @@ export class WhatsAppGroups {
      * Get all participants from a specific group
      */
     async getParticipants(groupId: string): Promise<GroupParticipant[]> {
-        console.log(`[WhatsApp] Obtendo participantes do grupo ${groupId}`);
+        whatsappLogger.debug(` Obtendo participantes do grupo ${groupId}`);
         this.ensureClientReady();
 
         try {
@@ -105,7 +106,7 @@ export class WhatsAppGroups {
             }
 
             if (!targetGroup) {
-                console.warn(`[WhatsApp] Grupo não encontrado: ${groupId}`);
+                whatsappLogger.warn(` Grupo não encontrado: ${groupId}`);
                 throw new Error(`Group not found: ${groupId}`);
             }
 
@@ -118,7 +119,7 @@ export class WhatsAppGroups {
                 name: p.id.user // Library doesn't provide name directly
             }));
 
-            console.log(`[WhatsApp] Total de participantes no grupo ${targetGroup.name}: ${participantList.length}`);
+            whatsappLogger.debug(` Total de participantes no grupo ${targetGroup.name}: ${participantList.length}`);
             return participantList;
 
         } catch (error: unknown) {
@@ -128,11 +129,11 @@ export class WhatsAppGroups {
             if (errorString.includes('Cannot read properties of undefined') ||
                 errorString.includes('pptr://') ||
                 errorString.includes('evaluation_script')) {
-                console.error('[WhatsApp] Cliente WhatsApp foi destruído ou está em estado inválido');
+                whatsappLogger.error(' Cliente WhatsApp foi destruído ou está em estado inválido');
                 throw new Error('WhatsApp client is not ready');
             }
 
-            console.error(`[WhatsApp] Erro ao obter participantes do grupo: ${errorMessage}`);
+            whatsappLogger.error(` Erro ao obter participantes do grupo: ${errorMessage}`);
             throw error;
         }
     }
@@ -141,7 +142,7 @@ export class WhatsAppGroups {
      * Check if a phone number is in a specific group
      */
     async isNumberInGroup(phone: string, groupId: string): Promise<boolean> {
-        console.log(`[WhatsApp] Verificando se ${phone} está no grupo ${groupId}`);
+        whatsappLogger.debug(` Verificando se ${phone} está no grupo ${groupId}`);
         this.ensureClientReady();
 
         try {
@@ -152,11 +153,11 @@ export class WhatsAppGroups {
             }
 
             // Get all groups
-            console.log('[WhatsApp] Obtendo lista de chats...');
+            whatsappLogger.debug(' Obtendo lista de chats...');
             const chats = await this.state.client.getChats();
             const groups = chats.filter(chat => chat.isGroup);
 
-            console.log(`[WhatsApp] Total de grupos encontrados: ${groups.length}`);
+            whatsappLogger.debug(` Total de grupos encontrados: ${groups.length}`);
 
             // Find the specific group
             let targetGroup = null;
@@ -168,21 +169,21 @@ export class WhatsAppGroups {
             }
 
             if (!targetGroup) {
-                console.warn(`[WhatsApp] Grupo não encontrado: ${groupId}`);
+                whatsappLogger.warn(` Grupo não encontrado: ${groupId}`);
                 throw new Error(`Group not found: ${groupId}`);
             }
 
-            console.log(`[WhatsApp] Grupo encontrado: ${targetGroup.name} (${targetGroup.id._serialized})`);
+            whatsappLogger.debug(` Grupo encontrado: ${targetGroup.name} (${targetGroup.id._serialized})`);
 
             // Get group participants
             const chat = await this.state.client.getChatById(targetGroup.id._serialized) as GroupChat;
             const participants = chat.participants || [];
 
-            console.log(`[WhatsApp] Total de participantes no grupo: ${participants.length}`);
+            whatsappLogger.debug(` Total de participantes no grupo: ${participants.length}`);
 
             // Create variations of the number to check
             const variations = this.validator.getPhoneVariations(phone);
-            console.log(`[WhatsApp] Verificando variações: ${variations.join(', ')}`);
+            whatsappLogger.debug(` Verificando variações: ${variations.join(', ')}`);
 
             // Check if any variation is in the participants
             for (const variation of variations) {
@@ -192,12 +193,12 @@ export class WhatsAppGroups {
                 });
 
                 if (isInGroup) {
-                    console.log(`[WhatsApp] ✓ Número ${phone} encontrado no grupo ${targetGroup.name} (variação: ${variation})`);
+                    whatsappLogger.debug(` ✓ Número ${phone} encontrado no grupo ${targetGroup.name} (variação: ${variation})`);
                     return true;
                 }
             }
 
-            console.log(`[WhatsApp] ✗ Número ${phone} NÃO está no grupo ${targetGroup.name}`);
+            whatsappLogger.debug(` ✗ Número ${phone} NÃO está no grupo ${targetGroup.name}`);
             return false;
 
         } catch (error: unknown) {
@@ -207,11 +208,11 @@ export class WhatsAppGroups {
             if (errorString.includes('Cannot read properties of undefined') ||
                 errorString.includes('pptr://') ||
                 errorString.includes('evaluation_script')) {
-                console.error('[WhatsApp] Cliente WhatsApp foi destruído ou está em estado inválido');
+                whatsappLogger.error(' Cliente WhatsApp foi destruído ou está em estado inválido');
                 throw new Error('WhatsApp client is not ready');
             }
 
-            console.error(`[WhatsApp] Erro ao verificar número no grupo: ${errorMessage}`);
+            whatsappLogger.error(` Erro ao verificar número no grupo: ${errorMessage}`);
             throw error;
         }
     }

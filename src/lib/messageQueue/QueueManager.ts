@@ -20,6 +20,7 @@ import type {
     IMessageHistoryRecorder,
     ISettingsProvider
 } from './interfaces';
+import { queueLogger } from '@/lib/logger';
 
 declare global {
     var messageQueueInstance_v9: QueueManager | undefined;
@@ -144,7 +145,7 @@ export class QueueManager {
                 }
             });
         } catch (e) {
-            console.error('[QueueManager] Error fetching delay settings:', e);
+            queueLogger.error('Error fetching delay settings:', e);
         }
 
         if (isNaN(minDelay)) minDelay = 30000;
@@ -209,7 +210,7 @@ export class QueueManager {
                 }
             }
         } catch (error) {
-            console.error('[QueueManager] Error triggering queue automation:', error);
+            queueLogger.error('Error triggering queue automation:', error);
         }
     }
 
@@ -255,7 +256,7 @@ export class QueueManager {
                 this.queue.shift();
 
             } catch (error: unknown) {
-                console.error('[QueueManager] Error processing item:', error);
+                queueLogger.error('Error processing item:', error);
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
                 // Handle critical session errors
