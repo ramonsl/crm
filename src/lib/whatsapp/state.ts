@@ -1,5 +1,6 @@
-/**
 import { whatsappLogger } from '@/lib/logger';
+
+/**
  * WhatsApp State Manager - Singleton
  * 
  * Encapsulates all global state for the WhatsApp client.

@@ -1,5 +1,6 @@
-/**
 import { whatsappLogger } from '@/lib/logger';
+
+/**
  * WhatsApp Groups - Group Operations
  * 
  * Handles all WhatsApp group-related operations:
