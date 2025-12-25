@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import styles from './page.module.css';
-import { QrCode, RefreshCw, Smartphone, CheckCircle, AlertCircle, Terminal, Send } from 'lucide-react';
+import { QrCode, RefreshCw, Smartphone, CheckCircle, AlertCircle, Terminal, Send, X, Cloud } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -90,19 +90,28 @@ export default function WhatsAppPage() {
         }
     };
 
-    const handleTestMessage = async () => {
-        const defaultPhone = '51981636027';
-        const phone = prompt('Digite o número para teste (ex: 5551999999999):', defaultPhone);
-        if (!phone) return;
+    // Test message modal state
+    const [showTestModal, setShowTestModal] = useState(false);
+    const [testPhone, setTestPhone] = useState('51981636027');
+    const [testMessage, setTestMessage] = useState('Teste de conexão CRM');
+    const [sendingTest, setSendingTest] = useState(false);
 
+    const handleTestMessage = () => {
+        setShowTestModal(true);
+    };
+
+    const handleSendTest = async () => {
+        if (!testPhone) return;
+
+        setSendingTest(true);
         try {
             const res = await fetch('/api/whatsapp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'send',
-                    phone: phone,
-                    message: 'Teste de conexão CRM'
+                    phone: testPhone,
+                    message: testMessage
                 })
             });
 
@@ -110,60 +119,145 @@ export default function WhatsAppPage() {
 
             if (res.ok) {
                 toastSuccess('Mensagem de teste enviada!');
+                setShowTestModal(false);
             } else {
                 toastError(`Erro ao enviar teste: ${data.error || 'Erro desconhecido'}`);
             }
         } catch (error) {
             console.error(error);
             toastError('Erro de conexão com o servidor');
+        } finally {
+            setSendingTest(false);
         }
     };
 
-    const handleReset = async () => {
-        if (!confirm('Isso irá desconectar e apagar completamente a sessão atual. Você precisará clicar em "Conectar WhatsApp" novamente. Continuar?')) return;
+    // YCloud test modal state
+    const [showYCloudModal, setShowYCloudModal] = useState(false);
+    const [yCloudPhone, setYCloudPhone] = useState('5551981636027');
+    const [yCloudTemplate, setYCloudTemplate] = useState('');
+    const [yCloudVariables, setYCloudVariables] = useState('');
+    const [sendingYCloud, setSendingYCloud] = useState(false);
+    const [yCloudConfigured, setYCloudConfigured] = useState(false);
 
-        setLoading(true);
+    // Check if YCloud is configured
+    useEffect(() => {
+        const checkYCloud = async () => {
+            try {
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                setYCloudConfigured(!!(data.yCloudApiKey && data.yCloudPhoneId));
+            } catch (e) {
+                console.error('Error checking YCloud config:', e);
+            }
+        };
+        checkYCloud();
+    }, []);
+
+    const handleYCloudTest = () => {
+        setShowYCloudModal(true);
+    };
+
+    const handleSendYCloudTest = async () => {
+        if (!yCloudPhone || !yCloudTemplate) {
+            toastError('Preencha telefone e nome do template');
+            return;
+        }
+
+        setSendingYCloud(true);
         try {
-            const res = await fetch('/api/whatsapp', {
+            // Parse variables (format: var1, var2, var3)
+            const vars = yCloudVariables
+                .split(',')
+                .map((v, i) => ({ position: i + 1, value: v.trim() }))
+                .filter(v => v.value);
+
+            const res = await fetch('/api/ycloud/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'reset' })
+                body: JSON.stringify({
+                    phone: yCloudPhone,
+                    templateName: yCloudTemplate,
+                    variables: vars
+                })
             });
-            if (res.ok) {
-                setStatus('disconnected');
-                setQrCode('');
-                toastSuccess('Sessão resetada e desconectada com sucesso.');
-                // Force status check
-                await checkStatus();
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                toastSuccess(`Mensagem YCloud enviada! ID: ${data.messageId}`);
+                setShowYCloudModal(false);
+            } else {
+                toastError(`Erro YCloud: ${data.error || 'Erro desconhecido'}`);
             }
         } catch (error) {
             console.error(error);
-            toastError('Erro ao resetar sessão.');
+            toastError('Erro de conexão com YCloud');
         } finally {
-            setLoading(false);
+            setSendingYCloud(false);
         }
     };
 
-    const handleClearQueue = async () => {
-        if (!confirm('Tem certeza que deseja limpar toda a fila de mensagens?')) return;
+    // Confirmation modal state
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmAction, setConfirmAction] = useState<'reset' | 'clearQueue' | null>(null);
+    const [confirmMessage, setConfirmMessage] = useState('');
 
-        setLoading(true);
-        try {
-            const res = await fetch('/api/whatsapp/queue', {
-                method: 'DELETE'
-            });
-            if (res.ok) {
-                toastSuccess('Fila limpa com sucesso!');
-                fetchQueueState();
-            } else {
-                toastError('Erro ao limpar fila.');
+    const handleResetClick = () => {
+        setConfirmAction('reset');
+        setConfirmMessage('Isso irá desconectar e apagar completamente a sessão atual. Você precisará escanear o QR Code novamente.');
+        setShowConfirmModal(true);
+    };
+
+    const handleClearQueueClick = () => {
+        setConfirmAction('clearQueue');
+        setConfirmMessage('Tem certeza que deseja limpar toda a fila de mensagens?');
+        setShowConfirmModal(true);
+    };
+
+    const handleConfirm = async () => {
+        setShowConfirmModal(false);
+
+        if (confirmAction === 'reset') {
+            setLoading(true);
+            try {
+                const res = await fetch('/api/whatsapp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'reset' })
+                });
+                if (res.ok) {
+                    setStatus('disconnected');
+                    setQrCode('');
+                    toastSuccess('Sessão resetada com sucesso.');
+                    await checkStatus();
+                }
+            } catch (error) {
+                console.error(error);
+                toastError('Erro ao resetar sessão.');
+            } finally {
+                setLoading(false);
             }
-        } catch (error) {
-            console.error(error);
-            toastError('Erro ao limpar fila.');
-        } finally {
-            setLoading(false);
+        } else if (confirmAction === 'clearQueue') {
+            setLoading(true);
+            try {
+                const res = await fetch('/api/whatsapp/queue', {
+                    method: 'DELETE'
+                });
+                if (res.ok) {
+                    toastSuccess('Fila limpa com sucesso!');
+                    fetchQueueState();
+                } else {
+                    toastError('Erro ao limpar fila.');
+                }
+            } catch (error) {
+                console.error(error);
+                toastError('Erro ao limpar fila.');
+            } finally {
+                setLoading(false);
+            }
         }
+
+        setConfirmAction(null);
     };
 
     // Calculate progress
@@ -240,8 +334,20 @@ export default function WhatsAppPage() {
                                         <Send size={16} />
                                         Enviar Teste
                                     </button>
+                                    {yCloudConfigured && (
+                                        <button
+                                            onClick={handleYCloudTest}
+                                            className={styles.testButton}
+                                            style={{ borderColor: '#0ea5e9', color: '#0ea5e9' }}
+                                            disabled={loading}
+                                            title="Testar envio via YCloud API"
+                                        >
+                                            <Cloud size={16} />
+                                            YCloud
+                                        </button>
+                                    )}
                                     <button
-                                        onClick={handleReset}
+                                        onClick={handleResetClick}
                                         className={styles.disconnectButton}
                                         style={{ backgroundColor: '#dc2626' }}
                                         disabled={loading}
@@ -298,7 +404,7 @@ export default function WhatsAppPage() {
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             {queueState?.processing && <span className={styles.processingBadge}>Processando...</span>}
                             <button
-                                onClick={handleClearQueue}
+                                onClick={handleClearQueueClick}
                                 className={styles.secondaryButton}
                                 style={{ padding: '4px 8px', fontSize: '0.75rem' }}
                                 title="Limpar fila de mensagens"
@@ -353,6 +459,153 @@ export default function WhatsAppPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Test Message Modal */}
+            {showTestModal && (
+                <div className={styles.modalOverlay} onClick={() => setShowTestModal(false)}>
+                    <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                        <div className={styles.modalHeader}>
+                            <h3>Enviar Mensagem de Teste</h3>
+                            <button onClick={() => setShowTestModal(false)} className={styles.closeButton}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className={styles.modalBody}>
+                            <div className={styles.inputGroup}>
+                                <label>Número de Telefone</label>
+                                <input
+                                    type="text"
+                                    value={testPhone}
+                                    onChange={e => setTestPhone(e.target.value)}
+                                    placeholder="Ex: 51999999999"
+                                    className={styles.input}
+                                />
+                            </div>
+                            <div className={styles.inputGroup}>
+                                <label>Mensagem</label>
+                                <textarea
+                                    value={testMessage}
+                                    onChange={e => setTestMessage(e.target.value)}
+                                    placeholder="Mensagem de teste..."
+                                    className={styles.textarea}
+                                    rows={3}
+                                />
+                            </div>
+                        </div>
+                        <div className={styles.modalFooter}>
+                            <button
+                                onClick={() => setShowTestModal(false)}
+                                className={styles.secondaryButton}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSendTest}
+                                className={styles.connectButton}
+                                disabled={sendingTest || !testPhone}
+                            >
+                                {sendingTest ? 'Enviando...' : 'Enviar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmation Modal */}
+            {showConfirmModal && (
+                <div className={styles.modalOverlay} onClick={() => setShowConfirmModal(false)}>
+                    <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                        <div className={styles.modalHeader}>
+                            <h3>Confirmar Ação</h3>
+                            <button onClick={() => setShowConfirmModal(false)} className={styles.closeButton}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className={styles.modalBody}>
+                            <p style={{ color: 'var(--text-main)', lineHeight: 1.6 }}>{confirmMessage}</p>
+                        </div>
+                        <div className={styles.modalFooter}>
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                className={styles.secondaryButton}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirm}
+                                className={styles.disconnectButton}
+                                style={{ backgroundColor: '#dc2626' }}
+                            >
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* YCloud Test Modal */}
+            {showYCloudModal && (
+                <div className={styles.modalOverlay} onClick={() => setShowYCloudModal(false)}>
+                    <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                        <div className={styles.modalHeader}>
+                            <h3>Testar YCloud WhatsApp</h3>
+                            <button onClick={() => setShowYCloudModal(false)} className={styles.closeButton}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className={styles.modalBody}>
+                            <div className={styles.inputGroup}>
+                                <label>Número de Telefone (com DDI)</label>
+                                <input
+                                    type="text"
+                                    value={yCloudPhone}
+                                    onChange={e => setYCloudPhone(e.target.value)}
+                                    placeholder="Ex: 5551999999999"
+                                    className={styles.input}
+                                />
+                            </div>
+                            <div className={styles.inputGroup}>
+                                <label>Nome do Template</label>
+                                <input
+                                    type="text"
+                                    value={yCloudTemplate}
+                                    onChange={e => setYCloudTemplate(e.target.value)}
+                                    placeholder="Ex: hello_world"
+                                    className={styles.input}
+                                />
+                            </div>
+                            <div className={styles.inputGroup}>
+                                <label>Variáveis (separadas por vírgula)</label>
+                                <input
+                                    type="text"
+                                    value={yCloudVariables}
+                                    onChange={e => setYCloudVariables(e.target.value)}
+                                    placeholder="Ex: João, 25/12"
+                                    className={styles.input}
+                                />
+                                <small style={{ color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                                    Deixe vazio para templates sem variáveis
+                                </small>
+                            </div>
+                        </div>
+                        <div className={styles.modalFooter}>
+                            <button
+                                onClick={() => setShowYCloudModal(false)}
+                                className={styles.secondaryButton}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSendYCloudTest}
+                                className={styles.connectButton}
+                                disabled={sendingYCloud || !yCloudPhone || !yCloudTemplate}
+                            >
+                                {sendingYCloud ? 'Enviando...' : 'Enviar via YCloud'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
