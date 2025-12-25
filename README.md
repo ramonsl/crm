@@ -1,255 +1,192 @@
-# CRM - Sistema de Gestão de Leads e Contatos
+# Coordena+ 🎓
 
-Sistema completo de CRM desenvolvido com Next.js para gerenciamento de leads, contatos e comunicação via WhatsApp.
+**Sistema de CRM Educacional** desenvolvido para facilitar a vida de coordenadores de curso que precisam **captar, relacionar e manter seus estudantes**.
+
+> 💡 Coordena+ centraliza a gestão de leads acadêmicos e comunicação via WhatsApp em uma única plataforma, permitindo que coordenadores foquem no que importa: **acompanhar e desenvolver seus alunos**.
+
+---
+
+## ✨ Para quem é o Coordena+?
+
+- 👨‍🏫 **Coordenadores de Curso** que precisam captar novos alunos
+- 📞 **Equipes de Relacionamento** que fazem follow-up com interessados
+- 🎯 **Gestores Educacionais** que acompanham o funil de matrícula
+
+---
 
 ## 🚀 Funcionalidades
 
-### Gestão de Leads
-- ✅ Lista completa de leads com filtros avançados
-- ✅ Edição e atualização de informações
-- ✅ Importação em massa via Excel
-- ✅ Indicador de validação de WhatsApp
-- ✅ Envio de mensagens personalizadas com IA
+### 📋 Captação de Leads
+- ✅ Importação de leads via Excel/CSV
+- ✅ Validação automática de WhatsApp
+- ✅ Detecção de duplicados
+- ✅ Sincronização com sistemas acadêmicos
 
-### Kanban de Leads
-- ✅ Visualização em quadro Kanban
-- ✅ Drag & drop entre colunas
-- ✅ Envio de mensagens em massa
-- ✅ Geração de mensagens com OpenAI
+### 💬 Relacionamento via WhatsApp
+- ✅ Chat integrado com histórico completo
+- ✅ Envio de mensagens individuais ou em massa
+- ✅ Templates personalizados com variáveis dinâmicas
+- ✅ Geração de mensagens com IA (OpenAI)
+- ✅ Integração YCloud para envios via API oficial
+- ✅ Notificações em tempo real
 
-### Gestão de Contatos
-- ✅ Lista de contatos com ordenação
-- ✅ Sincronização com WhatsApp
-- ✅ Fotos de perfil automáticas
-- ✅ Filtros por curso de interesse
-- ✅ Envio de mensagens individuais
+### 📊 Gestão do Funil
+- ✅ Kanban visual com drag & drop
+- ✅ Status personalizáveis (Novo, Inscrito, Matriculado...)
+- ✅ Tags para segmentação
+- ✅ Timeline de atividades por lead
 
-### Chat WhatsApp
-- ✅ Interface de chat integrada
-- ✅ Sincronização automática de mensagens
-- ✅ Envio de texto, imagens e áudios
-- ✅ Scroll infinito para histórico
-- ✅ Indicador de mensagens não lidas
+### 📈 Acompanhamento
+- ✅ Dashboard com métricas e gráficos
+- ✅ Controle de custos de mensagens
+- ✅ Exportação para Google Contacts
+- ✅ Sistema de notificações
 
-### Integração WhatsApp
-- ✅ Conexão via QR Code
-- ✅ Validação de números
-- ✅ Envio de mensagens automatizadas
-- ✅ Sincronização de histórico
-- ✅ Gerenciamento de sessão
+---
 
-### Templates de Mensagens
-- ✅ Criação de templates personalizados
-- ✅ Variáveis dinâmicas (nome, curso, escola)
-- ✅ Edição e exclusão de templates
+## 🛠️ Stack Tecnológica
 
-### Dashboard
-- ✅ Estatísticas de leads e contatos
-- ✅ Gráficos de distribuição
-- ✅ Métricas de conversão
+| Categoria | Tecnologia |
+|-----------|-----------|
+| **Framework** | Next.js 16+ (App Router) |
+| **Linguagem** | TypeScript |
+| **Banco de Dados** | PostgreSQL (Neon Serverless) |
+| **Migrations** | node-pg-migrate |
+| **WhatsApp Local** | whatsapp-web.js |
+| **WhatsApp API** | YCloud |
+| **Real-Time** | Socket.io |
+| **IA** | OpenAI API |
+| **UI** | CSS Modules + Lucide Icons |
+| **Testes** | Jest |
+| **Deploy** | Railway |
 
-### Importação de Dados
-- ✅ Importação de leads via Excel
-- ✅ Importação de inscritos
-- ✅ Validação de dados
-- ✅ Mapeamento de colunas
-
-## 🛠️ Tecnologias
-
-- **Framework**: Next.js 16.0.5
-- **Runtime**: React 19.2.0
-- **Banco de Dados**: PostgreSQL (Neon Serverless)
-- **Migrations**: node-pg-migrate
-- **WhatsApp**: whatsapp-web.js
-- **WebSocket**: Socket.io 4.8+ (comunicação em tempo real)
-- **IA**: OpenAI API
-- **UI**: CSS Modules + Lucide Icons
-- **Gráficos**: Recharts
-- **Testes**: Jest + ts-jest
+---
 
 ## ⚡ Arquitetura de Tempo Real
 
-O sistema utiliza **WebSocket (Socket.io)** para comunicação em tempo real, eliminando a necessidade de polling agressivo:
+O sistema utiliza **WebSocket (Socket.io)** para comunicação instantânea:
 
-### Benefícios
-- ✅ **Performance**: Redução de ~2000 consultas/min para ~0.2 consultas/min (99.99%)
-- ✅ **Instantâneo**: Mensagens aparecem em tempo real sem refresh
-- ✅ **Escalável**: Suporta múltiplos usuários simultâneos
-- ✅ **Eficiente**: Carga mínima no servidor e banco de dados
+- ✅ Mensagens aparecem em tempo real sem refresh
+- ✅ Notificações sonoras e desktop
+- ✅ Redução de ~99.99% das consultas ao banco
+- ✅ Suporte a múltiplos usuários simultâneos
 
-### Como Funciona
-1. Cliente conecta via WebSocket ao iniciar aplicação
-2. WhatsApp recebe mensagem → Salva no DB → **Emite evento Socket**
-3. Clientes conectados recebem evento instantaneamente
-4. **Fallback**: Se WebSocket desconectar, usa polling tradicional (5s)
-
-### Servidor Customizado
-O projeto usa um **servidor HTTP customizado** que integra Next.js com Socket.io:
-
-```bash
-# Desenvolvimento (com WebSocket)
-npm run dev
-
-# Desenvolvimento (sem WebSocket - servidor padrão Next.js)
-npm run dev:next
-```
-
-> **⚠️ Importante**: Para deploy em produção, use plataformas com suporte a servidores persistentes (Railway, Render, VPS). Serverless (Vercel, Netlify) não suportam WebSocket.
+---
 
 ## 📋 Pré-requisitos
 
 - Node.js 20+
-- npm ou yarn
-- Conta OpenAI (para geração de mensagens)
+- PostgreSQL (ou conta Neon)
+- Conta OpenAI (para IA)
+- Conta YCloud (opcional, para API oficial WhatsApp)
+
+---
 
 ## 🔧 Instalação
 
-1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/crm.git
+# Clone o repositório
+git clone https://github.com/ramonsl/crm.git
 cd crm
-```
 
-2. Instale as dependências:
-```bash
+# Instale as dependências
 npm install
-```
 
-3. Configure as variáveis de ambiente:
-```bash
-# Crie um arquivo .env.local
-OPENAI_API_KEY=sua_chave_aqui
-```
+# Configure as variáveis de ambiente
+cp .env.example .env.local
 
-4. Inicie o servidor de desenvolvimento:
-```bash
+# Execute as migrations
+npm run migrate:test
+
+# Inicie o servidor
 npm run dev
 ```
 
-5. Acesse http://localhost:3000
+Acesse http://localhost:3000
 
-## 📁 Estrutura do Projeto
+---
 
-```
-crm/
-├── src/
-│   ├── app/                    # Páginas e rotas (App Router)
-│   │   ├── api/               # API Routes
-│   │   │   ├── chat/          # Endpoints de chat
-│   │   │   ├── contacts/      # Gestão de contatos
-│   │   │   ├── dashboard/     # Estatísticas
-│   │   │   ├── leads/         # Gestão de leads
-│   │   │   ├── settings/      # Configurações
-│   │   │   ├── templates/     # Templates de mensagens
-│   │   │   └── whatsapp/      # Integração WhatsApp
-│   │   ├── chat/              # Interface de chat
-│   │   ├── contacts/          # Página de contatos
-│   │   ├── import/            # Importação de dados
-│   │   ├── kanban/            # Quadro Kanban
-│   │   ├── leads/             # Página de leads
-│   │   ├── settings/          # Configurações
-│   │   ├── templates/         # Templates
-│   │   └── whatsapp/          # Conexão WhatsApp
-│   ├── components/            # Componentes reutilizáveis
-│   │   ├── Header.tsx
-│   │   ├── Sidebar.tsx
-│   │   ├── MultiSelect.tsx
-│   │   ├── WhatsAppIndicator.tsx
-│   │   ├── TimeAgoBadge.tsx
-│   │   └── Toast.tsx
-│   ├── contexts/              # Contextos React
-│   │   └── ToastContext.tsx
-│   └── lib/                   # Bibliotecas e utilitários
-│       ├── db.ts              # Configuração do banco
-│       └── whatsapp.ts        # Cliente WhatsApp
-├── __tests__/                 # Testes automatizados
-├── public/                    # Arquivos estáticos
-├── migrations/                # Migrações do banco
-└── package.json
+## 🗄️ Banco de Dados
+
+### Ambientes
+- **Desenvolvimento**: Neon `ep-winter-wind`
+- **Produção**: Neon `ep-crimson-dawn`
+
+### Scripts
+```bash
+npm run migrate:test     # Migrations em dev
+npm run migrate:prod     # Migrations em produção
+npm run migrate:create   # Criar nova migration
+npm run rollback:test    # Reverter última migration
 ```
 
-## 🗄️ Banco de Dados e Migrations
-
-O sistema utiliza **PostgreSQL (Neon)** com gerenciamento de migrations via `node-pg-migrate`.
-
-### Scripts de Banco de Dados
-
-- `npm run migrate:test`: Executa migrations no banco de desenvolvimento/teste (`ep-winter-wind`).
-- `npm run migrate:prod`: Executa migrations no banco de produção (`ep-crimson-dawn`).
-- `npm run migrate:create -- <nome>`: Cria uma nova migration no diretório `migrations/`.
-- `npm run rollback:test`: Reverte a última migration aplicada no banco de teste.
-
-Para mais detalhes, consulte o [GUIA DE MIGRATIONS](./MIGRATIONS.md).
-
-### Tabelas Principais
-- **leads**: Informações de leads
-- **contacts**: Contatos sincronizados do WhatsApp
-- **messages**: Histórico de mensagens
-- **templates**: Templates de mensagens
-- **settings**: Configurações do sistema
-- **users**: Usuários e autenticação
-- **tags**: Sistema de segmentação
-
-## 🔐 Segurança
-
-- ✅ Dados de sessão WhatsApp não são versionados
-- ✅ Banco de dados local não é versionado
-- ✅ Variáveis de ambiente para chaves sensíveis
-- ✅ Uploads de mídia não são versionados
+---
 
 ## 🧪 Testes
-
-Execute os testes com:
 
 ```bash
 npm test
 ```
 
+---
+
+## 📁 Estrutura do Projeto
+
+```
+coordena+/
+├── src/
+│   ├── app/                    # Páginas e rotas
+│   │   ├── api/               # API Routes
+│   │   ├── chat/              # Interface de chat
+│   │   ├── contacts/          # Contatos
+│   │   ├── kanban/            # Quadro Kanban
+│   │   ├── leads/             # Leads
+│   │   └── settings/          # Configurações
+│   ├── components/            # Componentes React
+│   ├── hooks/                 # Hooks customizados
+│   ├── lib/                   # Utilitários
+│   │   ├── providers/         # Providers de mensagem
+│   │   └── repositories/      # Acesso a dados
+│   └── services/              # Regras de negócio
+├── __tests__/                 # Testes
+├── migrations/                # Migrações de banco
+└── docs/                      # Documentação
+```
+
+---
+
 ## 🗺️ Roadmap
 
 ### ✅ Implementado
+- [x] CRUD de Leads/Contatos
+- [x] Integração WhatsApp (whatsapp-web.js)
+- [x] Integração YCloud (API oficial)
+- [x] Chat com histórico
+- [x] Templates com IA
+- [x] Kanban board
+- [x] Envio em massa
+- [x] Importação Excel
+- [x] Exportação Google Contacts
+- [x] Fila de mensagens
+- [x] Controle de custos
 
-- [x] Gerenciamento de Leads/Contatos (CRUD)
-- [x] Integração WhatsApp (envio/recebimento de mensagens)
-- [x] Chat com histórico de mensagens
-- [x] Templates de mensagem (fixos e com IA)
-- [x] Kanban board para gestão de leads
-- [x] Envio em massa de mensagens
-- [x] Importação de leads via CSV/Excel
-- [x] Exportação de contatos para Google Contacts
-- [x] Sistema de notificações
-- [x] Sincronização de fotos de perfil
-- [x] Fila de mensagens (message queue)
-- [x] Desduplicação de Dados (prevenção + merge manual)
+### 📋 Próximas Features
+| Feature | Descrição |
+|---------|-----------|
+| ⏰ Automações | Sequências automáticas de follow-up |
+| 🤖 Chatbot | Respostas automáticas configuráveis |
+| 📅 Calendário | Sync com Google Calendar |
+| 📈 Relatórios | Exportação PDF, analytics |
 
-### 📋 Próximas Funcionalidades
-
-| Funcionalidade | Descrição |
-|----------------|-----------|
-| 📊 Dashboard Analítico | Métricas de conversão, gráficos, funil de vendas |
-| ⏰ Automações/Follow-ups | Agendamento de mensagens, sequências automáticas |
-| 🏷️ Tags/Segmentação | Tags personalizadas, filtros avançados |
-| 📈 Relatórios | Relatórios PDF, métricas de desempenho |
-| 📅 Calendário | Agendamento de reuniões, sync Google Calendar |
-| 👥 Multi-usuários | Login, roles e permissões |
-| 🤖 Chatbot | Respostas automáticas, fluxos configuráveis |
-
-> Veja mais detalhes em [ROADMAP.md](./ROADMAP.md)
-
-## 🧹 Melhores Práticas e Refatorações Necessárias (Dívida Técnica)
-
-- [ ] **Refatorar `src/lib/whatsapp.ts`**: O arquivo é um "God Object" com muitas responsabilidades. Quebrar em serviços: `ConnectionService`, `MessageService`, `ContactService`.
-- [ ] **Unificar Utilitários de Telefone**: Centralizar lógica de formatação de telefone e remover regex soltas (`replace(/\D/g, '')`).
-- [ ] **Unificar Hooks de Socket**: Fundir `useSocketMessages.ts` e `useSocketMessagesPhone.ts` em um único hook flexível.
-
-## 📝 Licença
-
-Este projeto é privado e de uso interno.
+---
 
 ## 👨‍💻 Autor
 
-Ramon Lummertz - Coordenador do curso de Análise e Desenvolvimento de Sistemas da ULBRA
+**Ramon Lummertz**  
+Coordenador do curso de Análise e Desenvolvimento de Sistemas - ULBRA
 
-## 🤝 Contribuindo
+---
 
-Este é um projeto privado. Para contribuir, entre em contato com o autor.
+## 📝 Licença
+
+Projeto privado de uso interno.
