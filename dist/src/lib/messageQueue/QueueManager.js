@@ -70,12 +70,14 @@ class QueueManager {
         const newItems = items.map(item => ({
             id: Math.random().toString(36).substring(7),
             phone: item.phone,
-            message: item.message,
+            message: item.message || '',
             name: item.name,
             cpf: item.cpf,
             isAi: item.isAi,
             templateId: item.templateId,
             templateName: item.templateName,
+            provider: item.provider,
+            variables: item.variables,
             status: 'pending',
             addedAt: new Date()
         }));
@@ -218,25 +220,43 @@ class QueueManager {
         while (this.queue.length > 0) {
             const item = this.queue[0];
             item.status = 'processing';
-            const { minDelay, maxDelay } = await this.getDelaySettings();
-            await this.applyDelay(minDelay, maxDelay, item.phone);
             try {
-                // Generate or substitute message
-                if (item.isAi) {
-                    this.addLog(`Generating AI message for ${item.name || item.phone}...`, 'info');
-                    item.message = await this.aiGenerator.generate(item.message, item.name);
-                    this.addLog(`AI Message generated: "${item.message.substring(0, 50)}..."`, 'success');
+                // Check if this is a YCloud template message
+                if (item.provider === 'ycloud' && item.templateName && item.variables) {
+                    // Send via YCloud provider - NO DELAY needed (API handles rate limiting)
+                    this.addLog(`[YCloud] Sending template "${item.templateName}" to ${item.phone}...`, 'info');
+                    const { YCloudProvider } = await Promise.resolve().then(() => __importStar(require('../providers/YCloudProvider')));
+                    const yCloudProvider = new YCloudProvider();
+                    const result = await yCloudProvider.sendTemplateMessage(item.phone, item.templateName, item.variables);
+                    if (!result.success) {
+                        throw new Error(result.error || 'YCloud send failed');
+                    }
+                    item.status = 'completed';
+                    this.stats.processed++;
+                    this.addLog(`[YCloud] Sent to ${item.phone}`, 'success');
                 }
                 else {
-                    item.message = this.substituteVariables(item.message, item.name);
+                    // Send via WhatsAppJS (local templates, custom messages)
+                    // Apply delay ONLY for WhatsAppJS to avoid blocking
+                    const { minDelay, maxDelay } = await this.getDelaySettings();
+                    await this.applyDelay(minDelay, maxDelay, item.phone);
+                    // Generate or substitute message
+                    if (item.isAi) {
+                        this.addLog(`Generating AI message for ${item.name || item.phone}...`, 'info');
+                        item.message = await this.aiGenerator.generate(item.message, item.name);
+                        this.addLog(`AI Message generated: "${item.message.substring(0, 50)}..."`, 'success');
+                    }
+                    else {
+                        item.message = this.substituteVariables(item.message, item.name);
+                    }
+                    // Send message via WhatsAppJS
+                    this.addLog(`Sending to ${item.phone}...`, 'info');
+                    await sendMessage(item.phone, item.message);
+                    // Update stats
+                    item.status = 'completed';
+                    this.stats.processed++;
+                    this.addLog(`Successfully sent to ${item.phone}`, 'success');
                 }
-                // Send message
-                this.addLog(`Sending to ${item.phone}...`, 'info');
-                await sendMessage(item.phone, item.message);
-                // Update stats
-                item.status = 'completed';
-                this.stats.processed++;
-                this.addLog(`Successfully sent to ${item.phone}`, 'success');
                 // Record success
                 await this.historyRecorder.recordSuccess(item);
                 this.queue.shift();

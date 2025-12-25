@@ -14,7 +14,7 @@
  *   logger.error('Always shows - errors');
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uiLogger = exports.authLogger = exports.queueLogger = exports.syncLogger = exports.tagLogger = exports.chatLogger = exports.autoReplyLogger = exports.apiLogger = exports.dbLogger = exports.socketLogger = exports.whatsappLogger = exports.logger = void 0;
+exports.uiLogger = exports.yCloudLogger = exports.authLogger = exports.queueLogger = exports.syncLogger = exports.tagLogger = exports.chatLogger = exports.autoReplyLogger = exports.apiLogger = exports.dbLogger = exports.socketLogger = exports.whatsappLogger = exports.logger = void 0;
 exports.createLogger = createLogger;
 const isDevelopment = process.env.NODE_ENV === 'development';
 const isTest = process.env.NODE_ENV === 'test';
@@ -107,5 +107,6 @@ exports.tagLogger = createLogger({ prefix: 'Tags' });
 exports.syncLogger = createLogger({ prefix: 'Sync' });
 exports.queueLogger = createLogger({ prefix: 'Queue' });
 exports.authLogger = createLogger({ prefix: 'Auth' });
+exports.yCloudLogger = createLogger({ prefix: 'YCloud' });
 // Frontend loggers (for React components/contexts)
 exports.uiLogger = createLogger({ prefix: 'UI' });

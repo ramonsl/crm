@@ -1,5 +1,6 @@
 'use client';
 
+// Force rebuild: 2025-12-23 - Ensuring detailed import results are deployed
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';

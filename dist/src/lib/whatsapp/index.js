@@ -57,6 +57,50 @@ exports.messenger = messenger;
 const groups = global.whatsappGroups;
 exports.groups = groups;
 // ============================================================================
+// GRACEFUL SHUTDOWN HANDLER
+// ============================================================================
+/**
+ * Handle graceful shutdown to preserve WhatsApp session
+ */
+let isShuttingDown = false;
+const gracefulShutdown = async (signal) => {
+    if (isShuttingDown)
+        return; // Prevent multiple shutdowns
+    isShuttingDown = true;
+    console.log(`\n[WhatsApp] Received ${signal}. Closing client gracefully...`);
+    if (state_1.state.client) {
+        try {
+            // Stop health check first
+            healthService.stop();
+            // Set a timeout in case destroy hangs
+            const destroyPromise = state_1.state.client.destroy();
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Destroy timeout')), 5000));
+            await Promise.race([destroyPromise, timeoutPromise]);
+            console.log('[WhatsApp] Client closed successfully. Session preserved.');
+        }
+        catch (error) {
+            console.error('[WhatsApp] Error closing client:', error);
+        }
+    }
+    else {
+        console.log('[WhatsApp] No active client to close.');
+    }
+    // Exit process
+    console.log('[WhatsApp] Exiting...');
+    process.exit(0);
+};
+// Register shutdown handlers (only once)
+if (!global.whatsappShutdownRegistered) {
+    global.whatsappShutdownRegistered = true;
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    // Handle uncaught exceptions to try to save session
+    process.on('uncaughtException', async (error) => {
+        console.error('[WhatsApp] Uncaught exception:', error);
+        await gracefulShutdown('uncaughtException');
+    });
+}
+// ============================================================================
 // PUBLIC API - Backwards Compatible Exports
 // ============================================================================
 /**

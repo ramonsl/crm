@@ -5,10 +5,20 @@
  * Following SRP: Only type definitions.
  */
 
+import type { ProviderType } from '../providers/IMessageProvider';
+
 /**
  * Status of a queue item
  */
 export type QueueItemStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+/**
+ * Variable for YCloud templates
+ */
+export interface TemplateVariableValue {
+    position: number;
+    value: string;
+}
 
 /**
  * Represents a message in the queue
@@ -22,6 +32,8 @@ export interface QueueItem {
     isAi?: boolean;
     templateId?: number;
     templateName?: string;
+    provider?: ProviderType;
+    variables?: TemplateVariableValue[];
     status: QueueItemStatus;
     addedAt: Date;
 }
@@ -74,10 +86,13 @@ export interface QueueState {
  */
 export interface EnqueueOptions {
     phone: string;
-    message: string;
+    message?: string;
     name?: string;
     cpf?: string;
     isAi?: boolean;
     templateId?: number;
     templateName?: string;
+    provider?: ProviderType;
+    variables?: TemplateVariableValue[];
 }
+

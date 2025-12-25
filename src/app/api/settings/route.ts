@@ -6,7 +6,7 @@ export async function GET() {
         const result = await pool.query('SELECT key, value FROM settings');
         const rows = result.rows as { key: string; value: string }[];
 
-        const settings: any = {};
+        const settings: Record<string, string> = {};
         rows.forEach(row => {
             if (row.key === 'openai_api_key') settings.openaiApiKey = row.value;
             if (row.key === 'queue_min_delay') settings.minDelay = row.value;
@@ -14,6 +14,11 @@ export async function GET() {
             if (row.key === 'meta_matriculas') settings.metaMatriculas = row.value;
             if (row.key === 'comercial_phone') settings.comercialPhone = row.value;
             if (row.key === 'comercial_name') settings.comercialName = row.value;
+            // YCloud settings
+            if (row.key === 'bulk_send_provider') settings.bulkSendProvider = row.value;
+            if (row.key === 'ycloud_api_key') settings.yCloudApiKey = row.value;
+            if (row.key === 'ycloud_waba_id') settings.yCloudWabaId = row.value;
+            if (row.key === 'ycloud_phone_id') settings.yCloudPhoneId = row.value;
         });
 
         return NextResponse.json(settings);
@@ -43,9 +48,16 @@ export async function POST(req: Request) {
         if (comercialPhone !== undefined) await upsert('comercial_phone', comercialPhone);
         if (comercialName !== undefined) await upsert('comercial_name', comercialName);
 
+        // YCloud settings
+        if (body.bulk_send_provider !== undefined) await upsert('bulk_send_provider', body.bulk_send_provider);
+        if (body.ycloud_api_key !== undefined) await upsert('ycloud_api_key', body.ycloud_api_key);
+        if (body.ycloud_waba_id !== undefined) await upsert('ycloud_waba_id', body.ycloud_waba_id);
+        if (body.ycloud_phone_id !== undefined) await upsert('ycloud_phone_id', body.ycloud_phone_id);
+
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error(error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+

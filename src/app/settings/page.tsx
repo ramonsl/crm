@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import styles from './page.module.css';
 import { Trash2, AlertTriangle, RefreshCw, Image, MessageSquare, Plus, Palette, GripVertical, Save, X, Users, Phone } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
+import { YCloudSettings } from '@/components/settings/YCloudSettings';
 
 export default function SettingsPage() {
     const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
@@ -667,6 +668,9 @@ export default function SettingsPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* YCloud WhatsApp Provider */}
+                <YCloudSettings styles={styles} />
 
                 {/* Duplicate Management */}
                 <div className={styles.section}>

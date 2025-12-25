@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, MessageSquare, MessageCircle, Settings, LogOut, Upload, Columns, FileText, UserPlus, X, Bot, Zap } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, MessageCircle, Settings, LogOut, Upload, Columns, FileText, X, Bot, Zap, BadgeCheck, DollarSign } from 'lucide-react';
 import styles from './Sidebar.module.css';
 import { useEffect, useState } from 'react';
 
@@ -14,6 +14,7 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     const pathname = usePathname();
     const [waStatus, setWaStatus] = useState<'disconnected' | 'initializing' | 'ready'>('disconnected');
+    const [yCloudConfigured, setYCloudConfigured] = useState(false);
 
     useEffect(() => {
         const checkStatus = async () => {
@@ -26,8 +27,20 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
             }
         };
 
+        const checkYCloudConfig = async () => {
+            try {
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                // YCloud is configured if API key exists
+                setYCloudConfigured(!!data.yCloudApiKey);
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
         checkStatus();
-        const interval = setInterval(checkStatus, 10000); // Check every 10s
+        checkYCloudConfig();
+        const interval = setInterval(checkStatus, 10000);
         return () => clearInterval(interval);
     }, []);
 
@@ -41,7 +54,8 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         { href: '/templates', label: 'Modelos', icon: FileText },
         { href: '/automation', label: 'Automação', icon: Zap },
         { href: '/import', label: 'Importar', icon: Upload },
-        { href: '/whatsapp', label: 'WhatsApp', icon: MessageSquare, showStatus: true },
+        { href: '/whatsapp', label: 'WhatsApp', icon: MessageSquare, showStatus: true, showYCloudBadge: true },
+        { href: '/costs', label: 'Custos', icon: DollarSign },
         { href: '/settings', label: 'Configurações', icon: Settings },
     ];
 
@@ -88,6 +102,18 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                                 {link.badge && (
                                     <span className={styles.badge}>{link.badge}</span>
                                 )}
+                                {link.showYCloudBadge && yCloudConfigured && (
+                                    <span title="YCloud Business API configurado">
+                                        <BadgeCheck
+                                            size={14}
+                                            style={{
+                                                marginLeft: '4px',
+                                                color: '#0ea5e9',
+                                                flexShrink: 0
+                                            }}
+                                        />
+                                    </span>
+                                )}
                             </span>
                         </Link>
                     );
@@ -103,3 +129,4 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         </aside>
     );
 }
+

@@ -131,6 +131,7 @@ export const tagLogger = createLogger({ prefix: 'Tags' });
 export const syncLogger = createLogger({ prefix: 'Sync' });
 export const queueLogger = createLogger({ prefix: 'Queue' });
 export const authLogger = createLogger({ prefix: 'Auth' });
+export const yCloudLogger = createLogger({ prefix: 'YCloud' });
 
 // Frontend loggers (for React components/contexts)
 export const uiLogger = createLogger({ prefix: 'UI' });

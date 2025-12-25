@@ -69,7 +69,7 @@ describe('MessageHistoryRecorder', () => {
             expect(mockPoolQuery).not.toHaveBeenCalled();
         });
 
-        it('should not record if templateName is missing', async () => {
+        it('should record with fallback name when templateName is missing', async () => {
             const item: QueueItem = {
                 id: 'test-id',
                 phone: '5551999999999',
@@ -81,7 +81,12 @@ describe('MessageHistoryRecorder', () => {
 
             await recorder.recordSuccess(item);
 
-            expect(mockPoolQuery).not.toHaveBeenCalled();
+            // Should record with fallback name "Mensagem Personalizada"
+            expect(mockPoolQuery).toHaveBeenCalledTimes(1);
+            expect(mockPoolQuery.mock.calls[0][0]).toContain('INSERT INTO message_history');
+            expect(mockPoolQuery.mock.calls[0][1]).toEqual([
+                '12345678901', null, 'Mensagem Personalizada', 'Test message'
+            ]);
         });
 
         it('should handle database errors gracefully', async () => {
