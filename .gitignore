@@ -73,3 +73,6 @@ scripts/extract_mannesoft.ts
 scripts/extract_pdf_codes.js
 scripts/extract_pdf_codes.mjs
 scripts/prime.pdf
+
+# Data exports (user data)
+/data/
