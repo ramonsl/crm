@@ -31,12 +31,23 @@ export const sql: NeonQueryFunction<false, false> = connectionString
  * Connection Pool for WebSocket queries (session-based)
  * Best for: Complex transactions, multiple queries, real-time features
  * 
+ * Optimized for Neon Serverless:
+ * - min: 2 connections always ready (reduces cold start time)
+ * - max: 10 connections (prevents overwhelming Neon)
+ * - idleTimeoutMillis: 30s (closes idle connections to save compute time)
+ * - connectionTimeoutMillis: 5s (fail fast if pool is exhausted)
+ * - allowExitOnIdle: true (allows graceful shutdown)
+ * 
  * Usage:
  *   const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
  */
 export const pool = new Pool({
     connectionString: connectionString, // Pool allows undefined connectionString in config, but will fail on connect
-    max: 10, // Maximum number of connections
+    max: 10, // Maximum number of connections in the pool
+    min: 2,  // Minimum number of idle connections (always ready)
+    idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+    connectionTimeoutMillis: 5000, // Timeout acquiring connection from pool (5s)
+    allowExitOnIdle: true, // Allow process to exit if all connections are idle
 });
 
 /**
