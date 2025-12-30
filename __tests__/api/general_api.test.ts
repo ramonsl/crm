@@ -20,17 +20,21 @@ describe('General APIs', () => {
 
     describe('Dashboard API', () => {
         it('should return dashboard stats', async () => {
-            mockPoolQuery.mockImplementation((queryStr: string) => {
-                if (queryStr.includes('SELECT COUNT(*) as count FROM leads')) {
-                    return Promise.resolve({ rows: [{ count: '100' }], rowCount: 1 });
-                }
-                if (queryStr.includes('GROUP BY status')) {
-                    return Promise.resolve({ rows: [{ status: 'LEAD', count: '50' }, { status: 'MATRICULADO', count: '10' }], rowCount: 2 });
-                }
-                if (queryStr.includes('FROM settings')) {
-                    return Promise.resolve({ rows: [{ value: '100' }], rowCount: 1 });
-                }
-                return Promise.resolve({ rows: [], rowCount: 0 });
+            // Single CTE query returns all data at once
+            mockPoolQuery.mockResolvedValueOnce({
+                rows: [{
+                    total: '100',
+                    meta_matriculas: '100',
+                    encaminhados_comercial: '0',
+                    encaminhados_matriculados: '0',
+                    whatsapp_messages_sent: '0',
+                    templates_sent: '0',
+                    status_counts: [
+                        { status: 'LEAD', count: '50' },
+                        { status: 'MATRICULADO', count: '10' }
+                    ]
+                }],
+                rowCount: 1
             });
 
             const res = await GET_DASHBOARD();

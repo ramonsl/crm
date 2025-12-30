@@ -23,33 +23,23 @@ describe('/api/dashboard', () => {
     });
 
     it('should return correct dashboard metrics', async () => {
-        // 1. Total leads
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '100' }], rowCount: 1 });
-
-        // 2. Status counts
+        // Single optimized query with all data in one CTE
         mockPoolQuery.mockResolvedValueOnce({
-            rows: [
-                { status: 'NOVO', count: '50' },
-                { status: 'INSCRITO', count: '20' },
-                { status: 'MATRICULADO', count: '30' }
-            ],
-            rowCount: 3
+            rows: [{
+                total: '100',
+                meta_matriculas: '50',
+                encaminhados_comercial: '10',
+                encaminhados_matriculados: '5',
+                whatsapp_messages_sent: '100',
+                templates_sent: '50',
+                status_counts: [
+                    { status: 'NOVO', count: '50' },
+                    { status: 'INSCRITO', count: '20' },
+                    { status: 'MATRICULADO', count: '30' }
+                ]
+            }],
+            rowCount: 1
         });
-
-        // 3. Meta matriculas
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ value: '50' }], rowCount: 1 });
-
-        // 4. Encaminhados count
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '10' }], rowCount: 1 });
-
-        // 5. Encaminhados -> Matriculados count
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '5' }], rowCount: 1 });
-
-        // 6. WhatsApp messages sent
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '100' }], rowCount: 1 });
-
-        // 7. Templates sent
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '50' }], rowCount: 1 });
 
         const req = createRequest('GET', '/api/dashboard');
         const res = await GET();
@@ -77,14 +67,19 @@ describe('/api/dashboard', () => {
     });
 
     it('should handle zero values gracefully', async () => {
-        // Return 0/empty for everything
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // Total
-        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // Status
-        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // Meta
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // Encaminhados
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // EncM
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // Msg
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // Tmpl
+        // Single query returning zeros
+        mockPoolQuery.mockResolvedValueOnce({
+            rows: [{
+                total: '0',
+                meta_matriculas: '0',
+                encaminhados_comercial: '0',
+                encaminhados_matriculados: '0',
+                whatsapp_messages_sent: '0',
+                templates_sent: '0',
+                status_counts: []
+            }],
+            rowCount: 1
+        });
 
         const res = await GET();
         const data = await res.json();

@@ -3,21 +3,76 @@ import { pool } from '@/lib/db';
 
 export async function GET() {
     try {
-        // Total leads
-        const totalResult = await pool.query('SELECT COUNT(*) as count FROM leads');
-        const total = parseInt(totalResult.rows[0].count);
-
-        // Count by status
-        const statusResult = await pool.query(`
-            SELECT status, COUNT(*) as count 
-            FROM leads 
-            GROUP BY status
+        // Single optimized query using CTEs to get all dashboard data at once
+        // Reduces from 6 queries to 1 query
+        const result = await pool.query(`
+            WITH 
+            -- Total and status counts
+            status_counts AS (
+                SELECT 
+                    status,
+                    COUNT(*) as count
+                FROM leads
+                GROUP BY status
+            ),
+            -- Total leads count
+            total_count AS (
+                SELECT COUNT(*) as total FROM leads
+            ),
+            -- Meta matriculas from settings
+            meta_data AS (
+                SELECT COALESCE(value::integer, 0) as meta_matriculas
+                FROM settings 
+                WHERE key = 'meta_matriculas'
+                LIMIT 1
+            ),
+            -- Forwarded leads count
+            forwarded_data AS (
+                SELECT COUNT(DISTINCT contact_cpf) as encaminhados_comercial
+                FROM activities
+                WHERE type = 'forwarded'
+            ),
+            -- Forwarded leads that became matriculated
+            forwarded_matriculated AS (
+                SELECT COUNT(DISTINCT a.contact_cpf) as encaminhados_matriculados
+                FROM activities a
+                INNER JOIN leads l ON a.contact_cpf = l.cpf
+                WHERE a.type = 'forwarded'
+                AND (
+                    UPPER(l.status) = 'MATRICULADO' OR 
+                    UPPER(l.status) = 'MATRICULA CONFIRMADA' OR 
+                    UPPER(l.status) = 'MATRÍCULA CONFIRMADA'
+                )
+            ),
+            -- Message counts
+            message_counts AS (
+                SELECT 
+                    (SELECT COUNT(*) FROM messages WHERE from_me = true) as whatsapp_messages,
+                    (SELECT COUNT(*) FROM template_history WHERE success = true) as templates_sent
+            )
+            -- Final aggregation
+            SELECT 
+                (SELECT total FROM total_count) as total,
+                (SELECT meta_matriculas FROM meta_data) as meta_matriculas,
+                (SELECT encaminhados_comercial FROM forwarded_data) as encaminhados_comercial,
+                (SELECT encaminhados_matriculados FROM forwarded_matriculated) as encaminhados_matriculados,
+                (SELECT whatsapp_messages FROM message_counts) as whatsapp_messages_sent,
+                (SELECT templates_sent FROM message_counts) as templates_sent,
+                COALESCE(json_agg(json_build_object('status', status, 'count', count)) FILTER (WHERE status IS NOT NULL), '[]'::json) as status_counts
+            FROM status_counts
         `);
-        const statusCounts = statusResult.rows as { status: string; count: string }[];
 
-        // Fetch Meta
-        const metaResult = await pool.query("SELECT value FROM settings WHERE key = 'meta_matriculas'");
-        const metaMatriculas = metaResult.rows[0] ? Number(metaResult.rows[0].value) : 0;
+        const data = result.rows[0];
+        const total = parseInt(data.total || '0');
+        const metaMatriculas = parseInt(data.meta_matriculas || '0');
+        const encaminhadosComercial = parseInt(data.encaminhados_comercial || '0');
+        const encaminhadosMatriculados = parseInt(data.encaminhados_matriculados || '0');
+        const whatsappMessagesSent = parseInt(data.whatsapp_messages_sent || '0');
+        const templatesSent = parseInt(data.templates_sent || '0');
+        const totalMessagesSent = whatsappMessagesSent + templatesSent;
+
+        // Parse status counts from JSON aggregation
+        const statusCounts = (data.status_counts || []) as { status: string; count: string }[];
 
         const inscritosCount = statusCounts.reduce((acc, s) => {
             const status = s.status?.toUpperCase() || '';
@@ -41,51 +96,14 @@ export async function GET() {
 
         const aprovados = parseInt(statusCounts.find(s => s.status?.toUpperCase() === 'APROVADO')?.count || '0');
 
-        // === Encaminhados ao Comercial ===
-        const encaminhadosResult = await pool.query(`
-            SELECT COUNT(DISTINCT contact_cpf) as count 
-            FROM activities 
-            WHERE type = 'forwarded'
-        `);
-        const encaminhadosComercial = parseInt(encaminhadosResult.rows[0]?.count || '0');
-
-        // === Encaminhados que viraram Matrícula Confirmada ===
-        const encaminhadosMatriculadosResult = await pool.query(`
-            SELECT COUNT(DISTINCT a.contact_cpf) as count 
-            FROM activities a
-            INNER JOIN leads l ON a.contact_cpf = l.cpf
-            WHERE a.type = 'forwarded'
-            AND (
-                UPPER(l.status) = 'MATRICULADO' OR 
-                UPPER(l.status) = 'MATRICULA CONFIRMADA' OR 
-                UPPER(l.status) = 'MATRÍCULA CONFIRMADA'
-            )
-        `);
-        const encaminhadosMatriculados = parseInt(encaminhadosMatriculadosResult.rows[0]?.count || '0');
-
-        // Taxa de conversão comercial
+        // Calculate conversion metrics
         const taxaConversaoComercial = encaminhadosComercial > 0
             ? ((encaminhadosMatriculados / encaminhadosComercial) * 100).toFixed(1)
             : '0.0';
 
-        // Indicators
         const leadInscritoSum = leadsCount + inscritosCount;
         const leadToMatriculaRatio = matriculados > 0 ? (leadInscritoSum / matriculados).toFixed(1) : '0.0';
         const inscritoToMatriculaRatio = matriculados > 0 ? (inscritosCount / matriculados).toFixed(1) : '0.0';
-
-        // === Total de Mensagens Enviadas ===
-        // Conta mensagens do WhatsApp (from_me = true) + templates enviados
-        const messagesResult = await pool.query(`
-            SELECT COUNT(*) as count FROM messages WHERE from_me = true
-        `);
-        const whatsappMessagesSent = parseInt(messagesResult.rows[0]?.count || '0');
-
-        const templatesResult = await pool.query(`
-            SELECT COUNT(*) as count FROM template_history WHERE success = true
-        `);
-        const templatesSent = parseInt(templatesResult.rows[0]?.count || '0');
-
-        const totalMessagesSent = whatsappMessagesSent + templatesSent;
 
         // Construct funnel data
         const funnel = [

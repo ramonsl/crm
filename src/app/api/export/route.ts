@@ -40,23 +40,33 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'No contacts found' }, { status: 404 });
         }
 
-        // Load tags for each lead
+        // Load tags for all leads in a single query (optimized from N+1 to 1 query)
         const tagsMap = new Map<string, string>();
-        await Promise.all(
-            leads.map(async (lead) => {
-                try {
-                    const tagsResult = await pool.query(
-                        'SELECT name FROM tags WHERE id IN (SELECT tag_id FROM lead_tags WHERE lead_cpf = $1)',
-                        [lead.cpf]
+
+        if (leads.length > 0) {
+            try {
+                // Single query with JOIN to get all tags for all leads at once
+                const tagsResult = await pool.query(`
+                    SELECT lt.lead_cpf, t.name
+                    FROM lead_tags lt
+                    INNER JOIN tags t ON lt.tag_id = t.id
+                    WHERE lt.lead_cpf = ANY($1)
+                    ORDER BY lt.lead_cpf, t.name
+                `, [cpfs]);
+
+                // Group tags by CPF
+                tagsResult.rows.forEach(row => {
+                    const existing = tagsMap.get(row.lead_cpf) || '';
+                    tagsMap.set(
+                        row.lead_cpf,
+                        existing ? `${existing}, ${row.name}` : row.name
                     );
-                    const tagNames = tagsResult.rows.map(row => row.name).join(', ');
-                    tagsMap.set(lead.cpf, tagNames);
-                } catch (error) {
-                    console.error(`Error loading tags for ${lead.cpf}:`, error);
-                    tagsMap.set(lead.cpf, '');
-                }
-            })
-        );
+                });
+            } catch (error) {
+                console.error('[API /api/export] Error loading tags:', error);
+                // Continue with empty tags if query fails
+            }
+        }
 
         // Generate CSV content
         const csv = generateGoogleContactsCSV(leads, tagsMap);
