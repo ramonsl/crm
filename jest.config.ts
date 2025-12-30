@@ -25,6 +25,7 @@ const config: Config = {
             },
             testMatch: ['**/__tests__/**/*.test.ts', '!**/__tests__/components/**'],
             setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+            testTimeout: 30000, // 30s timeout for CI environments
         },
         // Frontend tests (React components)
         {
