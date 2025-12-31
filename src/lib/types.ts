@@ -1,5 +1,3 @@
-import { getErrorMessage } from '@/lib/types';
-
 /**
  * Centralized type definitions for the CRM application
  * Eliminates use of 'any' and provides type safety

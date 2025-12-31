@@ -13,7 +13,7 @@
  * - DIP: Instantiates concrete implementations, exports abstractions
  */
 
-import { state, WhatsAppStateManager } from './state';
+import { state } from './state';
 import { HealthCheckService } from './health';
 import { WhatsAppValidator } from './validation';
 import { WhatsAppMessenger } from './messaging';

@@ -145,6 +145,32 @@ describe('TemplateHistoryRepository (Neon)', () => {
             const query = mockPoolQuery.mock.calls[0][0];
             expect(query).toContain('last_template_sent_at = CURRENT_TIMESTAMP');
         });
+
+        it('should generate dynamic placeholders for multiple phone variations', async () => {
+            // Mock phone utils to return 4 variations
+            // Since we are not mocking the module globally in this file yet, 
+            // let's rely on a known number that generates variations or mocking just for this test if possible.
+            // But simpler: The real getPhoneVariations returns ~4 variations for a standard mobile number.
+            // We can just verify the query string contains multiple placeholders.
+
+            mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+            await repository.updateLastTemplate('51999887766', 'VariableTest');
+
+            const query = mockPoolQuery.mock.calls[0][0];
+            const params = mockPoolQuery.mock.calls[0][1];
+
+            // Check that query has correct number of placeholders matching params
+            // params[0] is templateName, params[1..n] are phones
+            const numPhones = params.length - 1;
+
+            // Verify the WHERE clause has correct number of ORs
+            const whereClause = query.split('WHERE')[1];
+            const matches = whereClause.match(/telefone = \$\d+/g);
+
+            expect(matches).toHaveLength(numPhones);
+            expect(params.length).toBeGreaterThan(2); // Ensure we are testing multiple variations
+        });
     });
 
     describe('getLastTemplateSent', () => {

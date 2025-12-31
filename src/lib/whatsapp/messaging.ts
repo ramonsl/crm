@@ -97,7 +97,7 @@ export class WhatsAppMessenger {
         message: string,
         options?: SendMessageOptions
     ): Promise<SendMessageResult> {
-        let formattedPhone = this.validator.normalizePhone(phone);
+        const formattedPhone = this.validator.normalizePhone(phone);
 
         // Only applies to Brazilian numbers
         if (!formattedPhone.startsWith('55')) {

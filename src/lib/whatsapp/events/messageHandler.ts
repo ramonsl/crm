@@ -136,8 +136,7 @@ export class MessageEventHandler {
         contact: ContactInfo,
         msg: WhatsAppMessage,
         direction: MessageDirection,
-        messageTime: string,
-        mediaUrl: string | null
+        messageTime: string
     ): Promise<number> {
         const insertResult = await pool.query(`
       INSERT INTO messages (contact_phone, id, content, from_me, timestamp, type)
@@ -391,7 +390,7 @@ export class MessageEventHandler {
                 messageQueue.addLog(`✅ ${contact.nome}: ${msg.body}`, 'success');
 
                 // Save message
-                const insertedId = await this.saveMessage(contact, msg, direction, messageTime, mediaUrl);
+                const insertedId = await this.saveMessage(contact, msg, direction, messageTime);
 
                 // Emit socket events (only for incoming)
                 this.emitSocketEvents(contact, phone, insertedId, msg, direction, messageTime, mediaUrl, mediaType);
@@ -427,7 +426,7 @@ export class MessageEventHandler {
                     contact = await this.createNewLead(phone, msg);
 
                     // Save message for new lead
-                    const insertedId = await this.saveMessage(contact, msg, direction, messageTime, mediaUrl);
+                    const insertedId = await this.saveMessage(contact, msg, direction, messageTime);
                     whatsappLogger.debug(`💾 Mensagem ${direction} salva para novo lead! ID: ${insertedId}`);
 
                     // Update lead's last message

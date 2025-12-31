@@ -119,11 +119,26 @@ export function BulkMessageModal({ contacts, isOpen, onClose, onComplete }: Bulk
         const messages = contacts.map(contact => {
             // Replace field references with contact values
             const variables = templateVariables.map(v => {
-                let value = variableValues[v.position] || v.sample;
-                // Replace {{nome}}, {{telefone}}, etc with contact data
+                // Get the value from user input or use sample/default
+                let value = variableValues[v.position] || v.sample || '';
+
+                // If value is still a placeholder or empty, try to auto-fill from contact
+                if (!value || value.includes('{{')) {
+                    // Auto-fill based on field mapping
+                    if (v.field === 'nome' || value.includes('{{nome}}')) {
+                        value = contact.nome || '';
+                    } else if (v.field === 'telefone' || value.includes('{{telefone}}')) {
+                        value = contact.telefone || '';
+                    } else if (v.field === 'email' || value.includes('{{email}}')) {
+                        value = contact.email || '';
+                    }
+                }
+
+                // Replace any remaining placeholders
                 value = value.replace(/\{\{nome\}\}/gi, contact.nome || '');
                 value = value.replace(/\{\{telefone\}\}/gi, contact.telefone || '');
                 value = value.replace(/\{\{email\}\}/gi, contact.email || '');
+
                 return { position: v.position, value };
             });
 

@@ -13,7 +13,8 @@ import {
     YCloudTemplateRepository,
     type CreateYCloudTemplateDto,
     type UpdateYCloudTemplateDto,
-    type YCloudTemplateRow
+    type YCloudTemplateRow,
+    type TemplateVariableConfig
 } from '@/lib/repositories/YCloudTemplateRepository';
 import { SettingRepository } from '@/lib/repositories/SettingRepository';
 import { yCloudLogger } from '@/lib/logger';
@@ -21,13 +22,26 @@ import { yCloudLogger } from '@/lib/logger';
 const YCLOUD_API_BASE = 'https://api.ycloud.com/v2';
 
 /**
- * YCloud template API response
+ * YCloud template API response (actual structure from YCloud API)
  */
 interface YCloudTemplateResponse {
-    id: string;
+    officialTemplateId: string;
+    wabaId: string;
     name: string;
+    language: string;
+    components: Array<{
+        type: string;
+        text?: string;
+        format?: string;
+        example?: any;
+        buttons?: any[];
+    }>;
+    category: string;
     status: string;
+    reason?: string;
     rejectedReason?: string;
+    createTime: string;
+    updateTime: string;
 }
 
 /**
@@ -35,7 +49,9 @@ interface YCloudTemplateResponse {
  */
 interface YCloudTemplateListResponse {
     items: YCloudTemplateResponse[];
-    total: number;
+    offset: number;
+    limit: number;
+    length: number;
 }
 
 /**
@@ -277,13 +293,13 @@ export class YCloudTemplateService {
             );
 
             // Update local template with YCloud ID
-            await this.repository.markAsPending(id, response.id);
+            await this.repository.markAsPending(id, response.officialTemplateId);
 
-            yCloudLogger.info('Template submitted for approval:', template.template_name, response.id);
+            yCloudLogger.info('Template submitted for approval:', template.template_name, response.officialTemplateId);
 
             return {
                 success: true,
-                data: response.id
+                data: response.officialTemplateId
             };
         } catch (error) {
             yCloudLogger.error('Error submitting template:', error);
@@ -295,7 +311,147 @@ export class YCloudTemplateService {
     }
 
     /**
-     * Sync template statuses from YCloud
+     * Sync all templates from YCloud (full import)
+     * This imports approved templates from YCloud that may not exist locally
+     */
+    async syncAllFromYCloud(): Promise<ServiceResult<{ imported: number; updated: number; errors: number }>> {
+        try {
+            const wabaId = await this.settingRepo.get('ycloud_waba_id');
+            if (!wabaId) {
+                return { success: false, error: 'YCloud WABA ID not configured' };
+            }
+
+            // Fetch all templates from YCloud
+            const response = await this.yCloudRequest<YCloudTemplateListResponse>(
+                `/whatsapp/templates?wabaId=${wabaId}&limit=100`
+            );
+
+            let imported = 0;
+            let updated = 0;
+            let errors = 0;
+
+            for (const yCloudTemplate of response.items) {
+                try {
+                    // Check if template already exists locally
+                    const existing = await this.repository.findByName(yCloudTemplate.name);
+
+                    // Parse YCloud template components
+                    const parsedTemplate = this.parseYCloudTemplate(yCloudTemplate);
+
+                    if (existing) {
+                        // Update existing template
+                        const yCloudStatus = yCloudTemplate.status.toLowerCase() as 'draft' | 'pending' | 'approved' | 'rejected';
+
+                        await this.repository.update(existing.id, {
+                            ...parsedTemplate,
+                            status: yCloudStatus,
+                            ycloud_template_id: yCloudTemplate.officialTemplateId,
+                            rejection_reason: yCloudTemplate.rejectedReason || undefined
+                        });
+
+                        yCloudLogger.info('Template updated from YCloud:', yCloudTemplate.name);
+                        updated++;
+                    } else {
+                        // Import new template
+                        const yCloudStatus = yCloudTemplate.status.toLowerCase() as 'draft' | 'pending' | 'approved' | 'rejected';
+
+                        await this.repository.create({
+                            template_name: yCloudTemplate.name,
+                            ...parsedTemplate
+                        });
+
+                        // Update with YCloud metadata
+                        const newTemplate = await this.repository.findByName(yCloudTemplate.name);
+                        if (newTemplate) {
+                            await this.repository.update(newTemplate.id, {
+                                status: yCloudStatus,
+                                ycloud_template_id: yCloudTemplate.officialTemplateId,
+                                rejection_reason: yCloudTemplate.rejectedReason || undefined
+                            });
+                        }
+
+                        yCloudLogger.info('Template imported from YCloud:', yCloudTemplate.name);
+                        imported++;
+                    }
+                } catch (templateError) {
+                    yCloudLogger.error('Error processing template:', yCloudTemplate.name, templateError);
+                    errors++;
+                }
+            }
+
+            yCloudLogger.info(`YCloud full sync complete: ${imported} imported, ${updated} updated, ${errors} errors`);
+
+            return {
+                success: true,
+                data: { imported, updated, errors }
+            };
+        } catch (error) {
+            yCloudLogger.error('Error syncing all templates from YCloud:', error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Failed to sync templates from YCloud'
+            };
+        }
+    }
+
+    /**
+     * Parse YCloud template response into our local format
+     */
+    private parseYCloudTemplate(yCloudTemplate: any): Omit<CreateYCloudTemplateDto, 'template_name'> {
+        const components = yCloudTemplate.components || [];
+
+        // Extract header
+        const headerComponent = components.find((c: any) => c.type === 'HEADER');
+        const header_type = headerComponent ? headerComponent.format?.toLowerCase() : null;
+        const header_content = headerComponent?.text || headerComponent?.example?.header_handle?.[0] || null;
+
+        // Extract body
+        const bodyComponent = components.find((c: any) => c.type === 'BODY');
+        const body_text = bodyComponent?.text || '';
+
+        // Extract variables from body
+        // YCloud uses {{__1__}}, {{__2__}}, etc. or {{1}}, {{2}}, etc.
+        const variableMatches = body_text.match(/\{\{_*(\d+)_*\}\}/g) || [];
+        const variables: TemplateVariableConfig[] = variableMatches.map((match: string, index: number) => {
+            // Extract the number from the match
+            const numberMatch = match.match(/(\d+)/);
+            const position = numberMatch ? parseInt(numberMatch[1]) : index + 1;
+
+            // Auto-map first variable to 'nome' for better UX
+            const field = position === 1 ? 'nome' : `var${position}`;
+            const sample = position === 1 ? '{{nome}}' : `Example ${position}`;
+
+            return {
+                position,
+                sample,
+                field,
+                description: position === 1 ? 'Nome do lead' : `Variable ${position}`
+            };
+        });
+
+        // Extract footer
+        const footerComponent = components.find((c: any) => c.type === 'FOOTER');
+        const footer_text = footerComponent?.text || null;
+
+        // Extract buttons
+        const buttonsComponent = components.find((c: any) => c.type === 'BUTTONS');
+        const buttons = buttonsComponent?.buttons || null;
+
+        return {
+            friendly_name: yCloudTemplate.name.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+            category: yCloudTemplate.category || 'UTILITY',
+            language: yCloudTemplate.language || 'pt_BR',
+            header_type,
+            header_content,
+            body_text,
+            footer_text,
+            buttons,
+            variables: variables.length > 0 ? variables : undefined
+        };
+    }
+
+    /**
+     * Sync template statuses from YCloud (legacy - only updates pending templates)
      */
     async syncStatuses(): Promise<ServiceResult<{ updated: number; errors: number }>> {
         try {
@@ -323,7 +479,7 @@ export class YCloudTemplateService {
                 if (!localTemplate.ycloud_template_id) continue;
 
                 const yCloudTemplate = response.items.find(
-                    t => t.id === localTemplate.ycloud_template_id
+                    t => t.officialTemplateId === localTemplate.ycloud_template_id
                 );
 
                 if (!yCloudTemplate) {

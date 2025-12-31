@@ -1,5 +1,3 @@
-import { whatsappLogger } from '@/lib/logger';
-
 /**
  * WhatsApp State Manager - Singleton
  * 

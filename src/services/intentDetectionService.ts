@@ -6,8 +6,7 @@
 import type { AutoReply, IntentDetectionResult } from '@/types/autoReply';
 import { logger } from '@/lib/logger';
 
-// Simple in-memory cache to avoid redundant API calls
-const intentCache = new Map<string, IntentDetectionResult>();
+// Cache TTL configuration
 const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
 interface CacheEntry {
