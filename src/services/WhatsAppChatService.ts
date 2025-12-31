@@ -6,7 +6,7 @@
  */
 
 import { getClient, getStatus } from '@/lib/whatsapp';
-import type { WhatsAppChat, WhatsAppMessage, WhatsAppWebChat, WhatsAppWebMessage } from '@/lib/types';
+import type { WhatsAppWebChat, WhatsAppWebMessage } from '@/lib/types';
 import { pool } from '@/lib/db';
 import { chatLogger } from '@/lib/logger';
 
@@ -143,8 +143,8 @@ export class WhatsAppChatService {
                 // Try to get profile pic from WhatsApp API (only if not in DB)
                 if (!profilePicUrl) {
                     try {
-                        profilePicUrl = await (chat as any).getProfilePicUrl();
-                    } catch (err) {
+                    \n                        profilePicUrl = await (chat as unknown as { getProfilePicUrl: () => Promise<string> }).getProfilePicUrl();
+                    } catch {
                         // Ignore - no profile pic available
                     }
                 }
@@ -159,7 +159,7 @@ export class WhatsAppChatService {
                         lastMessage = msg.body || '[Media]';
                         lastMessageTime = msg.timestamp;
                     }
-                } catch (err) {
+                } catch {
                     // Ignore - failed to fetch messages
                 }
 
