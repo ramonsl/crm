@@ -117,8 +117,36 @@ if (!global.whatsappShutdownRegistered) {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
     // Handle uncaught exceptions to try to save session
+    // Filter recoverable errors (e.g., database connection issues) from critical errors
     process.on('uncaughtException', async (error) => {
-        console.error('[WhatsApp] Uncaught exception:', error);
+        const errorMessage = error.message || '';
+
+        // Errors that should NOT crash the entire application
+        const RECOVERABLE_ERROR_PATTERNS = [
+            'Connection terminated unexpectedly', // Neon WebSocket disconnection
+            'ECONNRESET',                         // Connection reset by peer
+            'ETIMEDOUT',                          // Connection timeout
+            'ENOTFOUND',                          // DNS lookup failed
+            'ECONNREFUSED',                       // Connection refused
+            'Client has already been connected',  // Duplicate connection attempt
+        ];
+
+        const isRecoverable = RECOVERABLE_ERROR_PATTERNS.some(pattern =>
+            errorMessage.includes(pattern)
+        );
+
+        if (isRecoverable) {
+            // Log the error but DO NOT crash the application
+            console.error('[WhatsApp] Recoverable error caught (not crashing):', {
+                message: error.message,
+                stack: error.stack,
+                timestamp: new Date().toISOString(),
+            });
+            return; // Continue running
+        }
+
+        // Critical error - perform graceful shutdown
+        console.error('[WhatsApp] Critical uncaught exception:', error);
         await gracefulShutdown('uncaughtException');
     });
 }
