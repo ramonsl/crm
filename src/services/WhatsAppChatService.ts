@@ -143,7 +143,7 @@ export class WhatsAppChatService {
                 // Try to get profile pic from WhatsApp API (only if not in DB)
                 if (!profilePicUrl) {
                     try {
-                    \n                        profilePicUrl = await (chat as unknown as { getProfilePicUrl: () => Promise<string> }).getProfilePicUrl();
+                        profilePicUrl = await (chat as unknown as { getProfilePicUrl: () => Promise<string> }).getProfilePicUrl();
                     } catch {
                         // Ignore - no profile pic available
                     }
