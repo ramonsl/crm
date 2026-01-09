@@ -76,3 +76,4 @@ scripts/prime.pdf
 
 # Data exports (user data)
 /data/
+!*.example

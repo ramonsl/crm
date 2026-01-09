@@ -5,7 +5,7 @@
  * Replaces better-sqlite3 for PostgreSQL compatibility.
  */
 
-import { Pool, neon, NeonQueryFunction } from '@neondatabase/serverless';
+import { Pool, PoolClient, neon, NeonQueryFunction } from '@neondatabase/serverless';
 import { dbLogger } from '@/lib/logger';
 
 // Validate DATABASE_URL is present
@@ -44,10 +44,49 @@ export const sql: NeonQueryFunction<false, false> = connectionString
 export const pool = new Pool({
     connectionString: connectionString, // Pool allows undefined connectionString in config, but will fail on connect
     max: 10, // Maximum number of connections in the pool
-    min: 2,  // Minimum number of idle connections (always ready)
-    idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+    min: 0,  // No idle connections in serverless (reduces Neon compute costs)
+    idleTimeoutMillis: 20000, // Close idle connections after 20 seconds
     connectionTimeoutMillis: 5000, // Timeout acquiring connection from pool (5s)
     allowExitOnIdle: true, // Allow process to exit if all connections are idle
+});
+
+// ============================================================================
+// ERROR HANDLING & RESILIENCE
+// ============================================================================
+
+/**
+ * Pool error handler - prevents uncaught exceptions from crashing the app
+ * Logs errors but allows the pool to handle reconnection automatically
+ */
+pool.on('error', (err: Error, client: PoolClient) => {
+    dbLogger.error('Unexpected pool error - connection may have been terminated', {
+        error: err.message,
+        stack: err.stack,
+        timestamp: new Date().toISOString(),
+    });
+    // Do NOT throw or propagate - let the pool manage reconnection
+});
+
+/**
+ * Connection event handler - tracks new connections for debugging
+ */
+pool.on('connect', (client: PoolClient) => {
+    dbLogger.debug('New client connected to pool', {
+        totalCount: pool.totalCount,
+        idleCount: pool.idleCount,
+        waitingCount: pool.waitingCount,
+    });
+});
+
+/**
+ * Remove event handler - tracks connection removal for debugging
+ */
+pool.on('remove', (client: PoolClient) => {
+    dbLogger.debug('Client removed from pool', {
+        totalCount: pool.totalCount,
+        idleCount: pool.idleCount,
+        waitingCount: pool.waitingCount,
+    });
 });
 
 /**

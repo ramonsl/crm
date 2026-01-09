@@ -5,7 +5,7 @@
  * Reuses existing services: validator, getContactProfilePicture, etc.
  */
 
-import type { WhatsAppValidator, ValidationResult } from './whatsappValidator';
+import type { WhatsAppValidator } from './whatsappValidator';
 import type { IContactRepository, WhatsAppData } from '@/repositories/contactRepository';
 import { syncLogger } from '@/lib/logger';
 

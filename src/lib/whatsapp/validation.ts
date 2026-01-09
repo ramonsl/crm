@@ -11,7 +11,6 @@
 
 import type { WhatsAppStateManager } from './state';
 import { whatsappLogger } from '@/lib/logger';
-import { WHATSAPP_CONFIG } from '../constants';
 
 export class WhatsAppValidator {
     constructor(private state: WhatsAppStateManager) { }

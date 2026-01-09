@@ -5,7 +5,7 @@
  * Uses phoneUtils for shared utilities (DRY principle)
  */
 
-import { removeNonDigits as removeNonDigitsUtil, normalizePhoneNumber } from '@/lib/utils/phoneUtils';
+import { removeNonDigits as removeNonDigitsUtil } from '@/lib/utils/phoneUtils';
 
 export interface PhoneVariation {
     formatted: string;

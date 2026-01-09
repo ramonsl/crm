@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
             const nome = getRowVal(['Nome', 'Candidato']) || '';
             const email = getRowVal(['E-mail', 'Email']) || '';
 
-            let telefoneRaw = row['Celular'] || row['Fone Res.'] || getRowVal(['telefone', 'celular', 'fone']);
+            const telefoneRaw = row['Celular'] || row['Fone Res.'] || getRowVal(['telefone', 'celular', 'fone']);
             let telefone = '';
 
             if (telefoneRaw) {

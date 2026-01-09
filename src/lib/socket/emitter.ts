@@ -26,7 +26,7 @@ socketLogger.debug(`[${MODULE_ID}] Module loaded`);
  * Using globalThis to ensure single instance across different builds (server.ts and app code)
  */
 interface GlobalSocketio {
-    io: SocketServer<ClientToServerEvents, ServerToClientEvents, {}, SocketData> | null;
+    io: SocketServer<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData> | null;
     pendingEvents: Array<{ type: 'message', data: NewMessageEvent }>;
 }
 
@@ -47,7 +47,7 @@ if (!globalThis.__socketio) {
 
 // Local references to global singleton
 const getIo = () => globalThis.__socketio!.io;
-const setIo = (server: SocketServer<ClientToServerEvents, ServerToClientEvents, {}, SocketData> | null) => {
+const setIo = (server: SocketServer<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData> | null) => {
     globalThis.__socketio!.io = server;
 };
 const getPendingEvents = () => globalThis.__socketio!.pendingEvents;
@@ -59,7 +59,7 @@ const setPendingEvents = (events: Array<{ type: 'message', data: NewMessageEvent
  * Initialize the Socket.io server instance
  */
 export function setSocketServer(
-    server: SocketServer<ClientToServerEvents, ServerToClientEvents, {}, SocketData>
+    server: SocketServer<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>
 ): void {
     setIo(server);
     socketLogger.info('========================================');
@@ -85,7 +85,7 @@ export function setSocketServer(
 /**
  * Get the Socket.io server instance
  */
-export function getSocketServer(): SocketServer<ClientToServerEvents, ServerToClientEvents, {}, SocketData> | null {
+export function getSocketServer(): SocketServer<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData> | null {
     return getIo();
 }
 

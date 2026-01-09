@@ -187,7 +187,7 @@ export async function POST(req: Request) {
         // Auto-tag with "Comercial"
         try {
             // Get or create "Comercial" tag
-            let tagResult = await pool.query(
+            const tagResult = await pool.query(
                 `SELECT id FROM tags WHERE name = 'Comercial' AND active = 1`
             );
 

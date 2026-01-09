@@ -74,24 +74,34 @@ export async function POST(req: NextRequest) {
 
                             console.log(`[Sync History] Fetched ${messages.length} messages for ${contact.nome}`);
 
-                            for (const msg of messages) {
+                            // Optimized: Batch insert all messages at once
+                            if (messages.length > 0) {
                                 try {
-                                    // Check if message already exists
-                                    const existing = await pool.query('SELECT id FROM messages WHERE id = $1', [msg.id.id]);
+                                    const values: any[] = [];
+                                    const placeholders: string[] = [];
 
-                                    if (existing.rows.length === 0) {
+                                    messages.forEach((msg, index) => {
                                         const from_me = msg.fromMe;
                                         const timestamp = new Date(msg.timestamp * 1000).toISOString();
+                                        // 5 params per row
+                                        const offset = index * 5;
 
-                                        await pool.query(`
-                                            INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type)
-                                            VALUES ($1, $2, $3, $4, $5, 'text')
-                                            ON CONFLICT (id) DO NOTHING
-                                        `, [msg.id.id, contact.cpf, msg.body, from_me, timestamp]);
-                                        messagesImported++;
-                                    }
-                                } catch (msgError) {
-                                    console.error(`[Sync History] Error inserting message:`, msgError);
+                                        placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, 'text')`);
+                                        values.push(msg.id.id, contact.cpf, msg.body || '', from_me, timestamp);
+                                    });
+
+                                    const query = `
+                                        INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type)
+                                        VALUES ${placeholders.join(', ')}
+                                        ON CONFLICT (id) DO NOTHING
+                                    `;
+
+                                    const batchResult = await pool.query(query, values);
+                                    messagesImported += batchResult.rowCount || 0;
+
+                                    console.log(`[Sync History] Batch inserted ${batchResult.rowCount} new messages for ${contact.nome}`);
+                                } catch (batchError) {
+                                    console.error(`[Sync History] Error in batch insert:`, batchError);
                                 }
                             }
 

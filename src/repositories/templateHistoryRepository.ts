@@ -5,8 +5,8 @@
  * Uses Neon PostgreSQL for data persistence.
  */
 
-import { pool, query, queryOne } from '@/lib/db';
-import { removeNonDigits, getPhoneVariations } from '@/lib/utils/phoneUtils';
+import { pool } from '@/lib/db';
+import { getPhoneVariations } from '@/lib/utils/phoneUtils';
 
 export interface TemplateHistoryEntry {
     id: number;
@@ -55,6 +55,11 @@ export class NeonTemplateHistoryRepository implements ITemplateHistoryRepository
         // Get phone variations for query
         const phoneVariations = getPhoneVariations(phone);
 
+        // Dynamically create placeholders ($1, $2, $3...) for phone variations
+        // The last parameter is 'limit', so it will be $N+1
+        const phonePlaceholders = phoneVariations.map((_, i) => `$${i + 1}`).join(' OR phone = ');
+        const limitPlaceholder = `$${phoneVariations.length + 1}`;
+
         const result = await pool.query(`
             SELECT 
                 id,
@@ -65,12 +70,12 @@ export class NeonTemplateHistoryRepository implements ITemplateHistoryRepository
                 success,
                 error_message
             FROM template_history
-            WHERE phone = $1 OR phone = $2
+            WHERE phone = ${phonePlaceholders}
             ORDER BY sent_at DESC
-            LIMIT $3
+            LIMIT ${limitPlaceholder}
         `, [...phoneVariations, limit]);
 
-        return result.rows.map((row: any) => ({
+        return result.rows.map((row: Omit<TemplateHistoryEntry, 'success'> & { success: boolean | number }) => ({
             id: row.id,
             phone: row.phone,
             template_name: row.template_name,
@@ -87,11 +92,14 @@ export class NeonTemplateHistoryRepository implements ITemplateHistoryRepository
     async updateLastTemplate(phone: string, templateName: string): Promise<void> {
         const phoneVariations = getPhoneVariations(phone);
 
+        // Dynamically create placeholders ($2, $3, $4, etc.)
+        const placeholders = phoneVariations.map((_, i) => `$${i + 2}`).join(' OR telefone = ');
+
         await pool.query(`
             UPDATE leads
             SET last_template_sent = $1,
                 last_template_sent_at = CURRENT_TIMESTAMP
-            WHERE telefone = $2 OR telefone = $3
+            WHERE telefone = ${placeholders}
         `, [templateName, ...phoneVariations]);
     }
 

@@ -78,7 +78,7 @@ export class AutoReplyRepository {
      */
     async update(id: number, data: UpdateAutoReplyInput): Promise<AutoReply | null> {
         const fields: string[] = [];
-        const values: any[] = [];
+        const values: unknown[] = [];
         let paramCount = 1;
 
         if (data.name !== undefined) {

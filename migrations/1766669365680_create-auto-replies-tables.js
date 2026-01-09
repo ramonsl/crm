@@ -1,4 +1,4 @@
-/* eslint-disable camelcase */
+ 
 
 /**
  * Migration: Create auto_replies tables

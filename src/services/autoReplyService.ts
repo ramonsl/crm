@@ -6,7 +6,6 @@
 import { autoReplyRepository } from '@/lib/repositories/AutoReplyRepository';
 import { intentDetectionService } from './intentDetectionService';
 import { autoReplyLogger } from '@/lib/logger';
-import type { AutoReply } from '@/types/autoReply';
 import type { IAutoReplyService, AutoReplyConfig } from './interfaces';
 
 // Re-export types for backwards compatibility
