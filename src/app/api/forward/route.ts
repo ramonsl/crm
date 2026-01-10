@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
 import { ActivityRepository } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
 import { sendMessage, getStatus } from '@/lib/whatsapp';
+import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
+import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 // Initialize services
 const activityRepository = new ActivityRepository();
@@ -100,8 +102,22 @@ ${conversationText}`;
  * POST /api/forward
  * Forward a lead to commercial team via WhatsApp and log in timeline
  */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        // Require authentication
+        const user = await requireAuth(req);
+
+        // Rate limit - 5 requests per minute (OpenAI cost protection)
+        const identifier = getClientIdentifier(req, user);
+        const rateLimitResult = rateLimit(identifier, 5, 60000);
+
+        if (!rateLimitResult.success) {
+            return NextResponse.json(
+                { error: 'Limite de encaminhamentos excedido. Aguarde 1 minuto.' },
+                { status: 429 }
+            );
+        }
+
         const { cpf, comercialPhone, comercialName } = await req.json();
 
         if (!cpf || !comercialPhone) {
@@ -221,6 +237,9 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error('[API /api/forward POST] Error:', error);
         return NextResponse.json(
             { error: 'Internal Server Error' },

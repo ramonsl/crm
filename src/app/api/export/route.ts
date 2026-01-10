@@ -1,5 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
+import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
+import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 /**
  * Export API - Generate CSV for Google Contacts
@@ -9,6 +11,20 @@ import { pool } from '@/lib/db';
  */
 export async function GET(req: NextRequest) {
     try {
+        // Require authentication
+        const user = await requireAuth(req);
+
+        // Rate limit - 3 requests per minute (data exfiltration protection)
+        const identifier = getClientIdentifier(req, user);
+        const rateLimitResult = rateLimit(identifier, 3, 60000);
+
+        if (!rateLimitResult.success) {
+            return NextResponse.json(
+                { error: 'Limite de exportações excedido. Aguarde 1 minuto.' },
+                { status: 429 }
+            );
+        }
+
         const { searchParams } = new URL(req.url);
         const cpfsParam = searchParams.get('cpfs');
 
