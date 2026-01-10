@@ -56,6 +56,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         { href: '/import', label: 'Importar', icon: Upload },
         { href: '/whatsapp', label: 'WhatsApp', icon: MessageSquare, showStatus: true, showYCloudBadge: true },
         { href: '/costs', label: 'Custos', icon: DollarSign },
+        { href: '/usuarios', label: 'Usuários', icon: Users },
         { href: '/settings', label: 'Configurações', icon: Settings },
     ];
 

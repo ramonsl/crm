@@ -205,4 +205,12 @@ export class AuthService implements IAuthService {
             authLogger.error('Cleanup error:', error);
         }
     }
+
+    /**
+     * Change user password
+     */
+    async changePassword(userId: number, newPassword: string): Promise<void> {
+        const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+        await this.userRepo.update(userId, { password_hash: hashedPassword });
+    }
 }

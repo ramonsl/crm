@@ -41,6 +41,7 @@ export interface IAuthService {
     validateSession(sessionId: string): Promise<SessionValidationResult>;
     getUserFromSession(sessionId: string): Promise<Omit<UserRow, 'password_hash'> | null>;
     cleanupExpiredSessions(): Promise<void>;
+    changePassword(userId: number, newPassword: string): Promise<void>;
 }
 
 // ============================================================================
