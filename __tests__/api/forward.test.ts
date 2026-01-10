@@ -16,6 +16,12 @@ jest.mock('@/lib/whatsapp', () => ({
     sendMessage: jest.fn(),
 }));
 
+// Mock Auth
+jest.mock('@/lib/auth/requireAuth', () => ({
+    requireAuth: jest.fn().mockResolvedValue({ id: 1, email: 'test@test.com', role: 'user' }),
+    UnauthorizedError: class UnauthorizedError extends Error { },
+}));
+
 const mockPoolQuery = pool.query as jest.Mock;
 const mockGetStatus = getStatus as jest.Mock;
 const mockSendMessage = sendMessage as jest.Mock;

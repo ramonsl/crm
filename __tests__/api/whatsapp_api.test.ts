@@ -30,6 +30,12 @@ jest.mock('@/lib/db', () => ({
     }
 }));
 
+// Mock Auth
+jest.mock('@/lib/auth/requireAuth', () => ({
+    requireAuth: jest.fn().mockResolvedValue({ id: 1, email: 'test@test.com', role: 'user' }),
+    UnauthorizedError: class UnauthorizedError extends Error { },
+}));
+
 const mockPoolQuery = pool.query as jest.Mock;
 
 describe('WhatsApp API', () => {
