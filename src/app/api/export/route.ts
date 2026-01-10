@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
+import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
 
 /**
  * Export API - Generate CSV for Google Contacts
@@ -9,6 +10,7 @@ import { pool } from '@/lib/db';
  */
 export async function GET(req: NextRequest) {
     try {
+        await requireAuth(req);
         const { searchParams } = new URL(req.url);
         const cpfsParam = searchParams.get('cpfs');
 
@@ -80,6 +82,9 @@ export async function GET(req: NextRequest) {
             },
         });
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error('[API /api/export] Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

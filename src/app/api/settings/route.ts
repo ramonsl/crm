@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
+import { requireAuth, requireRole, UnauthorizedError, ForbiddenError } from '@/lib/auth/requireAuth';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
+        await requireAuth(req);
         const result = await pool.query('SELECT key, value FROM settings');
         const rows = result.rows as { key: string; value: string }[];
 
@@ -23,13 +25,19 @@ export async function GET() {
 
         return NextResponse.json(settings);
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error(error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        // Require admin role for settings modification
+        await requireRole(req, ['admin']);
+
         const body = await req.json();
         const { openaiApiKey, minDelay, maxDelay, comercialPhone, comercialName } = body;
 
@@ -56,6 +64,12 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
+        if (error instanceof ForbiddenError) {
+            return NextResponse.json({ error: error.message }, { status: 403 });
+        }
         console.error(error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

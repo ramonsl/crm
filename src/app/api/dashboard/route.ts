@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
+import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
+        await requireAuth(req);
         // Single optimized query using CTEs to get all dashboard data at once
         // Reduces from 6 queries to 1 query
         const result = await pool.query(`
@@ -132,6 +134,9 @@ export async function GET() {
             templatesSent
         });
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error(error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

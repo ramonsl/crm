@@ -10,6 +10,7 @@ import { pool } from '@/lib/db';
 import { ActivityRepository } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
 import { getErrorMessage } from '@/lib/types';
+import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
 
 // Initialize repository and service
 const activityRepository = new ActivityRepository();
@@ -17,6 +18,7 @@ const activityService = new ActivityService(activityRepository);
 
 export async function GET(req: NextRequest) {
     try {
+        await requireAuth(req);
         const { searchParams } = new URL(req.url);
         const cpf = searchParams.get('cpf');
         const limit = parseInt(searchParams.get('limit') || '100');
@@ -102,6 +104,9 @@ export async function GET(req: NextRequest) {
             cpf,
         });
     } catch (error: unknown) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error('[API /api/activities GET] Error:', error);
         return NextResponse.json(
             { error: getErrorMessage(error) },
@@ -112,6 +117,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
+        await requireAuth(req);
         const body = await req.json();
         const { cpf, note } = body;
 
@@ -137,6 +143,9 @@ export async function POST(req: NextRequest) {
             data: activity,
         });
     } catch (error: unknown) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error('[API /api/activities POST] Error:', error);
         return NextResponse.json(
             { error: getErrorMessage(error) },

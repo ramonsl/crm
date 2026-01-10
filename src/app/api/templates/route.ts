@@ -1,11 +1,16 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
+import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
+        await requireAuth(req);
         const result = await pool.query('SELECT * FROM templates ORDER BY created_at DESC');
         return NextResponse.json(result.rows);
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error(error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
@@ -13,6 +18,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
     try {
+        await requireAuth(req);
         const body = await req.json();
         const { name, message, type = 'fixed' } = body;
 
@@ -27,6 +33,9 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, id: result.rows[0].id });
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error(error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
@@ -34,6 +43,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
     try {
+        await requireAuth(req);
         const body = await req.json();
         const { id, name, message, type = 'fixed' } = body;
 
@@ -52,6 +62,9 @@ export async function PUT(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error(error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
@@ -59,6 +72,7 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
     try {
+        await requireAuth(req);
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
 
@@ -74,6 +88,9 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error(error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

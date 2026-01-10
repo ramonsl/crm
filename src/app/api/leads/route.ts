@@ -5,6 +5,7 @@ import { normalizePhone } from '@/lib/utils';
 import type { LeadFilters, CreateLeadDto, UpdateLeadDto } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
 import { statusMessageService } from '@/services/StatusMessageService';
+import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
 
 // Initialize repositories and services
 const leadRepository = new LeadRepository();
@@ -13,6 +14,9 @@ const activityService = new ActivityService(activityRepository);
 
 export async function GET(req: NextRequest) {
     try {
+        // Require authentication
+        await requireAuth(req);
+
         const { searchParams } = new URL(req.url);
 
         // Build filters from query params
@@ -134,6 +138,9 @@ export async function GET(req: NextRequest) {
             }
         });
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error('[API /api/leads GET] Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
@@ -141,6 +148,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
+        // Require authentication
+        await requireAuth(req);
+
         const body = await req.json();
         const { nome, email, telefone, cpf, status, tipo_ingresso } = body;
 
@@ -165,6 +175,9 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, data: createdLead });
     } catch (error: unknown) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error('[API /api/leads POST] Error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
@@ -177,6 +190,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
     try {
+        // Require authentication
+        await requireAuth(req);
+
         const body = await req.json();
         console.log('[API /api/leads PUT] Received body:', body);
         const { nome, email, telefone, cpf, status, tipo_ingresso, curso_interesse, escola, originalCpf } = body;
@@ -277,6 +293,9 @@ export async function PUT(req: NextRequest) {
         const updatedLead = await leadRepository.findByCpf(targetCpf);
         return NextResponse.json({ success: true, data: updatedLead });
     } catch (error: unknown) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error('[API /api/leads PUT] Error:', error);
         if (error instanceof Error) {
             console.error('[API /api/leads PUT] Error message:', error.message);
@@ -293,6 +312,9 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
     try {
+        // Require authentication
+        await requireAuth(req);
+
         const { searchParams } = new URL(req.url);
         const cpf = searchParams.get('cpf');
         const telefone = searchParams.get('telefone');
@@ -326,6 +348,9 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof UnauthorizedError) {
+            return NextResponse.json({ error: error.message }, { status: 401 });
+        }
         console.error('[API /api/leads DELETE] Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
