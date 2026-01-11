@@ -30,10 +30,10 @@
 
 .selectionInfo {
     padding: 0.5rem 1rem;
-    background: rgba(0, 210, 91, 0.1);
-    border: 1px solid rgba(0, 210, 91, 0.3);
+    background: var(--badge-success-bg);
+    border: 1px solid var(--badge-success-border);
     border-radius: 6px;
-    color: var(--success);
+    color: var(--badge-success-text);
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
@@ -44,8 +44,8 @@
 }
 
 .selectionInfo:hover {
-    background: rgba(0, 210, 91, 0.2);
-    border-color: rgba(0, 210, 91, 0.5);
+    background: var(--badge-success-bg);
+    border-color: var(--badge-success-border);
     transform: translateY(-1px);
 }
 
@@ -158,10 +158,10 @@
 
 .selectedCount {
     padding: 0.5rem 1rem;
-    background: rgba(0, 210, 91, 0.2);
-    border: 1px solid rgba(0, 210, 91, 0.3);
+    background: var(--badge-success-bg);
+    border: 1px solid var(--badge-success-border);
     border-radius: 6px;
-    color: var(--success);
+    color: var(--badge-success-text);
     font-size: 0.9rem;
     font-weight: 500;
 }
@@ -204,11 +204,11 @@
 }
 
 .table tbody tr:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--table-hover-bg);
 }
 
 .table tbody tr.selected {
-    background: rgba(0, 210, 91, 0.1);
+    background: var(--badge-success-bg);
 }
 
 .nameCell {
@@ -248,10 +248,10 @@
 
 .newBadge {
     padding: 0.125rem 0.5rem;
-    background: rgba(0, 144, 231, 0.2);
-    border: 1px solid rgba(0, 144, 231, 0.3);
+    background: var(--badge-primary-bg);
+    border: 1px solid var(--badge-primary-border);
     border-radius: 4px;
-    color: var(--primary);
+    color: var(--badge-primary-text);
     font-size: 0.7rem;
     font-weight: 600;
 }
@@ -306,10 +306,10 @@
 .error button {
     margin-top: 1rem;
     padding: 0.75rem 1.5rem;
-    background: rgba(252, 66, 74, 0.2);
-    border: 1px solid var(--danger);
+    background: var(--badge-danger-bg);
+    border: 1px solid var(--badge-danger-border);
     border-radius: 6px;
-    color: var(--danger);
+    color: var(--badge-danger-text);
     cursor: pointer;
 }
 
@@ -378,9 +378,9 @@
 }
 
 .paginationCenter button:hover:not(:disabled) {
-    background: rgba(0, 144, 231, 0.1);
-    border-color: var(--primary);
-    color: var(--primary);
+    background: var(--badge-primary-bg);
+    border-color: var(--badge-primary-border);
+    color: var(--badge-primary-text);
 }
 
 .paginationCenter button:disabled {
@@ -411,9 +411,9 @@
 }
 
 .pageButton:hover:not(.activePageButton) {
-    background: rgba(0, 144, 231, 0.1);
-    border-color: var(--primary);
-    color: var(--primary);
+    background: var(--badge-primary-bg);
+    border-color: var(--badge-primary-border);
+    color: var(--badge-primary-text);
 }
 
 .activePageButton {

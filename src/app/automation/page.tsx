@@ -65,6 +65,9 @@ export default function AutomationPage() {
     const [queueStatus, setQueueStatus] = useState<QueueAutomationStatus | null>(null);
     const [savingQueue, setSavingQueue] = useState(false);
 
+    // Tab State
+    const [activeTab, setActiveTab] = useState<'status' | 'queue'>('status');
+
     useEffect(() => {
         loadData();
     }, []);
@@ -313,240 +316,272 @@ export default function AutomationPage() {
                 </p>
             </header>
 
-            {/* Info Box */}
-            <div className={styles.section}>
-                <div className={styles.infoBox}>
-                    <p><strong>Como funciona:</strong></p>
-                    <p>1. Selecione um template para cada status</p>
-                    <p>2. Ative a automação com o toggle</p>
-                    <p>3. Quando um lead mudar para esse status, a mensagem será enviada</p>
-                    <p className={styles.warning}>
-                        ⚠️ Cada lead só recebe a mensagem <strong>uma vez</strong> por status
-                    </p>
-                </div>
+
+
+            {/* Tabs */}
+            <div className={styles.tabsContainer}>
+                <button
+                    className={`${styles.tab} ${activeTab === 'status' ? styles.active : ''}`}
+                    onClick={() => setActiveTab('status')}
+                >
+                    <MessageSquare size={18} />
+                    Por Status
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'queue' ? styles.active : ''}`}
+                    onClick={() => setActiveTab('queue')}
+                >
+                    <Timer size={18} />
+                    Fila Vazia
+                </button>
             </div>
 
-            {/* Status Cards */}
-            <div className={styles.section}>
-                <h2 className={styles.sectionTitle}>
-                    <MessageSquare size={18} />
-                    Configurar por Status
-                </h2>
+            {/* Status Automation Tab */}
+            {
+                activeTab === 'status' && (
+                    <>
+                        <div className={styles.section}>
+                            <div className={styles.infoBox}>
+                                <p><strong>Como funciona:</strong></p>
+                                <p>1. Selecione um template para cada status</p>
+                                <p>2. Ative a automação com o toggle</p>
+                                <p>3. Quando um lead mudar para esse status, a mensagem será enviada</p>
+                                <p className={styles.warning}>
+                                    ⚠️ Cada lead só recebe a mensagem <strong>uma vez</strong> por status
+                                </p>
+                            </div>
+                        </div>
 
-                {statuses.length === 0 ? (
-                    <div className={styles.emptyState}>
-                        <MessageSquare size={28} />
-                        <p>Nenhum status cadastrado</p>
-                    </div>
-                ) : (
-                    <div className={styles.statusList}>
-                        {statuses.map((status) => {
-                            const assoc = getAssociation(status.name);
-                            const isActive = assoc?.is_active ?? false;
-                            const isSaving = saving === status.name;
+                        <div className={styles.section}>
+                            <h2 className={styles.sectionTitle}>
+                                <MessageSquare size={18} />
+                                Configurar por Status
+                            </h2>
 
-                            return (
-                                <div key={status.id} className={styles.statusCard}>
-                                    <div className={styles.statusHeader}>
-                                        <span
-                                            className={styles.statusBadge}
+                            {statuses.length === 0 ? (
+                                <div className={styles.emptyState}>
+                                    <MessageSquare size={28} />
+                                    <p>Nenhum status cadastrado</p>
+                                </div>
+                            ) : (
+                                <div className={styles.statusList}>
+                                    {statuses.map((status) => {
+                                        const assoc = getAssociation(status.name);
+                                        const isActive = assoc?.is_active ?? false;
+                                        const isSaving = saving === status.name;
+
+                                        return (
+                                            <div key={status.id} className={styles.statusCard}>
+                                                <div className={styles.statusHeader}>
+                                                    <span
+                                                        className={styles.statusBadge}
+                                                        style={{
+                                                            backgroundColor: `${status.color}20`,
+                                                            color: status.color,
+                                                            border: `1px solid ${status.color}`
+                                                        }}
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                width: 6,
+                                                                height: 6,
+                                                                borderRadius: '50%',
+                                                                backgroundColor: status.color
+                                                            }}
+                                                        />
+                                                        {status.name}
+                                                    </span>
+
+                                                    <button
+                                                        className={`${styles.switch} ${isActive ? styles.active : ''}`}
+                                                        onClick={() => handleToggleActive(status.name, isActive)}
+                                                        disabled={isSaving || !assoc?.template_id}
+                                                        title={!assoc?.template_id ? 'Selecione um template' : isActive ? 'Desativar' : 'Ativar'}
+                                                    />
+                                                </div>
+
+                                                <select
+                                                    className={styles.select}
+                                                    value={assoc?.template_id || ''}
+                                                    onChange={(e) => handleTemplateChange(
+                                                        status.name,
+                                                        e.target.value ? parseInt(e.target.value) : null
+                                                    )}
+                                                    disabled={isSaving}
+                                                >
+                                                    <option value="">Nenhum template (não enviar)</option>
+                                                    {templates.map((template) => (
+                                                        <option key={template.id} value={template.id}>
+                                                            {template.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )
+            }
+
+            {/* Queue Automation Tab */}
+            {
+                activeTab === 'queue' && (
+                    <>
+                        <div className={styles.section}>
+                            <h2 className={styles.sectionTitle}>
+                                <Timer size={18} />
+                                Automação de Fila Vazia
+                            </h2>
+
+                            <div className={styles.infoBox}>
+                                <p><strong>Como funciona:</strong></p>
+                                <p>1. Quando a fila de mensagens esvazia, envia automaticamente para o próximo lead</p>
+                                <p>2. Cada lead recebe apenas <strong>uma mensagem</strong> dessa automação</p>
+                                <p className={styles.warning}>
+                                    ⏰ Funciona apenas entre <strong>{queueConfig.startHour}h e {queueConfig.endHour}h</strong> (horário de Brasília)
+                                </p>
+                            </div>
+
+                            <div className={styles.statusCard} style={{ marginTop: '1rem' }}>
+                                <div className={styles.statusHeader}>
+                                    <span className={styles.statusBadge} style={{
+                                        backgroundColor: queueConfig.isActive ? 'var(--badge-success-bg)' : 'var(--bg-body)',
+                                        color: queueConfig.isActive ? 'var(--badge-success-text)' : 'var(--text-muted)',
+                                        border: `1px solid ${queueConfig.isActive ? 'var(--badge-success-border)' : 'var(--border-color)'}`
+                                    }}>
+                                        <Timer size={14} />
+                                        Fila Vazia
+                                        {queueStatus?.isRunning && (
+                                            <span style={{
+                                                marginLeft: '0.5rem',
+                                                fontSize: '0.65rem',
+                                                backgroundColor: 'var(--badge-success-bg)',
+                                                color: 'var(--badge-success-text)',
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                border: '1px solid var(--badge-success-border)'
+                                            }}>
+                                                ENVIANDO
+                                            </span>
+                                        )}
+                                    </span>
+
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        {/* Play/Pause Button */}
+                                        <button
+                                            onClick={handlePlayPause}
+                                            disabled={savingQueue || !queueConfig.isActive}
+                                            title={queueStatus?.isRunning ? 'Pausar envios' : 'Iniciar envios'}
                                             style={{
-                                                backgroundColor: `${status.color}20`,
-                                                color: status.color,
-                                                border: `1px solid ${status.color}`
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '50%',
+                                                border: 'none',
+                                                cursor: queueConfig.isActive ? 'pointer' : 'not-allowed',
+                                                backgroundColor: queueStatus?.isRunning
+                                                    ? 'var(--warning)'
+                                                    : queueConfig.isActive
+                                                        ? 'var(--success)'
+                                                        : 'var(--border-color)',
+                                                color: 'white',
+                                                opacity: savingQueue ? 0.6 : 1,
+                                                transition: 'all 0.2s'
                                             }}
                                         >
-                                            <span
-                                                style={{
-                                                    width: 6,
-                                                    height: 6,
-                                                    borderRadius: '50%',
-                                                    backgroundColor: status.color
-                                                }}
-                                            />
-                                            {status.name}
-                                        </span>
+                                            {queueStatus?.isRunning ? <Pause size={16} /> : <Play size={16} />}
+                                        </button>
 
+                                        {/* Toggle Switch */}
                                         <button
-                                            className={`${styles.switch} ${isActive ? styles.active : ''}`}
-                                            onClick={() => handleToggleActive(status.name, isActive)}
-                                            disabled={isSaving || !assoc?.template_id}
-                                            title={!assoc?.template_id ? 'Selecione um template' : isActive ? 'Desativar' : 'Ativar'}
+                                            className={`${styles.switch} ${queueConfig.isActive ? styles.active : ''}`}
+                                            onClick={handleQueueToggle}
+                                            disabled={savingQueue || !queueConfig.templateId}
+                                            title={!queueConfig.templateId ? 'Selecione um template' : queueConfig.isActive ? 'Desativar' : 'Ativar'}
                                         />
                                     </div>
-
-                                    <select
-                                        className={styles.select}
-                                        value={assoc?.template_id || ''}
-                                        onChange={(e) => handleTemplateChange(
-                                            status.name,
-                                            e.target.value ? parseInt(e.target.value) : null
-                                        )}
-                                        disabled={isSaving}
-                                    >
-                                        <option value="">Nenhum template (não enviar)</option>
-                                        {templates.map((template) => (
-                                            <option key={template.id} value={template.id}>
-                                                {template.name}
-                                            </option>
-                                        ))}
-                                    </select>
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
 
-            {/* Queue Automation Section */}
-            <div className={styles.section}>
-                <h2 className={styles.sectionTitle}>
-                    <Timer size={18} />
-                    Automação de Fila Vazia
-                </h2>
+                                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
+                                            Status do Lead
+                                        </label>
+                                        <select
+                                            className={styles.select}
+                                            value={queueConfig.targetStatus || ''}
+                                            onChange={(e) => handleQueueStatusChange(
+                                                e.target.value || null
+                                            )}
+                                            disabled={savingQueue}
+                                        >
+                                            <option value="">Todos os status</option>
+                                            {statuses.map((status) => (
+                                                <option key={status.id} value={status.name}>
+                                                    {status.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
 
-                <div className={styles.infoBox}>
-                    <p><strong>Como funciona:</strong></p>
-                    <p>1. Quando a fila de mensagens esvazia, envia automaticamente para o próximo lead</p>
-                    <p>2. Cada lead recebe apenas <strong>uma mensagem</strong> dessa automação</p>
-                    <p className={styles.warning}>
-                        ⏰ Funciona apenas entre <strong>{queueConfig.startHour}h e {queueConfig.endHour}h</strong> (horário de Brasília)
-                    </p>
-                </div>
+                                    <div style={{ flex: 2 }}>
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
+                                            Template
+                                        </label>
+                                        <select
+                                            className={styles.select}
+                                            value={queueConfig.templateId || ''}
+                                            onChange={(e) => handleQueueTemplateChange(
+                                                e.target.value ? parseInt(e.target.value) : null
+                                            )}
+                                            disabled={savingQueue}
+                                        >
+                                            <option value="">Selecione um template</option>
+                                            {templates.map((template) => (
+                                                <option key={template.id} value={template.id}>
+                                                    {template.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
 
-                <div className={styles.statusCard} style={{ marginTop: '1rem' }}>
-                    <div className={styles.statusHeader}>
-                        <span className={styles.statusBadge} style={{
-                            backgroundColor: queueConfig.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(107, 114, 128, 0.1)',
-                            color: queueConfig.isActive ? 'var(--success)' : 'var(--text-muted)',
-                            border: `1px solid ${queueConfig.isActive ? 'var(--success)' : 'var(--border-color)'}`
-                        }}>
-                            <Timer size={14} />
-                            Fila Vazia
-                            {queueStatus?.isRunning && (
-                                <span style={{
-                                    marginLeft: '0.5rem',
-                                    fontSize: '0.65rem',
-                                    backgroundColor: 'var(--success)',
-                                    color: 'white',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px'
-                                }}>
-                                    ENVIANDO
-                                </span>
-                            )}
-                        </span>
-
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            {/* Play/Pause Button */}
-                            <button
-                                onClick={handlePlayPause}
-                                disabled={savingQueue || !queueConfig.isActive}
-                                title={queueStatus?.isRunning ? 'Pausar envios' : 'Iniciar envios'}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: '36px',
-                                    height: '36px',
-                                    borderRadius: '50%',
-                                    border: 'none',
-                                    cursor: queueConfig.isActive ? 'pointer' : 'not-allowed',
-                                    backgroundColor: queueStatus?.isRunning
-                                        ? 'var(--warning)'
-                                        : queueConfig.isActive
-                                            ? 'var(--success)'
-                                            : 'var(--border-color)',
-                                    color: 'white',
-                                    opacity: savingQueue ? 0.6 : 1,
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                {queueStatus?.isRunning ? <Pause size={16} /> : <Play size={16} />}
-                            </button>
-
-                            {/* Toggle Switch */}
-                            <button
-                                className={`${styles.switch} ${queueConfig.isActive ? styles.active : ''}`}
-                                onClick={handleQueueToggle}
-                                disabled={savingQueue || !queueConfig.templateId}
-                                title={!queueConfig.templateId ? 'Selecione um template' : queueConfig.isActive ? 'Desativar' : 'Ativar'}
-                            />
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                        <div style={{ flex: 1 }}>
-                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
-                                Status do Lead
-                            </label>
-                            <select
-                                className={styles.select}
-                                value={queueConfig.targetStatus || ''}
-                                onChange={(e) => handleQueueStatusChange(
-                                    e.target.value || null
-                                )}
-                                disabled={savingQueue}
-                            >
-                                <option value="">Todos os status</option>
-                                {statuses.map((status) => (
-                                    <option key={status.id} value={status.name}>
-                                        {status.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div style={{ flex: 2 }}>
-                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>
-                                Template
-                            </label>
-                            <select
-                                className={styles.select}
-                                value={queueConfig.templateId || ''}
-                                onChange={(e) => handleQueueTemplateChange(
-                                    e.target.value ? parseInt(e.target.value) : null
-                                )}
-                                disabled={savingQueue}
-                            >
-                                <option value="">Selecione um template</option>
-                                {templates.map((template) => (
-                                    <option key={template.id} value={template.id}>
-                                        {template.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Status Info */}
-                    {queueStatus && (
-                        <div style={{
-                            display: 'flex',
-                            gap: '1rem',
-                            fontSize: '0.75rem',
-                            color: 'var(--text-muted)',
-                            borderTop: '1px solid var(--border-color)',
-                            paddingTop: '0.75rem',
-                            marginTop: '0.5rem'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                <Clock size={12} />
-                                <span>Hora Brasília: {queueStatus.currentHourBrazil}h</span>
-                                {queueStatus.isWithinOperatingHours ? (
-                                    <span style={{ color: 'var(--success)' }}>(ativo)</span>
-                                ) : (
-                                    <span style={{ color: 'var(--text-muted)' }}>(fora do horário)</span>
+                                {/* Status Info */}
+                                {queueStatus && (
+                                    <div style={{
+                                        display: 'flex',
+                                        gap: '1rem',
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-muted)',
+                                        borderTop: '1px solid var(--border-color)',
+                                        paddingTop: '0.75rem',
+                                        marginTop: '0.5rem'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            <Clock size={12} />
+                                            <span>Hora Brasília: {queueStatus.currentHourBrazil}h</span>
+                                            {queueStatus.isWithinOperatingHours ? (
+                                                <span style={{ color: 'var(--success)' }}>(ativo)</span>
+                                            ) : (
+                                                <span style={{ color: 'var(--text-muted)' }}>(fora do horário)</span>
+                                            )}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            <Users size={12} />
+                                            <span>Enviadas: {queueStatus.totalSent}</span>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                <Users size={12} />
-                                <span>Enviadas: {queueStatus.totalSent}</span>
-                            </div>
                         </div>
-                    )}
-                </div>
-            </div>
-        </div>
+                    </>
+                )
+            }
+        </div >
     );
 }

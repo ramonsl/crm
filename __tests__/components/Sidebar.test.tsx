@@ -24,7 +24,7 @@ describe('Sidebar', () => {
 
         expect(screen.getByText('Dashboard')).toBeInTheDocument();
         expect(screen.getByText('Inscritos')).toBeInTheDocument();
-        expect(screen.getByText('Kanban')).toBeInTheDocument();
+        expect(screen.getByText('Inscritos')).toBeInTheDocument();
     });
 
     it('should highlight active link', async () => {

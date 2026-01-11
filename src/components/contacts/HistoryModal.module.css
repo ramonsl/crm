@@ -4,7 +4,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--modal-overlay-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -99,13 +99,14 @@
 }
 
 .message.sent {
-    background: rgba(59, 130, 246, 0.1);
-    border-color: rgba(59, 130, 246, 0.3);
+    background: var(--badge-primary-bg);
+    border-color: var(--badge-primary-border);
     margin-left: 2rem;
 }
 
 .message.received {
     background: rgba(33, 150, 243, 0.1);
+    /* Could be contact-blue token if defined as bg */
     border-color: rgba(33, 150, 243, 0.3);
     margin-right: 2rem;
 }
@@ -171,7 +172,7 @@
 }
 
 .message.received .direction {
-    color: #2196F3;
+    color: var(--color-contact-blue);
 }
 
 .messageContent {

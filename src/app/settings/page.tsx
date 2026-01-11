@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
-import { Trash2, AlertTriangle, RefreshCw, Image, MessageSquare, Plus, Palette, GripVertical, Save, X, Users, Phone } from 'lucide-react';
+import { Trash2, AlertTriangle, RefreshCw, Image, MessageSquare, Plus, Palette, GripVertical, Save, X, Users, Phone, Sliders, Plug, Database } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { YCloudSettings } from '@/components/settings/YCloudSettings';
 
 export default function SettingsPage() {
     const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
+    const [activeTab, setActiveTab] = useState<'general' | 'status' | 'integrations' | 'data'>('general');
     const [deleting, setDeleting] = useState(false);
     const [apiKey, setApiKey] = useState('');
     const [savingKey, setSavingKey] = useState(false);
@@ -375,411 +376,458 @@ export default function SettingsPage() {
                 <p className={styles.subtitle}>Gerencie as preferências do sistema</p>
             </header>
 
+            <div className={styles.tabsContainer}>
+                <button
+                    className={`${styles.tab} ${activeTab === 'general' ? styles.active : ''}`}
+                    onClick={() => setActiveTab('general')}
+                >
+                    <Sliders size={18} />
+                    Geral
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'status' ? styles.active : ''}`}
+                    onClick={() => setActiveTab('status')}
+                >
+                    <Palette size={18} />
+                    Status
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'integrations' ? styles.active : ''}`}
+                    onClick={() => setActiveTab('integrations')}
+                >
+                    <Plug size={18} />
+                    Integrações
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'data' ? styles.active : ''}`}
+                    onClick={() => setActiveTab('data')}
+                >
+                    <Database size={18} />
+                    Dados
+                </button>
+            </div>
+
             <div className={styles.grid}>
-                {/* System Preferences Group */}
-                <div className={styles.section}>
-                    <h2 className={styles.sectionTitle}>Preferências do Sistema</h2>
-                    <p className={styles.description}>
-                        Configurações gerais de comportamento do sistema.
-                    </p>
-
-                    <div style={{ marginBottom: '2rem' }}>
-                        <label className={styles.label}>Meta de Matrículas</label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="number"
-                                value={metaMatriculas}
-                                onChange={(e) => setMetaMatriculas(Number(e.target.value))}
-                                className={styles.input}
-                            />
-                            <button
-                                onClick={handleSaveMeta}
-                                disabled={savingMeta}
-                                className={styles.button}
-                            >
-                                {savingMeta ? 'Salvando...' : 'Salvar'}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className={styles.label}>Intervalo de Envio (segundos)</label>
-                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                            <div style={{ flex: 1 }}>
-                                <label className={styles.label} style={{ fontSize: '0.75rem' }}>Mínimo</label>
-                                <input
-                                    type="number"
-                                    value={minDelay}
-                                    onChange={(e) => setMinDelay(Number(e.target.value))}
-                                    className={styles.input}
-                                />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label className={styles.label} style={{ fontSize: '0.75rem' }}>Máximo</label>
-                                <input
-                                    type="number"
-                                    value={maxDelay}
-                                    onChange={(e) => setMaxDelay(Number(e.target.value))}
-                                    className={styles.input}
-                                />
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleSaveDelays}
-                            disabled={savingDelays}
-                            className={styles.button}
-                            style={{ width: '100%' }}
-                        >
-                            {savingDelays ? 'Salvar Intervalos' : 'Salvar Intervalos'}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Commercial Team */}
-                <div className={styles.section}>
-                    <h2 className={styles.sectionTitle}>
-                        <Phone size={20} />
-                        Equipe Comercial
-                    </h2>
-                    <p className={styles.description}>
-                        Configure o contato do comercial para encaminhamento de leads.
-                    </p>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div>
-                            <label className={styles.label}>Nome do Comercial</label>
-                            <input
-                                type="text"
-                                placeholder="Ex: João - Comercial"
-                                value={comercialName}
-                                onChange={(e) => setComercialName(e.target.value)}
-                                className={styles.input}
-                            />
-                        </div>
-                        <div>
-                            <label className={styles.label}>Telefone (WhatsApp)</label>
-                            <input
-                                type="text"
-                                placeholder="Ex: 5511999999999"
-                                value={comercialPhone}
-                                onChange={(e) => setComercialPhone(e.target.value)}
-                                className={styles.input}
-                            />
-                        </div>
-                        <button
-                            onClick={handleSaveComercial}
-                            disabled={savingComercial}
-                            className={styles.button}
-                        >
-                            {savingComercial ? 'Salvando...' : 'Salvar Comercial'}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Status Management */}
-                <div className={styles.section}>
-                    <h2 className={styles.sectionTitle}>
-                        <Palette size={20} />
-                        Gerenciar Status
-                    </h2>
-                    <p className={styles.description}>
-                        Configure os status disponíveis e suas cores.
-                    </p>
-
-                    {/* Add New Status */}
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                        <input
-                            type="text"
-                            placeholder="Nome do novo status"
-                            value={newStatusName}
-                            onChange={(e) => setNewStatusName(e.target.value)}
-                            className={styles.input}
-                            style={{ flex: 1 }}
-                        />
-                        <input
-                            type="color"
-                            value={newStatusColor}
-                            onChange={(e) => setNewStatusColor(e.target.value)}
-                            style={{ width: '50px', height: '40px', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-                        />
-                        <button
-                            onClick={handleAddStatus}
-                            className={styles.button}
-                            style={{ gap: '0.25rem' }}
-                        >
-                            <Plus size={16} />
-                            Adicionar
-                        </button>
-                    </div>
-
-                    {/* Status List */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {loadingStatuses ? (
-                            <p style={{ color: 'var(--text-muted)' }}>Carregando...</p>
-                        ) : statuses.length === 0 ? (
-                            <p style={{ color: 'var(--text-muted)' }}>Nenhum status cadastrado</p>
-                        ) : (
-                            statuses.map((status) => (
-                                <div
-                                    key={status.id}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        padding: '0.75rem',
-                                        background: 'var(--bg-body)',
-                                        borderRadius: '8px',
-                                        border: '1px solid var(--border-color)'
-                                    }}
-                                >
-                                    <GripVertical size={16} style={{ color: 'var(--text-muted)', cursor: 'grab' }} />
-
-                                    {editingStatus?.id === status.id ? (
-                                        <>
-                                            <input
-                                                type="text"
-                                                value={editingStatus.name}
-                                                onChange={(e) => setEditingStatus({ ...editingStatus, name: e.target.value })}
-                                                className={styles.input}
-                                                style={{ flex: 1 }}
-                                            />
-                                            <input
-                                                type="color"
-                                                value={editingStatus.color}
-                                                onChange={(e) => setEditingStatus({ ...editingStatus, color: e.target.value })}
-                                                style={{ width: '40px', height: '32px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                                            />
-                                            <button
-                                                onClick={() => handleUpdateStatus(editingStatus)}
-                                                style={{ background: 'var(--success)', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}
-                                            >
-                                                <Save size={16} style={{ color: 'white' }} />
-                                            </button>
-                                            <button
-                                                onClick={() => setEditingStatus(null)}
-                                                style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}
-                                            >
-                                                <X size={16} style={{ color: 'var(--text-muted)' }} />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span
-                                                style={{
-                                                    width: '24px',
-                                                    height: '24px',
-                                                    borderRadius: '50%',
-                                                    backgroundColor: status.color,
-                                                    flexShrink: 0
-                                                }}
-                                            />
-                                            <span style={{ flex: 1, color: 'var(--text-main)' }}>{status.name}</span>
-                                            <button
-                                                onClick={() => setEditingStatus(status)}
-                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
-                                                title="Editar"
-                                            >
-                                                <Palette size={16} style={{ color: 'var(--text-muted)' }} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteStatus(status.id)}
-                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
-                                                title="Remover"
-                                            >
-                                                <Trash2 size={16} style={{ color: 'var(--danger)' }} />
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-
-                {/* Integrations Group */}
-                <div className={styles.section}>
-                    <h2 className={styles.sectionTitle}>Integrações</h2>
-                    <p className={styles.description}>
-                        Conexões com serviços externos.
-                    </p>
-
-                    <div style={{ marginBottom: '2rem' }}>
-                        <label className={styles.label}>OpenAI API Key</label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="password"
-                                placeholder="sk-..."
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                                className={styles.input}
-                            />
-                            <button
-                                onClick={handleSaveKey}
-                                disabled={savingKey}
-                                className={styles.button}
-                            >
-                                {savingKey ? 'Salvando...' : 'Salvar'}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className={styles.label}>WhatsApp</label>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <button
-                                onClick={handleSyncProfilePics}
-                                disabled={syncingPics}
-                                className={styles.button}
-                                style={{ justifyContent: 'flex-start', backgroundColor: syncingPics ? 'var(--bg-surface)' : 'var(--bg-body)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}
-                            >
-                                {syncingPics ? <RefreshCw size={16} className={styles.spin} /> : <Image size={16} />}
-                                {syncingPics ? 'Sincronizando...' : 'Sincronizar Fotos de Perfil'}
-                            </button>
-
-                            {picsResults && (
-                                <div style={{ fontSize: '0.875rem', padding: '0.5rem', background: 'var(--bg-body)', borderRadius: '4px' }}>
-                                    {picsResults.error ? (
-                                        <span style={{ color: 'var(--danger)' }}>Erro: {picsResults.error}</span>
-                                    ) : (
-                                        <span style={{ color: 'var(--success)' }}>✓ {picsResults.successCount} fotos atualizadas</span>
-                                    )}
-                                </div>
-                            )}
-
-                            <button
-                                onClick={handleSyncHistory}
-                                disabled={syncingHistory}
-                                className={styles.button}
-                                style={{ justifyContent: 'flex-start', backgroundColor: syncingHistory ? 'var(--bg-surface)' : 'var(--bg-body)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}
-                            >
-                                {syncingHistory ? <RefreshCw size={16} className={styles.spin} /> : <MessageSquare size={16} />}
-                                {syncingHistory ? 'Sincronizando...' : 'Sincronizar Histórico'}
-                            </button>
-
-                            {historyResults && (
-                                <div style={{ fontSize: '0.875rem', padding: '0.5rem', background: 'var(--bg-body)', borderRadius: '4px' }}>
-                                    {historyResults.error ? (
-                                        <span style={{ color: 'var(--danger)' }}>Erro: {historyResults.error}</span>
-                                    ) : (
-                                        <span style={{ color: 'var(--success)' }}>✓ {historyResults.messagesImported} mensagens importadas</span>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* YCloud WhatsApp Provider */}
-                <YCloudSettings styles={styles} />
-
-                {/* Duplicate Management */}
-                <div className={styles.section}>
-                    <h2 className={styles.sectionTitle}>
-                        <Users size={20} />
-                        Gerenciar Duplicatas
-                    </h2>
-                    <p className={styles.description}>
-                        Encontre e mescle registros com o mesmo telefone.
-                    </p>
-
-                    <button
-                        onClick={fetchDuplicates}
-                        disabled={loadingDuplicates}
-                        className={styles.button}
-                        style={{ marginBottom: '1rem' }}
-                    >
-                        {loadingDuplicates ? <RefreshCw size={16} className={styles.spin} /> : <Users size={16} />}
-                        {loadingDuplicates ? 'Buscando...' : 'Buscar Duplicatas'}
-                    </button>
-
-                    {duplicates.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <p style={{ color: 'var(--warning)', fontSize: '0.875rem' }}>
-                                ⚠️ Encontrados {duplicates.length} grupos de duplicatas
+                {/* General Tab */}
+                {activeTab === 'general' && (
+                    <>
+                        {/* System Preferences Group */}
+                        <div className={styles.section}>
+                            <h2 className={styles.sectionTitle}>Preferências do Sistema</h2>
+                            <p className={styles.description}>
+                                Configurações gerais de comportamento do sistema.
                             </p>
-                            {duplicates.slice(0, 10).map((group) => (
-                                <div
-                                    key={group.telefone}
-                                    style={{
-                                        padding: '0.75rem',
-                                        background: 'var(--bg-body)',
-                                        borderRadius: '8px',
-                                        border: '1px solid var(--border-color)'
-                                    }}
+
+                            <div style={{ marginBottom: '2rem' }}>
+                                <label className={styles.label}>Meta de Matrículas</label>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <input
+                                        type="number"
+                                        value={metaMatriculas}
+                                        onChange={(e) => setMetaMatriculas(Number(e.target.value))}
+                                        className={styles.input}
+                                    />
+                                    <button
+                                        onClick={handleSaveMeta}
+                                        disabled={savingMeta}
+                                        className={styles.button}
+                                    >
+                                        {savingMeta ? 'Salvando...' : 'Salvar'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className={styles.label}>Intervalo de Envio (segundos)</label>
+                                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <label className={styles.label} style={{ fontSize: '0.75rem' }}>Mínimo</label>
+                                        <input
+                                            type="number"
+                                            value={minDelay}
+                                            onChange={(e) => setMinDelay(Number(e.target.value))}
+                                            className={styles.input}
+                                        />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <label className={styles.label} style={{ fontSize: '0.75rem' }}>Máximo</label>
+                                        <input
+                                            type="number"
+                                            value={maxDelay}
+                                            onChange={(e) => setMaxDelay(Number(e.target.value))}
+                                            className={styles.input}
+                                        />
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleSaveDelays}
+                                    disabled={savingDelays}
+                                    className={styles.button}
+                                    style={{ width: '100%' }}
                                 >
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                                            📱 {group.telefone}
-                                        </span>
-                                        <button
-                                            onClick={() => handleMergeDuplicates(group)}
-                                            disabled={mergingDuplicates}
+                                    {savingDelays ? 'Salvar Intervalos' : 'Salvar Intervalos'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Commercial Team */}
+                        <div className={styles.section}>
+                            <h2 className={styles.sectionTitle}>
+                                <Phone size={20} />
+                                Equipe Comercial
+                            </h2>
+                            <p className={styles.description}>
+                                Configure o contato do comercial para encaminhamento de leads.
+                            </p>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div>
+                                    <label className={styles.label}>Nome do Comercial</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ex: João - Comercial"
+                                        value={comercialName}
+                                        onChange={(e) => setComercialName(e.target.value)}
+                                        className={styles.input}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={styles.label}>Telefone (WhatsApp)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ex: 5511999999999"
+                                        value={comercialPhone}
+                                        onChange={(e) => setComercialPhone(e.target.value)}
+                                        className={styles.input}
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleSaveComercial}
+                                    disabled={savingComercial}
+                                    className={styles.button}
+                                >
+                                    {savingComercial ? 'Salvando...' : 'Salvar Comercial'}
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* Status Tab */}
+                {activeTab === 'status' && (
+                    <div className={styles.section}>
+                        <h2 className={styles.sectionTitle}>
+                            <Palette size={20} />
+                            Gerenciar Status
+                        </h2>
+                        <p className={styles.description}>
+                            Configure os status disponíveis e suas cores.
+                        </p>
+
+                        {/* Add New Status */}
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                            <input
+                                type="text"
+                                placeholder="Nome do novo status"
+                                value={newStatusName}
+                                onChange={(e) => setNewStatusName(e.target.value)}
+                                className={styles.input}
+                                style={{ flex: 1 }}
+                            />
+                            <input
+                                type="color"
+                                value={newStatusColor}
+                                onChange={(e) => setNewStatusColor(e.target.value)}
+                                style={{ width: '50px', height: '40px', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                            />
+                            <button
+                                onClick={handleAddStatus}
+                                className={styles.button}
+                                style={{ gap: '0.25rem' }}
+                            >
+                                <Plus size={16} />
+                                Adicionar
+                            </button>
+                        </div>
+
+                        {/* Status List */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {loadingStatuses ? (
+                                <p style={{ color: 'var(--text-muted)' }}>Carregando...</p>
+                            ) : statuses.length === 0 ? (
+                                <p style={{ color: 'var(--text-muted)' }}>Nenhum status cadastrado</p>
+                            ) : (
+                                statuses.map((status) => (
+                                    <div
+                                        key={status.id}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            padding: '0.75rem',
+                                            background: 'var(--bg-body)',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--border-color)'
+                                        }}
+                                    >
+                                        <GripVertical size={16} style={{ color: 'var(--text-muted)', cursor: 'grab' }} />
+
+                                        {editingStatus?.id === status.id ? (
+                                            <>
+                                                <input
+                                                    type="text"
+                                                    value={editingStatus.name}
+                                                    onChange={(e) => setEditingStatus({ ...editingStatus, name: e.target.value })}
+                                                    className={styles.input}
+                                                    style={{ flex: 1 }}
+                                                />
+                                                <input
+                                                    type="color"
+                                                    value={editingStatus.color}
+                                                    onChange={(e) => setEditingStatus({ ...editingStatus, color: e.target.value })}
+                                                    style={{ width: '40px', height: '32px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                                />
+                                                <button
+                                                    onClick={() => handleUpdateStatus(editingStatus)}
+                                                    style={{ background: 'var(--success)', border: 'none', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}
+                                                >
+                                                    <Save size={16} style={{ color: 'white' }} />
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingStatus(null)}
+                                                    style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.5rem', cursor: 'pointer' }}
+                                                >
+                                                    <X size={16} style={{ color: 'var(--text-muted)' }} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span
+                                                    style={{
+                                                        width: '24px',
+                                                        height: '24px',
+                                                        borderRadius: '50%',
+                                                        backgroundColor: status.color,
+                                                        flexShrink: 0
+                                                    }}
+                                                />
+                                                <span style={{ flex: 1, color: 'var(--text-main)' }}>{status.name}</span>
+                                                <button
+                                                    onClick={() => setEditingStatus(status)}
+                                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
+                                                    title="Editar"
+                                                >
+                                                    <Palette size={16} style={{ color: 'var(--text-muted)' }} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteStatus(status.id)}
+                                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
+                                                    title="Remover"
+                                                >
+                                                    <Trash2 size={16} style={{ color: 'var(--danger)' }} />
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Integrations Tab */}
+                {activeTab === 'integrations' && (
+                    <>
+                        <div className={styles.section}>
+                            <h2 className={styles.sectionTitle}>Integrações</h2>
+                            <p className={styles.description}>
+                                Conexões com serviços externos.
+                            </p>
+
+                            <div style={{ marginBottom: '2rem' }}>
+                                <label className={styles.label}>OpenAI API Key</label>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <input
+                                        type="password"
+                                        placeholder="sk-..."
+                                        value={apiKey}
+                                        onChange={(e) => setApiKey(e.target.value)}
+                                        className={styles.input}
+                                    />
+                                    <button
+                                        onClick={handleSaveKey}
+                                        disabled={savingKey}
+                                        className={styles.button}
+                                    >
+                                        {savingKey ? 'Salvando...' : 'Salvar'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className={styles.label}>WhatsApp</label>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    <button
+                                        onClick={handleSyncProfilePics}
+                                        disabled={syncingPics}
+                                        className={styles.button}
+                                        style={{ justifyContent: 'flex-start', backgroundColor: syncingPics ? 'var(--bg-surface)' : 'var(--bg-body)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}
+                                    >
+                                        {syncingPics ? <RefreshCw size={16} className={styles.spin} /> : <Image size={16} />}
+                                        {syncingPics ? 'Sincronizando...' : 'Sincronizar Fotos de Perfil'}
+                                    </button>
+
+                                    {picsResults && (
+                                        <div style={{ fontSize: '0.875rem', padding: '0.5rem', background: 'var(--bg-body)', borderRadius: '4px' }}>
+                                            {picsResults.error ? (
+                                                <span style={{ color: 'var(--danger)' }}>Erro: {picsResults.error}</span>
+                                            ) : (
+                                                <span style={{ color: 'var(--success)' }}>✓ {picsResults.successCount} fotos atualizadas</span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={handleSyncHistory}
+                                        disabled={syncingHistory}
+                                        className={styles.button}
+                                        style={{ justifyContent: 'flex-start', backgroundColor: syncingHistory ? 'var(--bg-surface)' : 'var(--bg-body)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}
+                                    >
+                                        {syncingHistory ? <RefreshCw size={16} className={styles.spin} /> : <MessageSquare size={16} />}
+                                        {syncingHistory ? 'Sincronizando...' : 'Sincronizar Histórico'}
+                                    </button>
+
+                                    {historyResults && (
+                                        <div style={{ fontSize: '0.875rem', padding: '0.5rem', background: 'var(--bg-body)', borderRadius: '4px' }}>
+                                            {historyResults.error ? (
+                                                <span style={{ color: 'var(--danger)' }}>Erro: {historyResults.error}</span>
+                                            ) : (
+                                                <span style={{ color: 'var(--success)' }}>✓ {historyResults.messagesImported} mensagens importadas</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* YCloud WhatsApp Provider */}
+                        <YCloudSettings styles={styles} />
+                    </>
+                )}
+
+                {/* Data Tab */}
+                {activeTab === 'data' && (
+                    <>
+                        {/* Duplicate Management */}
+                        <div className={styles.section}>
+                            <h2 className={styles.sectionTitle}>
+                                <Users size={20} />
+                                Gerenciar Duplicatas
+                            </h2>
+                            <p className={styles.description}>
+                                Encontre e mescle registros com o mesmo telefone.
+                            </p>
+
+                            <button
+                                onClick={fetchDuplicates}
+                                disabled={loadingDuplicates}
+                                className={styles.button}
+                                style={{ marginBottom: '1rem' }}
+                            >
+                                {loadingDuplicates ? <RefreshCw size={16} className={styles.spin} /> : <Users size={16} />}
+                                {loadingDuplicates ? 'Buscando...' : 'Buscar Duplicatas'}
+                            </button>
+
+                            {duplicates.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <p style={{ color: 'var(--warning)', fontSize: '0.875rem' }}>
+                                        ⚠️ Encontrados {duplicates.length} grupos de duplicatas
+                                    </p>
+                                    {duplicates.slice(0, 10).map((group) => (
+                                        <div
+                                            key={group.telefone}
                                             style={{
-                                                background: 'var(--primary)',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '4px',
-                                                padding: '0.25rem 0.5rem',
-                                                fontSize: '0.75rem',
-                                                cursor: 'pointer'
+                                                padding: '0.75rem',
+                                                background: 'var(--bg-body)',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--border-color)'
                                             }}
                                         >
-                                            {mergingDuplicates ? 'Mesclando...' : 'Mesclar'}
-                                        </button>
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                        {group.registros.map((reg, idx) => (
-                                            <div
-                                                key={reg.cpf}
-                                                style={{
-                                                    fontSize: '0.75rem',
-                                                    color: idx === 0 ? 'var(--success)' : 'var(--text-muted)',
-                                                    display: 'flex',
-                                                    gap: '0.5rem'
-                                                }}
-                                            >
-                                                <span>{idx === 0 ? '✓' : '○'}</span>
-                                                <span>{reg.nome || 'Sem nome'}</span>
-                                                <span>({reg.status})</span>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                                                    📱 {group.telefone}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleMergeDuplicates(group)}
+                                                    disabled={mergingDuplicates}
+                                                    style={{
+                                                        background: 'var(--primary)',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        padding: '0.25rem 0.5rem',
+                                                        fontSize: '0.75rem',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    {mergingDuplicates ? 'Mesclando...' : 'Mesclar'}
+                                                </button>
                                             </div>
-                                        ))}
-                                    </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                {group.registros.map((reg, idx) => (
+                                                    <div
+                                                        key={reg.cpf}
+                                                        style={{
+                                                            fontSize: '0.75rem',
+                                                            color: idx === 0 ? 'var(--success)' : 'var(--text-muted)',
+                                                            display: 'flex',
+                                                            gap: '0.5rem'
+                                                        }}
+                                                    >
+                                                        <span>{idx === 0 ? '✓' : '○'}</span>
+                                                        <span>{reg.nome || 'Sem nome'}</span>
+                                                        <span>({reg.status})</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {duplicates.length > 10 && (
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                                            ... e mais {duplicates.length - 10} grupos
+                                        </p>
+                                    )}
                                 </div>
-                            ))}
-                            {duplicates.length > 10 && (
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                                    ... e mais {duplicates.length - 10} grupos
+                            )}
+
+                            {duplicates.length === 0 && !loadingDuplicates && (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                                    Clique em &quot;Buscar Duplicatas&quot; para verificar
                                 </p>
                             )}
                         </div>
-                    )}
 
-                    {duplicates.length === 0 && !loadingDuplicates && (
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                            Clique em &quot;Buscar Duplicatas&quot; para verificar
-                        </p>
-                    )}
-                </div>
+                        {/* Danger Zone */}
+                        <div className={`${styles.section} ${styles.dangerZone}`}>
+                            <h2 className={`${styles.sectionTitle} ${styles.dangerTitle}`}>
+                                <AlertTriangle size={20} />
+                                Zona de Perigo
+                            </h2>
+                            <p className={styles.dangerDescription}>
+                                Ações aqui são irreversíveis. Tenha cuidado.
+                            </p>
 
-                {/* Danger Zone */}
-                <div className={`${styles.section} ${styles.dangerZone}`}>
-                    <h2 className={`${styles.sectionTitle} ${styles.dangerTitle}`}>
-                        <AlertTriangle size={20} />
-                        Zona de Perigo
-                    </h2>
-                    <p className={styles.dangerDescription}>
-                        Ações aqui são irreversíveis. Tenha cuidado.
-                    </p>
-
-                    <button
-                        className={styles.deleteButton}
-                        onClick={handleDeleteAll}
-                        disabled={deleting}
-                    >
-                        <Trash2 size={18} />
-                        {deleting ? 'Apagando...' : 'Apagar Todos os Contatos'}
-                    </button>
-                </div>
+                            <button
+                                className={styles.deleteButton}
+                                onClick={handleDeleteAll}
+                                disabled={deleting}
+                            >
+                                <Trash2 size={18} />
+                                {deleting ? 'Apagando...' : 'Apagar Todos os Contatos'}
+                            </button>
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Modal de Confirmação de Merge */}

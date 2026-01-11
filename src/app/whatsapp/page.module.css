@@ -43,7 +43,9 @@
 
 .statusBadge.ready {
     background-color: rgba(22, 163, 74, 0.1);
+    /* Could tokenize opacity variants later */
     color: #4ade80;
+    /* Or success-text token */
     border: 1px solid rgba(22, 163, 74, 0.2);
 }
 
@@ -55,7 +57,7 @@
 
 .statusBadge.disconnected {
     background-color: rgba(239, 68, 68, 0.1);
-    color: #f87171;
+    color: var(--danger);
     border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
@@ -121,7 +123,7 @@
 
 .statusIcon.disconnected {
     background-color: rgba(239, 68, 68, 0.1);
-    color: #f87171;
+    color: var(--danger);
 }
 
 .statusText h3 {
@@ -367,7 +369,7 @@
 
 /* Terminal Styles */
 .terminal {
-    background-color: #1e293b;
+    background-color: var(--bg-surface);
     border-radius: var(--radius-md);
     overflow: hidden;
     font-family: 'Fira Code', monospace;
@@ -377,14 +379,13 @@
 }
 
 .terminalHeader {
-    background-color: #0f172a;
+    background-color: var(--bg-body);
     padding: 0.75rem 1rem;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    border-bottom: 1px solid #334155;
     font-weight: 600;
-    color: #94a3b8;
+    color: var(--text-secondary);
 }
 
 .terminalContent {
@@ -404,20 +405,20 @@
 }
 
 .timestamp {
-    color: #64748b;
+    color: var(--text-muted);
     flex-shrink: 0;
 }
 
 .logLine.info {
-    color: #e2e8f0;
+    color: var(--text-main);
 }
 
 .logLine.success {
-    color: #4ade80;
+    color: var(--success);
 }
 
 .logLine.error {
-    color: #f87171;
+    color: var(--danger);
 }
 
 .processingBadge {

@@ -71,9 +71,9 @@
 }
 
 .clearButton:hover:not(:disabled) {
-    background-color: #000000;
-    border-color: var(--error);
-    color: var(--error);
+    background-color: var(--bg-body);
+    border-color: var(--danger);
+    color: var(--danger);
 }
 
 .clearButton:disabled {
@@ -100,12 +100,12 @@
 }
 
 .badgeNew {
-    background-color: #10b981;
+    background-color: var(--success);
     color: white;
 }
 
 .badgeChanged {
-    background-color: #f59e0b;
+    background-color: var(--warning);
     color: white;
 }
 
@@ -137,7 +137,7 @@
 }
 
 .boardContainer::-webkit-scrollbar-thumb {
-    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    background: var(--primary);
     border-radius: 6px;
     border: 2px solid transparent;
     background-clip: padding-box;
@@ -188,6 +188,7 @@
 
 .countBadge {
     background-color: var(--column-color-light, #000000);
+    /* Fallback to black for now */
     color: var(--column-color, var(--text-secondary));
     font-size: 0.75rem;
     padding: 0.125rem 0.5rem;
@@ -226,7 +227,7 @@
 }
 
 .card {
-    background-color: #000000;
+    background-color: var(--bg-surface);
     padding: 1rem;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
@@ -298,15 +299,15 @@
 }
 
 .inscrito .statusIndicator {
-    background-color: #3b82f6;
+    background-color: var(--color-contact-blue);
 }
 
 .aprovado .statusIndicator {
-    background-color: #d97706;
+    background-color: var(--warning);
 }
 
 .matriculado .statusIndicator {
-    background-color: #16a34a;
+    background-color: var(--color-contact-green);
 }
 
 .pendente .statusIndicator {
@@ -314,7 +315,7 @@
 }
 
 .cancelado .statusIndicator {
-    background-color: #dc2626;
+    background-color: var(--danger);
 }
 
 .interessado .statusIndicator {
@@ -382,7 +383,7 @@
 }
 
 .bulkInfo {
-    background-color: #000000;
+    background-color: var(--bg-body);
     padding: 1rem;
     border-radius: var(--radius-md);
     margin-bottom: 1.5rem;
@@ -410,7 +411,7 @@
     font-family: inherit;
     font-size: 0.875rem;
     resize: vertical;
-    background-color: #000000;
+    background-color: var(--bg-body);
     color: var(--text-main);
 }
 

@@ -1,3 +1,4 @@
+/* stylelint-disable */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,46 +6,101 @@
 :root {
   /* Corona Admin Theme Palette */
   --primary: #0090e7;
-  /* Blue */
   --primary-hover: #007ac1;
-
   --secondary: #6c7293;
-  /* Muted Grey */
 
+  /* Backgrounds */
   --bg-body: #000000;
-  /* Black - Main Background */
   --bg-surface: #191c24;
-  /* Dark Grey - Cards/Sidebar */
   --bg-sidebar: #191c24;
-  /* Dark Grey - Sidebar */
+  --bg-alt: #f8fafc;
+  /* Light grey for stats/cards in light mode contexts or specific dashboard items */
+  --bg-track: #f1f5f9;
+  /* Progress bar backgrounds */
 
+  /* Typography */
   --text-main: #ffffff;
-  /* White */
   --text-secondary: #6c7293;
-  /* Muted Grey */
   --text-muted: #6c7293;
-  /* Muted Grey */
   --text-on-dark: #ffffff;
 
+  /* Borders & Shadows */
   --border-color: #2c2e33;
-  /* Dark Border */
-
-  --success: #00d25b;
-  /* Green */
-  --warning: #ffab00;
-  /* Amber */
-  --danger: #fc424a;
-  /* Red */
-  --info: #8f5fe8;
-  /* Purple */
-
+  --radius-md: 0.25rem;
+  --radius-lg: 0.25rem;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
 
-  --radius-md: 0.25rem;
-  /* Sharper corners */
-  --radius-lg: 0.25rem;
+  /* Semantic Status Colors */
+  --success: #00d25b;
+  --warning: #ffab00;
+  --danger: #fc424a;
+  --danger-dark: #dc2626;
+  /* Darker red for text on light backgrounds */
+  --danger-soft-bg: #fef2f2;
+  /* Soft red background for error boxes */
+  --danger-soft-border: #fee2e2;
+  --info: #8f5fe8;
+
+  /* Component Tokens (New) */
+  --header-height: 4rem;
+
+  /* Modal Tokens */
+  --modal-overlay-bg: rgba(0, 0, 0, 0.7);
+  --modal-max-width: 600px;
+
+  /* Table Tokens */
+  --table-hover-bg: rgba(255, 255, 255, 0.03);
+  --table-header-bg: transparent;
+
+  /* Badge Colors (Extracted from Modules) */
+  /* Primary Badge (Blue) */
+  --badge-primary-bg: rgba(0, 144, 231, 0.2);
+  --badge-primary-border: rgba(0, 144, 231, 0.3);
+  --badge-primary-text: var(--primary);
+
+  /* Success Badge (Green - Active) */
+  --badge-success-bg: rgba(0, 210, 91, 0.2);
+  --badge-success-border: rgba(0, 210, 91, 0.3);
+  --badge-success-text: var(--success);
+
+  /* Danger Badge (Red - Inactive/Delete) */
+  --badge-danger-bg: rgba(252, 66, 74, 0.2);
+  --badge-danger-border: rgba(252, 66, 74, 0.3);
+  --badge-danger-text: var(--danger);
+
+  /* Info Badge (Purple - Admin/AI) */
+  --badge-info-bg: rgba(143, 95, 232, 0.2);
+  --badge-info-border: rgba(143, 95, 232, 0.3);
+  --badge-info-text: var(--info);
+  /* #8f5fe8 */
+
+  /* Muted Badge (Grey - User) */
+  --badge-muted-bg: rgba(100, 116, 139, 0.2);
+  --badge-muted-border: rgba(100, 116, 139, 0.3);
+  --badge-muted-text: #94a3b8;
+
+
+  /* Contacts Specific Palette (Material-like) */
+  --color-contact-blue: #2196F3;
+  --color-contact-purple: #9C27B0;
+  --color-contact-yellow: #FFC107;
+  --color-contact-green: #4CAF50;
+  --color-contact-gray: #9E9E9E;
+  --color-contact-red: #f44336;
+
+  /* Spacing Scale */
+  --spacing-xs: 0.5rem;
+  /* 8px */
+  --spacing-sm: 0.75rem;
+  /* 12px */
+  --spacing-md: 1rem;
+  /* 16px */
+  --spacing-lg: 1.5rem;
+  /* 24px */
+  --spacing-xl: 2rem;
+  /* 32px */
 }
 
 * {

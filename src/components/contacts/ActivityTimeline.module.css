@@ -132,6 +132,7 @@
 
 .iconWhatsapp {
     background: #25d366;
+    /* Keep WA brand color */
     color: #fff;
 }
 
@@ -186,18 +187,18 @@
 }
 
 .badgeSent {
-    background: rgba(59, 130, 246, 0.2);
-    color: #60a5fa;
+    background: var(--badge-primary-bg);
+    color: var(--badge-primary-text);
 }
 
 .badgeReceived {
-    background: rgba(34, 197, 94, 0.2);
-    color: #4ade80;
+    background: var(--badge-success-bg);
+    color: var(--badge-success-text);
 }
 
 .badgeTemplate {
-    background: rgba(168, 85, 247, 0.2);
-    color: #c084fc;
+    background: var(--badge-info-bg);
+    color: var(--badge-info-text);
 }
 
 /* Note form */

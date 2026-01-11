@@ -28,11 +28,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg-body)' }}>
-            <Sidebar isOpen={!sidebarCollapsed} onToggle={toggleSidebar} />
+            <Sidebar isOpen={!sidebarCollapsed} onToggle={toggleSidebar} isMobile={isMobile} />
 
             <div style={{
                 flex: 1,
-                marginLeft: sidebarCollapsed ? '0' : (isMobile ? '0' : '260px'),
+                marginLeft: sidebarCollapsed ? (isMobile ? '0' : '70px') : (isMobile ? '0' : '260px'),
                 display: 'flex',
                 flexDirection: 'column',
                 transition: 'margin-left 0.3s ease'

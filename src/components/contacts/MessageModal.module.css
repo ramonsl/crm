@@ -5,6 +5,7 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.8);
+    /* Keeping slightly darker for message context or move to token */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -345,6 +346,7 @@
 /* Bulk Message Modal Specific Styles */
 .warningBox {
     background: rgba(251, 191, 36, 0.1);
+    /* Consider adding warning bg token */
     border: 1px solid rgba(251, 191, 36, 0.3);
     border-radius: var(--radius-md);
     padding: 12px;
@@ -415,14 +417,14 @@
 }
 
 .aiInfo {
-    background: rgba(139, 92, 246, 0.1);
-    border: 1px solid rgba(139, 92, 246, 0.3);
+    background: var(--badge-info-bg);
+    border: 1px solid var(--badge-info-border);
     border-radius: var(--radius-md);
     padding: 8px 12px;
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #a78bfa;
+    color: var(--badge-info-text);
     font-size: 12px;
     margin-bottom: 12px;
 }

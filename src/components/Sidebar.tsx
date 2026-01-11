@@ -2,16 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, MessageSquare, MessageCircle, Settings, LogOut, Upload, Columns, FileText, X, Bot, Zap, BadgeCheck, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, Settings, LogOut, Upload, FileText, X, Bot, Zap, BadgeCheck, DollarSign, Menu } from 'lucide-react';
 import styles from './Sidebar.module.css';
 import { useEffect, useState } from 'react';
 
 interface SidebarProps {
     isOpen?: boolean;
     onToggle?: () => void;
+    isMobile?: boolean; // New prop for layout context
 }
 
-export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
+export default function Sidebar({ isOpen, onToggle, isMobile = false }: SidebarProps) {
     const pathname = usePathname();
     const [waStatus, setWaStatus] = useState<'disconnected' | 'initializing' | 'ready'>('disconnected');
     const [yCloudConfigured, setYCloudConfigured] = useState(false);
@@ -47,8 +48,6 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     const links = [
         { href: '/', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/contacts', label: 'Inscritos', icon: Users },
-        { href: '/kanban', label: 'Kanban', icon: Columns },
-        { href: '/chat', label: 'Chat', icon: MessageCircle },
         { href: '/whatsapp-chat', label: 'WhatsApp Chat', icon: MessageSquare, badge: 'POC' },
         { href: '/auto-replies', label: 'Auto-Respostas', icon: Bot },
         { href: '/templates', label: 'Modelos', icon: FileText },
@@ -78,7 +77,12 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
             </div>
 
             <nav className={styles.nav}>
-                <p className={styles.sectionTitle}>MENU PRINCIPAL</p>
+                <div className={styles.menuHeader}>
+                    <p className={styles.sectionTitle}>MENU PRINCIPAL</p>
+                    <button onClick={onToggle} className={styles.menuToggleButton}>
+                        <Menu size={20} />
+                    </button>
+                </div>
                 {links.map((link) => {
                     const Icon = link.icon;
                     const isActive = pathname === link.href;

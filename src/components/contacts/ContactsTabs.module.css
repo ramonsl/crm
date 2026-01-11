@@ -5,45 +5,37 @@
 
 .tabs {
     display: flex;
-    gap: 0.5rem;
-    padding: 0 1rem;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    overflow-x: auto;
 }
 
 .tab {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
+    padding: 0.75rem 1.25rem;
     border: none;
     background: transparent;
-    color: var(--text-muted);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.95rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
-    border-bottom: 2px solid transparent;
-    position: relative;
+    transition: all 0.2s;
+    white-space: nowrap;
 }
 
 .tab:hover {
+    background: var(--table-hover-bg);
     color: var(--text-main);
-    background: rgba(255, 255, 255, 0.03);
 }
 
 .tab.active {
-    color: var(--text-main);
-    border-bottom-color: var(--primary);
-}
-
-.tab.active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--primary);
+    background: var(--badge-primary-bg);
+    color: var(--primary);
+    font-weight: 600;
 }
 
 .icon {

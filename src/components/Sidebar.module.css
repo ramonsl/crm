@@ -33,10 +33,59 @@
 
 .sidebar {
     transform: translateX(-100%);
+    width: 260px;
 }
 
 .sidebar.open {
     transform: translateX(0);
+}
+
+/* Desktop Mini Sidebar Styles */
+@media (min-width: 769px) {
+    .sidebar {
+        transform: translateX(0);
+        width: 70px;
+        /* Mini width by default if "collapsed" */
+    }
+
+    .sidebar.open {
+        width: 260px;
+        /* Expanded width */
+    }
+
+    /* When collapsed (not open), hide text elements */
+    .sidebar:not(.open) .logoText,
+    .sidebar:not(.open) .sectionTitle,
+    .sidebar:not(.open) .linkLabel,
+    .sidebar:not(.open) .logoutButton span {
+        display: none;
+    }
+
+    /* Center elements in mini mode */
+    .sidebar:not(.open) .logoContainer {
+        justify-content: center;
+        padding: 0;
+    }
+
+    .sidebar:not(.open) .menuHeader {
+        justify-content: center;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    .sidebar:not(.open) .menuToggleButton {
+        margin: 0;
+    }
+
+    .sidebar:not(.open) .link {
+        justify-content: center;
+        padding: 0.75rem 0;
+    }
+
+    .sidebar:not(.open) .logoutButton {
+        justify-content: center;
+        padding: 0.75rem 0;
+    }
 }
 
 /* Desktop overrides if needed, but the logic seems universal now with the new layout */
@@ -94,13 +143,40 @@
     overflow-y: auto;
 }
 
+.menuHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    padding-right: 0.5rem;
+}
+
 .sectionTitle {
     font-size: 0.75rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.4);
-    margin-bottom: 0.75rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    margin-bottom: 0;
     padding-left: 0.75rem;
     letter-spacing: 0.05em;
+}
+
+.menuToggleButton {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.menuToggleButton:hover {
+    background: var(--table-hover-bg);
+    color: var(--text-main);
 }
 
 .link {
@@ -118,18 +194,21 @@
 }
 
 .link:hover {
-    background-color: #0f1015;
-    color: white;
+    background-color: var(--badge-primary-bg);
+    /* Or darker shade */
+    color: var(--primary);
+    /* Maintain text color white or primary? Standard is white usually for sidebar */
 }
 
 .active {
-    background-color: #0f1015;
-    color: white;
+    background-color: var(--bg-body);
+    /* Darker than sidebar */
+    color: var(--primary);
     border-left: 3px solid var(--primary);
 }
 
 .active:hover {
-    background-color: #0f1015;
+    background-color: var(--bg-body);
 }
 
 .iconWrapper {
@@ -178,17 +257,17 @@
     gap: 0.75rem;
     padding: 0.75rem 1rem;
     background: none;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .logoutButton:hover {
-    background-color: rgba(239, 68, 68, 0.1);
-    border-color: var(--danger);
-    color: var(--danger);
+    background-color: var(--badge-danger-bg);
+    border-color: var(--badge-danger-border);
+    color: var(--badge-danger-text);
 }
 
 @media (max-width: 768px) {

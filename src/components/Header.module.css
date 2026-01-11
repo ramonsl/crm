@@ -38,6 +38,12 @@
     color: var(--text-main);
 }
 
+@media (min-width: 769px) {
+    .menuButton {
+        display: none;
+    }
+}
+
 .searchContainer {
     position: relative;
     width: 100%;
@@ -59,8 +65,8 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     /* Corona uses less rounded inputs */
-    background-color: #000000;
     /* Darker input background */
+    background-color: var(--bg-body);
     font-size: 0.875rem;
     transition: all 0.2s;
     color: var(--text-main);

@@ -69,11 +69,11 @@
 
 /* Status Color Borders (for images) */
 .border-blue {
-    border: solid #2196F3;
+    border: solid var(--color-contact-blue);
 }
 
 .border-purple {
-    border: solid #9C27B0;
+    border: solid var(--color-contact-purple);
 }
 
 .border-cyan {
@@ -81,7 +81,7 @@
 }
 
 .border-yellow {
-    border: solid #FFC107;
+    border: solid var(--color-contact-yellow);
 }
 
 .border-orange {
@@ -93,15 +93,15 @@
 }
 
 .border-green {
-    border: solid #4CAF50;
+    border: solid var(--color-contact-green);
 }
 
 .border-red {
-    border: solid #f44336;
+    border: solid var(--color-contact-red);
 }
 
 .border-gray {
-    border: solid #9E9E9E;
+    border: solid var(--color-contact-gray);
 }
 
 /* Status Color Backgrounds (for badges) */

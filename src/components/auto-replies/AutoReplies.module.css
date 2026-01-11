@@ -95,7 +95,7 @@
 }
 
 .table {
-    width: 100%:
+    width: 100%;
     border-collapse: collapse;
 }
 
@@ -125,7 +125,7 @@
 }
 
 .table tbody tr:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--table-hover-bg);
 }
 
 .actions {
@@ -232,12 +232,12 @@
     border-radius: 50%;
 }
 
-.toggleInput:checked + .toggleSlider {
+.toggleInput:checked+.toggleSlider {
     background-color: var(--primary);
     border-color: var(--primary);
 }
 
-.toggleInput:checked + .toggleSlider:before {
+.toggleInput:checked+.toggleSlider:before {
     transform: translateX(20px);
     background-color: white;
 }
@@ -251,29 +251,30 @@
 }
 
 .badgePrimary {
-    background: rgba(0, 144, 231, 0.2);
-    border: 1px solid rgba(0, 144, 231, 0.3);
-    color: var(--primary);
+    background: var(--badge-primary-bg);
+    border: 1px solid var(--badge-primary-border);
+    color: var(--badge-primary-text);
 }
 
 .badgeSuccess {
-    background: rgba(0, 210, 91, 0.2);
-    border: 1px solid rgba(0, 210, 91, 0.3);
-    color: var(--success);
+    background: var(--badge-success-bg);
+    border: 1px solid var(--badge-success-border);
+    color: var(--badge-success-text);
 }
 
 .badgeDanger {
-    background: rgba(252, 66, 74, 0.2);
-    border: 1px solid rgba(252, 66, 74, 0.3);
-    color: var(--danger);
+    background: var(--badge-danger-bg);
+    border: 1px solid var(--badge-danger-border);
+    color: var(--badge-danger-text);
 }
+
 .overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--modal-overlay-bg);
     display: flex;
     align-items: center;
     justify-content: center;
