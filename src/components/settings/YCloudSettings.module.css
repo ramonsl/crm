@@ -1,0 +1,106 @@
+.section {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+}
+
+.sectionTitle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
+}
+
+.description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.input {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-body);
+    color: var(--text-main);
+    font-size: 0.875rem;
+    transition: border-color 0.2s;
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+    justify-content: center;
+}
+
+.button:hover:not(:disabled) {
+    background: var(--primary-hover);
+}
+
+.button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Info Box */
+.infoBox {
+    padding: 0.75rem 1rem;
+    background: var(--bg-body);
+    /* fallback if var(--info-bg) not defined, but using generic */
+    background: #e0f2fe;
+    /* light blue */
+    border-radius: var(--radius-sm);
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    font-size: 0.875rem;
+    color: #0369a1;
+    /* blue 700 */
+}
+
+/* Dark mode adjustment for hardcoded colors in infoBox */
+@media (prefers-color-scheme: dark) {
+    .infoBox {
+        background: rgba(3, 105, 161, 0.2);
+        color: #7dd3fc;
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}

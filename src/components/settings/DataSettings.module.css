@@ -1,0 +1,286 @@
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+}
+
+.dangerCard {
+    background: var(--badge-danger-bg);
+    border-color: var(--badge-danger-border);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
+}
+
+.dangerTitle {
+    color: var(--danger);
+}
+
+.description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.dangerDescription {
+    color: var(--badge-danger-text);
+    font-size: 0.875rem;
+}
+
+.searchButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.searchButton:hover:not(:disabled) {
+    background: var(--primary-hover);
+}
+
+.searchButton:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.warningMessage {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--warning);
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.groupItem {
+    padding: 0.75rem;
+    background: var(--bg-body);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+/* Override for danger card if needed, but usually danger card doesn't have lists */
+.dangerCard .groupItem {
+    background: white;
+}
+
+.groupHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.phone {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.mergeButton {
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.mergeButton:hover:not(:disabled) {
+    background: var(--primary-hover);
+}
+
+.recordsList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.record {
+    font-size: 0.75rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.primaryRecord {
+    color: var(--success);
+}
+
+.secondaryRecord {
+    color: var(--text-muted);
+}
+
+.recordIcon {
+    width: 1rem;
+    text-align: center;
+}
+
+.moreMessage {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    text-align: center;
+    margin-top: 0.5rem;
+}
+
+/* Danger Actions */
+.dangerActions {
+    display: flex;
+    justify-content: flex-end;
+    /* Or flex-start based on preference */
+}
+
+.deleteButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.deleteButton:hover:not(:disabled) {
+    background: #dc2626;
+}
+
+.deleteButton:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+/* Modal Styles */
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--modal-overlay-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal {
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    max-width: 400px;
+    width: 90%;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.modalTitle {
+    color: var(--text-main);
+    margin-bottom: 1rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.modalText {
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+}
+
+.keepMessage {
+    color: var(--success);
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+}
+
+.removeMessage {
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+    font-size: 0.75rem;
+}
+
+.modalActions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.cancelButton {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 1rem;
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.confirmButton {
+    background: var(--primary);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 1rem;
+    color: white;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.confirmButton:hover:not(:disabled) {
+    background: var(--primary-hover);
+}

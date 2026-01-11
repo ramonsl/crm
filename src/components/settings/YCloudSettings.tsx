@@ -12,12 +12,9 @@
 import { useState, useEffect } from 'react';
 import { Cloud, RefreshCw, CheckCircle, XCircle, Save, Info } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
+import styles from './YCloudSettings.module.css';
 
-interface YCloudSettingsProps {
-    styles: Record<string, string>;
-}
-
-export function YCloudSettings({ styles }: YCloudSettingsProps) {
+export function YCloudSettings() {
     const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
 
     const [loading, setLoading] = useState(true);
@@ -121,17 +118,7 @@ export function YCloudSettings({ styles }: YCloudSettingsProps) {
             </p>
 
             {/* Info about how provider selection works */}
-            <div style={{
-                padding: '0.75rem 1rem',
-                background: 'var(--info-bg, #e0f2fe)',
-                borderRadius: '8px',
-                marginBottom: '1rem',
-                display: 'flex',
-                gap: '0.5rem',
-                alignItems: 'flex-start',
-                fontSize: '0.875rem',
-                color: 'var(--info, #0369a1)'
-            }}>
+            <div className={styles.infoBox}>
                 <Info size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
                 <div>
                     <strong>Como funciona:</strong><br />
