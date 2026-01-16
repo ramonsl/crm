@@ -57,7 +57,7 @@
 | **Real-Time** | Socket.io |
 | **IA** | OpenAI API |
 | **UI** | CSS Modules + Lucide Icons |
-| **Testes** | Jest |
+| **Testes** | Jest + Playwright |
 | **Deploy** | Railway |
 
 ---
@@ -124,9 +124,45 @@ npm run rollback:test    # Reverter última migration
 
 ## 🧪 Testes
 
+### Testes Unitários
 ```bash
 npm test
 ```
+
+### Testes E2E (End-to-End)
+
+**Setup inicial (obrigatório):**
+```bash
+# Criar usuário de teste no banco de dados
+npm run seed:test
+```
+
+**Executar testes:**
+```bash
+# Executar todos os testes E2E
+npm run test:e2e
+
+# Executar com interface gráfica (recomendado)
+npm run test:e2e:ui
+
+# Executar em modo visível
+npm run test:e2e:headed
+
+# Ver relatório de testes
+npm run test:e2e:report
+```
+
+**Cobertura de Testes E2E:**
+- ✅ Gerenciamento de Usuários (7 testes)
+- ✅ Gerenciamento de Contatos (7 testes)
+- ✅ Configurações do Sistema (11 testes)
+- ✅ Gerenciamento de Templates (6 testes)
+- ✅ Gerenciamento de Tags (5 testes)
+- ✅ Gerenciamento de Auto-Respostas (7 testes)
+
+**Total: 43 testes E2E** cobrindo todos os cadastros principais do sistema.
+
+📖 Documentação completa: [e2e/README.md](./e2e/README.md)
 
 ---
 
@@ -148,7 +184,8 @@ coordena+/
 │   │   ├── providers/         # Providers de mensagem
 │   │   └── repositories/      # Acesso a dados
 │   └── services/              # Regras de negócio
-├── __tests__/                 # Testes
+├── __tests__/                 # Testes unitários
+├── e2e/                       # Testes E2E (Playwright)
 ├── migrations/                # Migrações de banco
 └── docs/                      # Documentação
 ```

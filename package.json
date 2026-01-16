@@ -10,7 +10,13 @@
     "start:next": "next start",
     "lint": "eslint",
     "test": "jest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
     "seed:admin": "node scripts/seed-admin-neon.js",
+    "seed:test": "node scripts/seed-test-user.js",
     "build:server": "tsc --project tsconfig.server.json && tsc-alias -p tsconfig.server.json",
     "migrate": "npx node-pg-migrate up",
     "migrate:down": "npx node-pg-migrate down",
@@ -39,6 +45,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@testing-library/user-event": "^14.6.1",

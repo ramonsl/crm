@@ -77,3 +77,8 @@ scripts/prime.pdf
 # Data exports (user data)
 /data/
 !*.example
+e2e/.auth/
+
+# Playwright test artifacts
+/test-results/
+/playwright-report/
