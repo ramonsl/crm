@@ -253,10 +253,19 @@ export class WhatsAppChatService {
 
         try {
             const chat = await client.getChatById(chatId);
-            await chat.sendSeen();
-            chatLogger.debug(`Marked chat ${chatId} as read`);
+
+            // sendSeen é instável em algumas versões do WhatsApp Web
+            // Wrap em try-catch adicional para não quebrar o fluxo
+            try {
+                await chat.sendSeen();
+                chatLogger.debug(`Marked chat ${chatId} as read`);
+            } catch (sendSeenError) {
+                // Erro comum quando WhatsApp atualiza a API interna
+                chatLogger.warn(`sendSeen failed for ${chatId} (non-critical):`, sendSeenError);
+                // Não propaga o erro pois marcar como lido é operação não-crítica
+            }
         } catch (error) {
-            chatLogger.error('Error marking as read:', error);
+            chatLogger.error('Error getting chat for markAsRead:', error);
             throw error;
         }
     }
