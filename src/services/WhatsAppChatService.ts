@@ -242,32 +242,11 @@ export class WhatsAppChatService {
     }
 
     async markAsRead(chatId: string): Promise<void> {
-        if (!this.isReady()) {
-            throw new Error('WhatsApp is not connected');
-        }
-
-        const client = getClient();
-        if (!client) {
-            throw new Error('WhatsApp client not available');
-        }
-
-        try {
-            const chat = await client.getChatById(chatId);
-
-            // sendSeen é instável em algumas versões do WhatsApp Web
-            // Wrap em try-catch adicional para não quebrar o fluxo
-            try {
-                await chat.sendSeen();
-                chatLogger.debug(`Marked chat ${chatId} as read`);
-            } catch (sendSeenError) {
-                // Erro comum quando WhatsApp atualiza a API interna
-                chatLogger.warn(`sendSeen failed for ${chatId} (non-critical):`, sendSeenError);
-                // Não propaga o erro pois marcar como lido é operação não-crítica
-            }
-        } catch (error) {
-            chatLogger.error('Error getting chat for markAsRead:', error);
-            throw error;
-        }
+        // sendSeen está instável na versão atual do WhatsApp Web
+        // Desabilitado temporariamente para evitar erros:
+        // TypeError: Cannot read properties of undefined (reading 'markedUnread')
+        chatLogger.debug(`markAsRead disabled for ${chatId} - sendSeen unstable`);
+        return;
     }
 }
 
