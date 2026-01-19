@@ -25,7 +25,7 @@ import type {
     SocketData
 } from './src/lib/socket/types';
 import { setSocketServer } from './src/lib/socket/emitter';
-import { getClient } from './src/lib/whatsapp';
+import { initializeWhatsApp, getProvider } from './src/lib/whatsapp/provider';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -138,8 +138,11 @@ app.prepare().then(() => {
         console.log(`> Ready on http://${hostname}:${port}`);
         console.log(`> Socket.io server running on port ${port}`);
 
-        // Initialize WhatsApp client
-        console.log('> Initializing WhatsApp client...');
-        getClient();
+        // Initialize WhatsApp client using configured provider
+        const provider = getProvider();
+        console.log(`> Initializing WhatsApp client (provider: ${provider})...`);
+        initializeWhatsApp().catch(err => {
+            console.error('Failed to initialize WhatsApp:', err);
+        });
     });
 });

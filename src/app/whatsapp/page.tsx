@@ -13,6 +13,8 @@ export default function WhatsAppPage() {
     const [loading, setLoading] = useState(false);
     const [queueState, setQueueState] = useState<any>(null);
     const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+    const [provider, setProvider] = useState<'baileys' | 'wwebjs'>('baileys');
+    const [currentProvider, setCurrentProvider] = useState<string | null>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
     const checkStatus = async () => {
@@ -22,6 +24,9 @@ export default function WhatsAppPage() {
             setStatus(data.status);
             setQrCode(data.qrCode || '');
             setPhoneNumber(data.phoneNumber || null);
+            if (data.provider) {
+                setCurrentProvider(data.provider);
+            }
         } catch (error) {
             console.error(error);
         }
@@ -59,7 +64,7 @@ export default function WhatsAppPage() {
             await fetch('/api/whatsapp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'connect' })
+                body: JSON.stringify({ action: 'connect', provider })
             });
             // Poll immediately after action
             setTimeout(checkStatus, 1000);
@@ -316,6 +321,19 @@ export default function WhatsAppPage() {
                                         📱 +{phoneNumber}
                                     </p>
                                 )}
+                                {currentProvider && (
+                                    <p style={{
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-secondary)',
+                                        backgroundColor: 'var(--bg-muted)',
+                                        padding: '4px 8px',
+                                        borderRadius: '4px',
+                                        marginBottom: '0.5rem',
+                                        display: 'inline-block'
+                                    }}>
+                                        {currentProvider === 'baileys' ? '🚀 Baileys' : '🌐 whatsapp-web.js'}
+                                    </p>
+                                )}
                                 <p>O sistema está pronto para enviar mensagens.</p>
 
                                 <div className={styles.actions}>
@@ -362,14 +380,57 @@ export default function WhatsAppPage() {
                                 {qrCode ? (
                                     <div className={styles.qrContainer}>
                                         <div style={{ background: 'white', padding: '16px' }}>
-                                            <QRCode value={qrCode} size={256} />
+                                            {/* If qrCode is a data URL (from Baileys), render as img */}
+                                            {/* Otherwise use QRCode component (from whatsapp-web.js) */}
+                                            {qrCode.startsWith('data:') ? (
+                                                <img src={qrCode} alt="QR Code" style={{ width: 256, height: 256 }} />
+                                            ) : (
+                                                <QRCode value={qrCode} size={256} />
+                                            )}
                                         </div>
                                         <p>Escaneie o QR Code com seu WhatsApp</p>
                                     </div>
                                 ) : (
                                     <div className={styles.placeholderState}>
                                         <Smartphone size={48} className={styles.placeholderIcon} />
-                                        <p>Clique em conectar para gerar o QR Code</p>
+                                        <p>Selecione o provider e clique em conectar</p>
+                                    </div>
+                                )}
+
+                                {/* Provider Selector - only show when disconnected */}
+                                {status === 'disconnected' && (
+                                    <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+                                        <label style={{
+                                            display: 'block',
+                                            marginBottom: '8px',
+                                            fontSize: '0.875rem',
+                                            color: 'var(--text-secondary)'
+                                        }}>
+                                            Biblioteca de conexão:
+                                        </label>
+                                        <select
+                                            value={provider}
+                                            onChange={(e) => setProvider(e.target.value as 'baileys' | 'wwebjs')}
+                                            className={styles.input}
+                                            style={{
+                                                width: 'auto',
+                                                minWidth: '200px',
+                                                textAlign: 'center',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <option value="baileys">🚀 Baileys (Recomendado)</option>
+                                            <option value="wwebjs">🌐 WhatsApp Web.js</option>
+                                        </select>
+                                        <p style={{
+                                            fontSize: '0.75rem',
+                                            color: 'var(--text-muted)',
+                                            marginTop: '8px'
+                                        }}>
+                                            {provider === 'baileys'
+                                                ? 'Mais leve e rápido. Sem Puppeteer.'
+                                                : 'Usa navegador Chromium. Mais pesado.'}
+                                        </p>
                                     </div>
                                 )}
 

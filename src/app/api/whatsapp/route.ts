@@ -1,17 +1,26 @@
 import { getErrorMessage } from '@/lib/types';
 
 import { NextResponse, NextRequest } from 'next/server';
-import { getClient, getStatus, logout, sendMessage } from '@/lib/whatsapp';
+import {
+    initializeWhatsApp,
+    getWhatsAppStatus,
+    sendWhatsAppMessage,
+    logoutWhatsApp,
+    resetWhatsAppSession,
+    getProvider
+} from '@/lib/whatsapp/provider';
 import { pool } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
 import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 export async function GET() {
-    const status = getStatus();
+    const status = await getWhatsAppStatus();
+    const provider = getProvider();
 
     return NextResponse.json({
         ...status,
+        provider,
         reconnectAttempts: (global as any).whatsappReconnectAttempts || 0,
         lastDisconnect: (global as any).whatsappLastDisconnect || null,
         healthCheckActive: (global as any).whatsappHealthCheckTimer !== null,
@@ -39,15 +48,16 @@ export async function POST(req: NextRequest) {
         const { action } = body;
 
         if (action === 'connect') {
-            getClient();
-            return NextResponse.json({ message: 'Initializing' });
+            const { provider } = body;
+            await initializeWhatsApp(provider);
+            return NextResponse.json({ message: 'Initializing', provider: getProvider() });
         }
 
         if (action === 'send') {
             let { phone, message } = body;
 
             // Check if WhatsApp is connected
-            const status = getStatus();
+            const status = await getWhatsAppStatus();
             if (status.status !== 'ready') {
                 const statusMessages: Record<string, string> = {
                     'disconnected': 'WhatsApp desconectado. Por favor, conecte-se na página WhatsApp.',
@@ -89,7 +99,7 @@ export async function POST(req: NextRequest) {
                         .replace(/{nome}/g, 'Visitante');
                 }
 
-                const sendResult = await sendMessage(phone, message);
+                const sendResult = await sendWhatsAppMessage(phone, message);
 
                 // Save to messages table if we have a lead CPF
                 if (lead && lead.cpf) {
@@ -128,13 +138,12 @@ export async function POST(req: NextRequest) {
         }
 
         if (action === 'disconnect') {
-            await logout();
+            await logoutWhatsApp();
             return NextResponse.json({ message: 'Disconnected', status: 'disconnected' });
         }
 
         if (action === 'reset') {
-            const { resetSession } = await import('@/lib/whatsapp');
-            await resetSession();
+            await resetWhatsAppSession();
             return NextResponse.json({ message: 'Session reset', status: 'disconnected' });
         }
 
@@ -153,7 +162,7 @@ export async function DELETE(req: NextRequest) {
         // Require authentication
         await requireAuth(req);
 
-        await logout();
+        await logoutWhatsApp();
         return NextResponse.json({ message: 'Disconnected', status: 'disconnected' });
     } catch (error) {
         if (error instanceof UnauthorizedError) {

@@ -19,13 +19,17 @@ const config: Config = {
                 '^@/(.*)$': '<rootDir>/src/$1',
             },
             transform: {
-                '^.+\\.tsx?$': ['ts-jest', {
+                '^.+\\.[tj]sx?$': ['ts-jest', {
+                    useESM: true,
                     tsconfig: 'tsconfig.json',
                 }],
             },
             testMatch: ['**/__tests__/**/*.test.ts', '!**/__tests__/components/**'],
             setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
             testTimeout: 30000, // 30s timeout for CI environments
+            transformIgnorePatterns: [
+                'node_modules/(?!(@whiskeysockets|@boom|@hapi|p-queue|p-timeout|yocto-queue|eventemitter3)/)'
+            ]
         },
         // Frontend tests (React components)
         {
@@ -39,12 +43,16 @@ const config: Config = {
                 '\\.css$': '<rootDir>/__mocks__/styleMock.js',
             },
             transform: {
-                '^.+\\.tsx?$': ['ts-jest', {
+                '^.+\\.[tj]sx?$': ['ts-jest', {
+                    useESM: true,
                     tsconfig: 'tsconfig.json',
                 }],
             },
             testMatch: ['**/__tests__/components/**/*.test.tsx'],
             setupFilesAfterEnv: ['<rootDir>/jest.setup.tsx'],
+            transformIgnorePatterns: [
+                'node_modules/(?!(@whiskeysockets|@boom|@hapi|p-queue|p-timeout|yocto-queue|eventemitter3)/)'
+            ]
         },
     ],
 };

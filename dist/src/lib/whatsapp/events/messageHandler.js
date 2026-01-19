@@ -147,7 +147,7 @@ class MessageEventHandler {
     /**
      * Save message to database
      */
-    async saveMessage(contact, msg, direction, messageTime, mediaUrl) {
+    async saveMessage(contact, msg, direction, messageTime) {
         var _a;
         const insertResult = await db_1.pool.query(`
       INSERT INTO messages (contact_phone, id, content, from_me, timestamp, type)
@@ -357,7 +357,7 @@ class MessageEventHandler {
                 logger_1.whatsappLogger.debug(`✅ Contato cadastrado: ${contact.nome} (CPF: ${contact.cpf}, Tel: ${contact.telefone})`);
                 messageQueue_1.messageQueue.addLog(`✅ ${contact.nome}: ${msg.body}`, 'success');
                 // Save message
-                const insertedId = await this.saveMessage(contact, msg, direction, messageTime, mediaUrl);
+                const insertedId = await this.saveMessage(contact, msg, direction, messageTime);
                 // Emit socket events (only for incoming)
                 this.emitSocketEvents(contact, phone, insertedId, msg, direction, messageTime, mediaUrl, mediaType);
                 // Update lead's last message
@@ -386,7 +386,7 @@ class MessageEventHandler {
                 try {
                     contact = await this.createNewLead(phone, msg);
                     // Save message for new lead
-                    const insertedId = await this.saveMessage(contact, msg, direction, messageTime, mediaUrl);
+                    const insertedId = await this.saveMessage(contact, msg, direction, messageTime);
                     logger_1.whatsappLogger.debug(`💾 Mensagem ${direction} salva para novo lead! ID: ${insertedId}`);
                     // Update lead's last message
                     if (direction === 'incoming') {
