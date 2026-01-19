@@ -29,7 +29,7 @@ async function checkDatabaseConnection(): Promise<boolean> {
 export async function GET() {
     try {
         const dbHealthy = await checkDatabaseConnection();
-        const whatsappStatus = getStatus();
+        const whatsappStatus = await getStatus();
 
         const healthStatus = {
             status: dbHealthy ? 'healthy' : 'unhealthy',

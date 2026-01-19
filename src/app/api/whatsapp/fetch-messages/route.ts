@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
         }
 
-        const status = getStatus();
+        const status = await getStatus();
         if (status.status !== 'ready') {
             return NextResponse.json({
                 error: 'WhatsApp não está conectado',
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
             }, { status: 400 });
         }
 
-        const client = getClient();
+        const client = await getClient();
         if (!client) {
             return NextResponse.json({
                 error: 'Cliente WhatsApp não disponível'

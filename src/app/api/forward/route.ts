@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
         const leadCpf = lead.cpf;
 
         // Check if WhatsApp is connected
-        const waStatus = getStatus();
+        const waStatus = await getStatus();
         if (waStatus.status !== 'ready') {
             const statusMessages: Record<string, string> = {
                 'disconnected': 'WhatsApp desconectado. Por favor, conecte-se na página WhatsApp.',
