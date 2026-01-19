@@ -313,6 +313,36 @@ export function isBaileysReady(): boolean {
 }
 
 /**
+ * Wait for connection to be ready
+ */
+async function waitForConnection(timeoutMs = 10000): Promise<void> {
+    if (state.status === 'ready') return;
+
+    whatsappLogger.info(`Waiting for WhatsApp connection (current: ${state.status})...`);
+
+    // If disconnected and not initializing/reconnecting, we can't wait
+    if (state.status === 'disconnected' && !state.isInitializing && !state.isReconnecting) {
+        return;
+    }
+
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+        // Cast to string to avoid TS assuming state doesn't change
+        if ((state.status as string) === 'ready') return;
+
+        // If it went to disconnected state (and stopped retrying), abort
+        if (state.status === 'disconnected' && !state.isInitializing && !state.isReconnecting) {
+            throw new Error('WhatsApp desconectado durante a espera.');
+        }
+
+        // Wait 500ms
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    throw new Error(`Timeout (${timeoutMs}ms) aguardando conexão do WhatsApp.`);
+}
+
+/**
  * Send a text message
  */
 export async function sendBaileysMessage(
@@ -320,8 +350,17 @@ export async function sendBaileysMessage(
     message: string,
     mediaUrl?: string
 ): Promise<SendMessageResult> {
+    // Try to wait if initializing
+    if (state.status === 'initializing' || state.isReconnecting) {
+        try {
+            await waitForConnection(15000); // Wait up to 15s
+        } catch (e) {
+            whatsappLogger.warn(`Wait for connection failed: ${e}`);
+        }
+    }
+
     if (!state.socket || state.status !== 'ready') {
-        throw new Error('WhatsApp client not ready');
+        throw new Error(`WhatsApp client not ready (Status: ${state.status})`);
     }
 
     // Normalize phone number
@@ -411,6 +450,28 @@ export async function sendBaileysMessage(
         whatsappLogger.error(`Failed to send message: ${errorMessage}`);
         messageQueue.addLog(`❌ Erro: ${errorMessage}`, 'error');
         throw error;
+    }
+}
+
+/**
+ * Get profile picture URL
+ */
+export async function getBaileysProfilePicture(phone: string): Promise<string | null> {
+    if (!state.socket || state.status !== 'ready') {
+        return null;
+    }
+
+    let jid = phone.replace(/\D/g, '');
+    if (!jid.startsWith('55') && jid.length <= 11) {
+        jid = '55' + jid;
+    }
+    jid = jid + '@s.whatsapp.net';
+
+    try {
+        const url = await state.socket.profilePictureUrl(jid, 'image');
+        return url || null;
+    } catch {
+        return null;
     }
 }
 
