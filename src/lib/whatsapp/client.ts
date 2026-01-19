@@ -74,15 +74,30 @@ export class WhatsAppClientManager {
      * Initialize the WhatsApp client
      */
     initialize(): Client {
-        // If client exists but is disconnected, destroy it to force fresh init
-        if (this.state.client && this.state.status === 'disconnected') {
-            whatsappLogger.debug('Client exists but is disconnected. Destroying for fresh init...');
+        // ALWAYS destroy existing client before creating new one to avoid "browser already running" error
+        if (this.state.client) {
+            whatsappLogger.debug('Existing client found. Destroying before fresh init...');
             try {
                 this.state.client.destroy();
             } catch (e) {
-                whatsappLogger.error('Error destroying stale client:', e);
+                whatsappLogger.error('Error destroying existing client:', e);
             }
             this.state.client = null;
+        }
+
+        // Remove lock files that might prevent initialization
+        const sessionPath = this.getSessionPath();
+        try {
+            const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+            lockFiles.forEach(lockFile => {
+                const lockPath = `${sessionPath}/session/${lockFile}`;
+                if (fs.existsSync(lockPath)) {
+                    fs.unlinkSync(lockPath);
+                    whatsappLogger.debug(`Removed lock file: ${lockPath}`);
+                }
+            });
+        } catch (e) {
+            whatsappLogger.warn('Error removing lock files:', e);
         }
 
         if (!this.state.client) {
