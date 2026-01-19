@@ -14,6 +14,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
 import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
+// Force this route to be dynamic to avoid caching status
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     const status = await getWhatsAppStatus();
     const provider = getProvider();

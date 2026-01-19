@@ -20,7 +20,7 @@ export default function Sidebar({ isOpen, onToggle, isMobile = false }: SidebarP
     useEffect(() => {
         const checkStatus = async () => {
             try {
-                const res = await fetch('/api/whatsapp');
+                const res = await fetch('/api/whatsapp', { cache: 'no-store' });
                 const data = await res.json();
                 setWaStatus(data.status);
             } catch (error) {

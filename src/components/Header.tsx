@@ -30,7 +30,7 @@ export default function Header({ toggleSidebar, sidebarCollapsed }: HeaderProps)
 
     const fetchWaStatus = async () => {
         try {
-            const res = await fetch('/api/whatsapp');
+            const res = await fetch('/api/whatsapp', { cache: 'no-store' });
             const data = await res.json();
             setWaStatus(data.status);
             setWaPhone(data.phoneNumber || null);
