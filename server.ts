@@ -144,5 +144,17 @@ app.prepare().then(() => {
         initializeWhatsApp().catch(err => {
             console.error('Failed to initialize WhatsApp:', err);
         });
+
+        // Register Baileys Message Handler
+        if (provider === 'baileys') {
+            import('./src/lib/whatsapp/provider').then(({ onWhatsAppMessage }) => {
+                import('./src/services/BaileysMessageHandler').then(({ baileysMessageHandler }) => {
+                    onWhatsAppMessage(async (msg) => {
+                        await baileysMessageHandler.handle(msg);
+                    });
+                    console.log('> Baileys Message Handler registered');
+                });
+            });
+        }
     });
 });
