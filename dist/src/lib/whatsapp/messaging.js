@@ -85,7 +85,7 @@ class WhatsAppMessenger {
      * Send message with fallback for Brazilian numbers (try 12-digit then 13-digit)
      */
     async sendWithFallback(phone, message, options) {
-        let formattedPhone = this.validator.normalizePhone(phone);
+        const formattedPhone = this.validator.normalizePhone(phone);
         // Only applies to Brazilian numbers
         if (!formattedPhone.startsWith('55')) {
             // International fallback - just try the formatted number
@@ -254,12 +254,14 @@ class WhatsAppMessenger {
                 throw new Error(friendlyMessage);
             }
             // Check for critical errors that require client restart
-            // Note: "Evaluation failed" and undefined property errors are NOT critical
-            // They indicate temporary unavailability, not session failure
+            // Puppeteer errors (evaluate null, page closed) and session errors
             if (errorMessage.includes('Session closed') ||
                 errorMessage.includes('Protocol error') ||
                 errorMessage.includes('Target closed') ||
-                errorMessage.includes('browser has disconnected')) {
+                errorMessage.includes('browser has disconnected') ||
+                errorMessage.includes("Cannot read properties of null (reading 'evaluate')") ||
+                errorMessage.includes("Cannot read properties of null") ||
+                errorMessage.includes('Execution context was destroyed')) {
                 logger_1.whatsappLogger.error(' Erro crítico ou timeout detectado durante envio de mensagem.');
                 messageQueue_1.messageQueue.addLog(`Erro crítico ou timeout (${errorMessage}). Verificando se pode reiniciar...`, 'error');
                 // Check if we can restart (not in a restart loop)

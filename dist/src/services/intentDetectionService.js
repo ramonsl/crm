@@ -6,8 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.intentDetectionService = exports.IntentDetectionService = void 0;
 const logger_1 = require("../lib/logger");
-// Simple in-memory cache to avoid redundant API calls
-const intentCache = new Map();
+// Cache TTL configuration
 const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 class IntentDetectionService {
     constructor() {

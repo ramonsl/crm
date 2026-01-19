@@ -34,12 +34,58 @@ exports.sql = connectionString
  * Connection Pool for WebSocket queries (session-based)
  * Best for: Complex transactions, multiple queries, real-time features
  *
+ * Optimized for Neon Serverless:
+ * - min: 2 connections always ready (reduces cold start time)
+ * - max: 10 connections (prevents overwhelming Neon)
+ * - idleTimeoutMillis: 30s (closes idle connections to save compute time)
+ * - connectionTimeoutMillis: 5s (fail fast if pool is exhausted)
+ * - allowExitOnIdle: true (allows graceful shutdown)
+ *
  * Usage:
  *   const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
  */
 exports.pool = new serverless_1.Pool({
     connectionString: connectionString, // Pool allows undefined connectionString in config, but will fail on connect
-    max: 10, // Maximum number of connections
+    max: 10, // Maximum number of connections in the pool
+    min: 0, // No idle connections in serverless (reduces Neon compute costs)
+    idleTimeoutMillis: 20000, // Close idle connections after 20 seconds
+    connectionTimeoutMillis: 5000, // Timeout acquiring connection from pool (5s)
+    allowExitOnIdle: true, // Allow process to exit if all connections are idle
+});
+// ============================================================================
+// ERROR HANDLING & RESILIENCE
+// ============================================================================
+/**
+ * Pool error handler - prevents uncaught exceptions from crashing the app
+ * Logs errors but allows the pool to handle reconnection automatically
+ */
+exports.pool.on('error', (err, client) => {
+    logger_1.dbLogger.error('Unexpected pool error - connection may have been terminated', {
+        error: err.message,
+        stack: err.stack,
+        timestamp: new Date().toISOString(),
+    });
+    // Do NOT throw or propagate - let the pool manage reconnection
+});
+/**
+ * Connection event handler - tracks new connections for debugging
+ */
+exports.pool.on('connect', (client) => {
+    logger_1.dbLogger.debug('New client connected to pool', {
+        totalCount: exports.pool.totalCount,
+        idleCount: exports.pool.idleCount,
+        waitingCount: exports.pool.waitingCount,
+    });
+});
+/**
+ * Remove event handler - tracks connection removal for debugging
+ */
+exports.pool.on('remove', (client) => {
+    logger_1.dbLogger.debug('Client removed from pool', {
+        totalCount: exports.pool.totalCount,
+        idleCount: exports.pool.idleCount,
+        waitingCount: exports.pool.waitingCount,
+    });
 });
 /**
  * Helper to run a parameterized query

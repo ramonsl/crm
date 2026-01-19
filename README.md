@@ -52,7 +52,7 @@
 | **Linguagem** | TypeScript |
 | **Banco de Dados** | PostgreSQL (Neon Serverless) |
 | **Migrations** | node-pg-migrate |
-| **WhatsApp Local** | whatsapp-web.js |
+| **WhatsApp Local** | Baileys (Padrão) / whatsapp-web.js |
 | **WhatsApp API** | YCloud |
 | **Real-Time** | Socket.io |
 | **IA** | OpenAI API |
@@ -62,11 +62,13 @@
 
 ---
 
-## ⚡ Arquitetura de Tempo Real
+## ⚡ Arquitetura de Tempo Real (e Baileys)
 
-O sistema utiliza **WebSocket (Socket.io)** para comunicação instantânea:
+O sistema utiliza **WebSocket (Socket.io)** para comunicação instantânea e **Baileys** para conexão leve com WhatsApp:
 
-- ✅ Mensagens aparecem em tempo real sem refresh
+- ✅ **Baileys**: Conexão via WebSocket direto (sem Chrome/Puppeteer), ideal para produção/containers.
+- ✅ **Fallback**: Possibilidade de alternar para `whatsapp-web.js` via UI ou variável de ambiente se necessário.
+- ✅ **Mensagens em tempo real**: Status e recebimento sem refresh.
 - ✅ Notificações sonoras e desktop
 - ✅ Redução de ~99.99% das consultas ao banco
 - ✅ Suporte a múltiplos usuários simultâneos
@@ -196,7 +198,7 @@ coordena+/
 
 ### ✅ Implementado
 - [x] CRUD de Leads/Contatos
-- [x] Integração WhatsApp (whatsapp-web.js)
+- [x] Integração WhatsApp (Baileys + whatsapp-web.js)
 - [x] Integração YCloud (API oficial)
 - [x] Chat com histórico
 - [x] Templates com IA

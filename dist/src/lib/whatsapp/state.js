@@ -1,4 +1,15 @@
 "use strict";
+/**
+ * WhatsApp State Manager - Singleton
+ *
+ * Encapsulates all global state for the WhatsApp client.
+ * Replaces the scattered global.whatsapp* variables with a
+ * type-safe, centralized state manager.
+ *
+ * Following:
+ * - Single Responsibility Principle (SRP): Only manages state
+ * - Open/Closed Principle (OCP): Extensible via getters/setters
+ */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WhatsAppStateManager = exports.state = void 0;
 // Initialize globals if they don't exist (for backwards compatibility)

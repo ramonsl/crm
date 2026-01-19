@@ -40,9 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# WhatsApp session data (sensitive)
+# WhatsApp Sessions
 .wwebjs_auth/
 .wwebjs_cache/
+.baileys_auth/
+baileys_auth_info/
 
 # Database (contains user data)
 *.db
