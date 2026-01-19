@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
         const totalToFetch = offset + limit;
         console.log(`[Fetch Messages] Fetching ${totalToFetch} messages (offset: ${offset}, limit: ${limit})`);
 
-        const allMessages = await chat.fetchMessages({ limit: totalToFetch });
+        const allMessages = await (chat as any).fetchMessages({ limit: totalToFetch });
 
         // Slice to get only the requested page
         const pageMessages = allMessages.slice(offset, offset + limit);

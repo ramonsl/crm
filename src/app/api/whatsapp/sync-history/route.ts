@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
                             chatFound = true;
 
                             const fetchLimit = cpf ? limit : 200;
-                            const messages = await chat.fetchMessages({ limit: fetchLimit });
+                            const messages = await (chat as any).fetchMessages({ limit: fetchLimit });
 
                             console.log(`[Sync History] Fetched ${messages.length} messages for ${contact.nome}`);
 
