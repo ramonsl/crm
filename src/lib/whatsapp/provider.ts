@@ -16,6 +16,7 @@ import {
     clearSession as clearBaileysSession,
     validateBaileysNumber,
     onBaileysMessage,
+    getBaileysProfilePicture,
     baileysState
 } from './baileys';
 
@@ -121,6 +122,20 @@ export async function sendWhatsAppMessage(
     } else {
         const { sendMessage } = await import('./index');
         return sendMessage(phone, message, mediaUrl, mediaType);
+    }
+}
+
+/**
+ * Get profile picture URL
+ */
+export async function getContactProfilePicture(phone: string): Promise<string | null> {
+    const provider = getProvider();
+
+    if (provider === 'baileys') {
+        return getBaileysProfilePicture(phone);
+    } else {
+        const { getContactProfilePicture: getPic } = await import('./index');
+        return getPic(phone);
     }
 }
 
