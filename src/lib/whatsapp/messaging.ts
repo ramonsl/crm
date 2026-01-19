@@ -300,12 +300,14 @@ export class WhatsAppMessenger {
             }
 
             // Check for critical errors that require client restart
-            // Note: "Evaluation failed" and undefined property errors are NOT critical
-            // They indicate temporary unavailability, not session failure
+            // Puppeteer errors (evaluate null, page closed) and session errors
             if (errorMessage.includes('Session closed') ||
                 errorMessage.includes('Protocol error') ||
                 errorMessage.includes('Target closed') ||
-                errorMessage.includes('browser has disconnected')) {
+                errorMessage.includes('browser has disconnected') ||
+                errorMessage.includes("Cannot read properties of null (reading 'evaluate')") ||
+                errorMessage.includes("Cannot read properties of null") ||
+                errorMessage.includes('Execution context was destroyed')) {
 
                 whatsappLogger.error(' Erro crítico ou timeout detectado durante envio de mensagem.');
                 messageQueue.addLog(`Erro crítico ou timeout (${errorMessage}). Verificando se pode reiniciar...`, 'error');
