@@ -5,8 +5,8 @@ import { getClient, getStatus } from '@/lib/whatsapp';
 
 export async function GET() {
     try {
-        const status = getStatus();
-        const client = getClient();
+        const status = await getStatus();
+        const client = await getClient();
 
         // Check if message event listener is registered
         const listenerCount = (client as any).listenerCount?.('message') || 0;

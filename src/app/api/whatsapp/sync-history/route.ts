@@ -7,7 +7,7 @@ import { WHATSAPP_CONFIG } from '@/lib/constants';
 
 export async function POST(req: NextRequest) {
     try {
-        const status = getStatus();
+        const status = await getStatus();
 
         if (status.status !== 'ready') {
             return NextResponse.json({ error: 'WhatsApp não está conectado', status: status.status }, { status: 400 });
@@ -63,6 +63,11 @@ export async function POST(req: NextRequest) {
                 for (const phoneVariation of variations) {
                     try {
                         const chatId = `${phoneVariation}@c.us`;
+                        const client = await getClient(); // Added await and re-declared client as per instruction
+                        if (!client) { // Added check for client availability
+                            console.error('[Sync History] WhatsApp client not available inside loop.');
+                            continue; // Skip to next variation if client is not available
+                        }
                         const chat = await client.getChatById(chatId);
 
                         if (chat) {
@@ -70,7 +75,7 @@ export async function POST(req: NextRequest) {
                             chatFound = true;
 
                             const fetchLimit = cpf ? limit : 200;
-                            const messages = await chat.fetchMessages({ limit: fetchLimit });
+                            const messages = await (chat as any).fetchMessages({ limit: fetchLimit });
 
                             console.log(`[Sync History] Fetched ${messages.length} messages for ${contact.nome}`);
 

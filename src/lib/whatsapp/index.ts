@@ -32,7 +32,10 @@ export const getClient = async () => {
     return {
         destroy: logoutWhatsApp,
         logout: logoutWhatsApp,
-        initialize: initializeWhatsApp
+        initialize: initializeWhatsApp,
+        getChats: async () => [],
+        getChatById: async (id: string) => null,
+        on: (event: string, cb: any) => { },
     };
 };
 

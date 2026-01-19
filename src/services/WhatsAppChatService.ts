@@ -38,8 +38,8 @@ export interface ChatMessage {
 }
 
 export class WhatsAppChatService {
-    private isReady(): boolean {
-        const status = getStatus();
+    private async isReady(): Promise<boolean> {
+        const status = await getStatus();
         return status.status === 'ready';
     }
 
@@ -48,7 +48,7 @@ export class WhatsAppChatService {
             throw new Error('WhatsApp is not connected');
         }
 
-        const client = getClient();
+        const client = await getClient();
         if (!client) {
             throw new Error('WhatsApp client not available');
         }
@@ -92,14 +92,14 @@ export class WhatsAppChatService {
                 // Build OR conditions for last 8 digits of each phone
                 const last8Conditions = phoneNumbers.map(phone => {
                     const normalized = phone.replace(/\D/g, '');
-                    return `%${normalized.slice(-8)}`;
+                    return `% ${normalized.slice(-8)} `;
                 });
 
                 const result = await pool.query(`
                     SELECT nome, cpf, status, telefone, profile_image
                     FROM leads 
                     WHERE ${last8Conditions.map((_, idx) => `telefone LIKE $${idx + 1}`).join(' OR ')}
-                `, last8Conditions);
+`, last8Conditions);
 
                 // Map results by last 8 digits for quick lookup
                 for (const lead of result.rows) {
@@ -198,7 +198,7 @@ export class WhatsAppChatService {
             throw new Error('WhatsApp is not connected');
         }
 
-        const client = getClient();
+        const client = await getClient();
         if (!client) {
             throw new Error('WhatsApp client not available');
         }
@@ -207,10 +207,13 @@ export class WhatsAppChatService {
             chatLogger.debug(`Fetching ${limit} messages for chat ${chatId}...`);
 
             const chat = await client.getChatById(chatId);
-            chatLogger.debug(`Chat found: ${chat.name}`);
-
-            const messages: WhatsAppWebMessage[] = await chat.fetchMessages({ limit });
-            chatLogger.debug(`Raw messages fetched: ${messages.length}`);
+            if (!chat) {
+                chatLogger.warn(`Chat not found: ${chatId}`);
+                return [];
+            }
+            chatLogger.debug(`Chat found: ${(chat as any).name} `);
+            const messages: WhatsAppWebMessage[] = await (chat as any).fetchMessages({ limit });
+            chatLogger.debug(`Raw messages fetched: ${messages.length} `);
 
             const chatMessages: ChatMessage[] = messages.map(msg => {
                 let status: 'sent' | 'delivered' | 'read' | 'failed' = 'sent';

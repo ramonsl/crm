@@ -45,7 +45,7 @@ async function executeBatchUpdate(batch: { cpf: string; profilePicUrl: string }[
 
 export async function POST(req: NextRequest) {
     try {
-        const status = getStatus();
+        const status = await getStatus();
 
         if (status.status !== 'ready') {
             return NextResponse.json({
