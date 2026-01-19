@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
                                     const values: any[] = [];
                                     const placeholders: string[] = [];
 
-                                    messages.forEach((msg, index) => {
+                                    messages.forEach((msg: any, index: number) => {
                                         const from_me = msg.fromMe;
                                         const timestamp = new Date(msg.timestamp * 1000).toISOString();
                                         // 5 params per row
