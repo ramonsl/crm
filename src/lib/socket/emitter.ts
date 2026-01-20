@@ -16,6 +16,7 @@ import type {
     WhatsAppStatusEvent
 } from './types';
 import { socketLogger } from '@/lib/logger';
+import { normalizePhoneForSocket } from '@/lib/utils/phoneUtils';
 
 // Unique ID to detect duplicate module instances
 const MODULE_ID = `emitter-${Date.now()}-${Math.random()}`;
@@ -119,12 +120,14 @@ export function emitNewMessageToPhone(phone: string, data: Omit<NewMessageEvent,
         return false;
     }
 
-    const room = `phone:${phone}`;
+    // CRITICAL: Normalize phone to match client-side room naming
+    const normalizedPhone = normalizePhoneForSocket(phone);
+    const room = `phone:${normalizedPhone}`;
     const messageData = { ...data, contactCpf: phone };
 
     // Emit to specific phone room (for chat page)
     io.to(room).emit('message:new', messageData);
-    socketLogger.debug(`[${MODULE_ID}] ✅ Emitted message:new to PHONE room ${room}`);
+    socketLogger.debug(`[${MODULE_ID}] ✅ Emitted message:new to PHONE room ${room} (original: ${phone})`);
 
     // BROADCAST to ALL connected clients (for global notifications)
     io.sockets.emit('message:new', messageData);
