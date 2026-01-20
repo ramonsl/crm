@@ -108,12 +108,12 @@ export default function WhatsAppPage() {
         } catch (error) {
             console.error(error);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
     const handleDisconnect = async () => {
-        setLoading(true);
+        setIsLoading(true);
         try {
             const res = await fetch('/api/whatsapp', {
                 method: 'DELETE',
@@ -128,7 +128,7 @@ export default function WhatsAppPage() {
         } catch (error) {
             console.error(error);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
@@ -260,7 +260,7 @@ export default function WhatsAppPage() {
         setShowConfirmModal(false);
 
         if (confirmAction === 'reset') {
-            setLoading(true);
+            setIsLoading(true);
             try {
                 const res = await fetch('/api/whatsapp', {
                     method: 'POST',
@@ -277,10 +277,10 @@ export default function WhatsAppPage() {
                 console.error(error);
                 toastError('Erro ao resetar sessão.');
             } finally {
-                setLoading(false);
+                setIsLoading(false);
             }
         } else if (confirmAction === 'clearQueue') {
-            setLoading(true);
+            setIsLoading(true);
             try {
                 const res = await fetch('/api/whatsapp/queue', {
                     method: 'DELETE'
@@ -295,7 +295,7 @@ export default function WhatsAppPage() {
                 console.error(error);
                 toastError('Erro ao limpar fila.');
             } finally {
-                setLoading(false);
+                setIsLoading(false);
             }
         }
 
@@ -335,7 +335,7 @@ export default function WhatsAppPage() {
                     <div className={`${styles.statusDot} ${styles[status]}`} />
                     <span>
                         {status === 'ready' ? 'Conectado' :
-                            status === 'initializing' ? 'Inicializando...' : 'Desconectado'}
+                            status === 'connecting' || status === 'qr' ? 'Inicializando...' : 'Desconectado'}
                     </span>
                 </div>
             </header>
@@ -377,14 +377,14 @@ export default function WhatsAppPage() {
                                     <button
                                         onClick={handleDisconnect}
                                         className={styles.disconnectButton}
-                                        disabled={loading}
+                                        disabled={isLoading}
                                     >
                                         {loading ? 'Processando...' : 'Desconectar'}
                                     </button>
                                     <button
                                         onClick={handleTestMessage}
                                         className={styles.testButton}
-                                        disabled={loading}
+                                        disabled={isLoading}
                                     >
                                         <Send size={16} />
                                         Enviar Teste
@@ -394,7 +394,7 @@ export default function WhatsAppPage() {
                                             onClick={handleYCloudTest}
                                             className={styles.testButton}
                                             style={{ borderColor: '#0ea5e9', color: '#0ea5e9' }}
-                                            disabled={loading}
+                                            disabled={isLoading}
                                             title="Testar envio via YCloud API"
                                         >
                                             <Cloud size={16} />
@@ -405,7 +405,7 @@ export default function WhatsAppPage() {
                                         onClick={handleResetClick}
                                         className={styles.disconnectButton}
                                         style={{ backgroundColor: '#dc2626' }}
-                                        disabled={loading}
+                                        disabled={isLoading}
                                         title="Apagar sessão e reiniciar"
                                     >
                                         <RefreshCw size={16} />
@@ -446,8 +446,8 @@ export default function WhatsAppPage() {
                                             Biblioteca de conexão:
                                         </label>
                                         <select
-                                            value={provider}
-                                            onChange={(e) => setProvider(e.target.value as 'baileys' | 'wwebjs')}
+                                            value={selectedProvider}
+                                            onChange={(e) => setSelectedProvider(e.target.value as 'baileys' | 'wwebjs')}
                                             className={styles.input}
                                             style={{
                                                 width: 'auto',
@@ -472,11 +472,11 @@ export default function WhatsAppPage() {
                                 )}
 
                                 <div className={styles.actions}>
-                                    {status === 'initializing' ? (
+                                    {status === 'connecting' || status === 'qr' ? (
                                         <button
                                             onClick={handleDisconnect}
                                             className={styles.disconnectButton}
-                                            disabled={loading}
+                                            disabled={isLoading}
                                         >
                                             Cancelar
                                         </button>
@@ -484,7 +484,7 @@ export default function WhatsAppPage() {
                                         <button
                                             onClick={handleConnect}
                                             className={styles.connectButton}
-                                            disabled={loading}
+                                            disabled={isLoading}
                                         >
                                             {loading ? 'Iniciando...' : 'Conectar WhatsApp'}
                                         </button>
