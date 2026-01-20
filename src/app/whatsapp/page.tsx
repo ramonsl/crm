@@ -9,7 +9,7 @@ import { useSocket } from '@/contexts/SocketContext';
 
 export default function WhatsAppPage() {
     const { success: toastSuccess, error: toastError } = useToast();
-    const [status, setStatus] = useState<'connecting' | 'ready' | 'qr' | 'disconnected'>('disconnected');
+    const [status, setStatus] = useState<'disconnected' | 'connecting' | 'qr' | 'ready'>('disconnected');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [queueState, setQueueState] = useState<any>(null);
@@ -17,6 +17,9 @@ export default function WhatsAppPage() {
     const [selectedProvider, setSelectedProvider] = useState<'baileys' | 'wwebjs'>('baileys');
     const [currentProvider, setCurrentProvider] = useState<string | null>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
+
+    // Listen to real-time WhatsApp status updates via Socket.io
+    const { socket, isConnected } = useSocket();
 
     const checkStatus = async () => {
         try {
@@ -44,17 +47,23 @@ export default function WhatsAppPage() {
     };
 
     useEffect(() => {
+        // Initial check
         checkStatus();
         fetchQueueState();
-        const interval = setInterval(() => {
-            checkStatus();
-            fetchQueueState();
-        }, 2000); // Poll every 2s for smoother UI
-        return () => clearInterval(interval);
-    }, []);
 
-    // Listen to real-time WhatsApp status updates via Socket.io
-    const { socket, isConnected } = useSocket();
+        // Only poll if Socket.io is NOT connected
+        // When Socket.io is connected, we get real-time updates
+        if (!isConnected) {
+            console.log('[WhatsApp Page] Socket.io not connected, starting polling...');
+            const interval = setInterval(() => {
+                checkStatus();
+                fetchQueueState();
+            }, 2000);
+            return () => clearInterval(interval);
+        } else {
+            console.log('[WhatsApp Page] Socket.io connected, polling disabled (using real-time events)');
+        }
+    }, [isConnected]);
 
     useEffect(() => {
         if (!socket || !isConnected) return;
@@ -65,16 +74,23 @@ export default function WhatsAppPage() {
             phoneNumber?: string;
         }) => {
             console.log('[WhatsApp Page] Received whatsapp:status event:', data);
+            console.log('[WhatsApp Page] Current qrCode state:', qrCode);
+            console.log('[WhatsApp Page] New qr from event:', data.qr);
 
-            // Map 'qr' and 'connecting' to 'initializing'
-            if (data.status === 'qr' || data.status === 'connecting') {
-                setStatus('initializing');
-            } else {
-                setStatus(data.status as 'disconnected' | 'initializing' | 'ready');
+            // Update status directly (don't map qr to initializing!)
+            setStatus(data.status);
+
+            // CRITICAL: Update QR Code state
+            if (data.qr) {
+                console.log('[WhatsApp Page] ✅ Setting QR Code in state');
+                setQrCode(data.qr);
+            } else if (data.status !== 'qr') {
+                // Only clear QR if status is NOT qr
+                setQrCode('');
             }
 
-            setQrCode(data.qr || '');
             setPhoneNumber(data.phoneNumber || null);
+            console.log('[WhatsApp Page] State updated - status:', data.status, 'hasQR:', !!data.qr);
         };
 
         socket.on('whatsapp:status', handleWhatsAppStatus);
