@@ -211,8 +211,13 @@ export class WWebJSAdapter implements IWhatsAppProvider {
                 }
             });
 
-            // Initialize client
-            await client.initialize();
+            // Initialize client (don't await - let it run in background)
+            client.initialize().catch(err => {
+                whatsappLogger.error('Failed to initialize client:', err);
+                messageQueue.addLog(`Falha ao inicializar: ${err instanceof Error ? err.message : String(err)}`, 'error');
+                this.state.status = 'disconnected';
+                this.state.isInitializing = false;
+            });
 
         } catch (error) {
             whatsappLogger.error('Failed to initialize WWebJS:', error);
