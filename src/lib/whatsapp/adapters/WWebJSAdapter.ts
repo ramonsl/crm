@@ -21,6 +21,7 @@ import type {
     WhatsAppStatus,
     MediaType
 } from '../IWhatsAppProvider';
+import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
 
 interface WWebJSState {
     client: Client | null;
@@ -30,7 +31,7 @@ interface WWebJSState {
     isInitializing: boolean;
 }
 
-export class WWebJSAdapter implements IWhatsAppProvider {
+export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvider {
     private state: WWebJSState = {
         client: null,
         status: 'disconnected',
@@ -358,7 +359,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
         }
 
         try {
-            const chatId = phone.includes('@') ? phone : `${phone}@c.us`;
+            const chatId = await this.getChatId(phone);
             const { MessageMedia } = await import('whatsapp-web.js');
             const media = await MessageMedia.fromUrl(imageUrl);
 
@@ -388,7 +389,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
         }
 
         try {
-            const chatId = phone.includes('@') ? phone : `${phone}@c.us`;
+            const chatId = await this.getChatId(phone);
             const { MessageMedia } = await import('whatsapp-web.js');
             const media = await MessageMedia.fromUrl(videoUrl);
 
@@ -418,7 +419,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
         }
 
         try {
-            const chatId = phone.includes('@') ? phone : `${phone}@c.us`;
+            const chatId = await this.getChatId(phone);
             const { MessageMedia } = await import('whatsapp-web.js');
             const media = await MessageMedia.fromUrl(audioUrl);
 
@@ -448,7 +449,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
         }
 
         try {
-            const chatId = phone.includes('@') ? phone : `${phone}@c.us`;
+            const chatId = await this.getChatId(phone);
             const { MessageMedia } = await import('whatsapp-web.js');
             const media = await MessageMedia.fromUrl(documentUrl);
 
@@ -471,6 +472,34 @@ export class WWebJSAdapter implements IWhatsAppProvider {
         }
     }
 
+    // ========================================================================
+    // BASE CLASS IMPLEMENTATIONS
+    // ========================================================================
+
+    protected formatToDefaultJid(number: string): string {
+        return `${number}@c.us`;
+    }
+
+    protected async verifyJidOnNetwork(number: string): Promise<string | null> {
+        if (!this.state.client) return null;
+
+        const jid = this.formatToDefaultJid(number);
+
+        try {
+            const isRegistered = await this.state.client.isRegisteredUser(jid);
+            if (isRegistered) {
+                // WWebJS returns boolean, so we reconstruct the JID or query numberId
+                // Better to verify exact ID if possible, but isRegisteredUser is robust for WWebJS
+                // Let's try getContactById to get serialized ID
+                const contact = await this.state.client.getContactById(jid);
+                return contact ? contact.id._serialized : jid;
+            }
+        } catch (error) {
+            whatsappLogger.warn(`WWebJS checkNumberStatus failed for ${jid}`, error);
+        }
+        return null;
+    }
+
     async sendMessage(
         phone: string,
         message: string,
@@ -485,21 +514,19 @@ export class WWebJSAdapter implements IWhatsAppProvider {
         }
 
         try {
-            const chatId = phone.includes('@') ? phone : `${phone}@c.us`;
+            const chatId = await this.getChatId(phone);
 
             if (mediaUrl) {
-                // Send with media
                 if (mediaType === 'image') {
-                    return this.sendImage(phone, mediaUrl, message);
+                    return this.sendImage(chatId, mediaUrl, message);
                 } else if (mediaType === 'video') {
-                    return this.sendVideo(phone, mediaUrl, message);
+                    return this.sendVideo(chatId, mediaUrl, message);
                 } else if (mediaType === 'audio') {
-                    return this.sendAudio(phone, mediaUrl);
+                    return this.sendAudio(chatId, mediaUrl);
                 } else {
-                    return this.sendDocument(phone, mediaUrl, message);
+                    return this.sendDocument(chatId, mediaUrl, message);
                 }
             } else {
-                // Send text only
                 const sentMsg = await this.state.client.sendMessage(chatId, message);
                 return {
                     success: true,
@@ -514,10 +541,6 @@ export class WWebJSAdapter implements IWhatsAppProvider {
             };
         }
     }
-
-    // ========================================================================
-    // CONTACTS & PROFILE
-    // ========================================================================
 
     async getProfilePicture(phone: string): Promise<string | null> {
         if (!this.state.client) return null;
