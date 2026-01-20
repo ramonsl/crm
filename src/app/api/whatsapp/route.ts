@@ -56,7 +56,11 @@ export async function POST(req: NextRequest) {
         const provider = await WhatsAppProviderFactory.getProvider(providerType);
 
         if (action === 'connect') {
-            await provider.initialize();
+            // Start initialization in background (don't await)
+            provider.initialize().catch((error) => {
+                console.error('[API /api/whatsapp] Error initializing provider:', error);
+            });
+
             return NextResponse.json({
                 message: 'Initializing',
                 provider: WhatsAppProviderFactory.getCurrentProviderType()
