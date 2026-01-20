@@ -9,7 +9,9 @@ import { BaileysAdapter } from '../adapters/BaileysAdapter';
 import { WWebJSAdapter } from '../adapters/WWebJSAdapter';
 import { whatsappLogger } from '@/lib/logger';
 
-export type ProviderType = 'baileys' | 'wwebjs' | 'twilio';
+import { WPPConnectAdapter } from '../adapters/WPPConnectAdapter';
+
+export type ProviderType = 'baileys' | 'wwebjs' | 'wppconnect' | 'twilio';
 
 export class WhatsAppProviderFactory {
     private static instance: IWhatsAppProvider | null = null;
@@ -44,6 +46,10 @@ export class WhatsAppProviderFactory {
 
             case 'wwebjs':
                 this.instance = new WWebJSAdapter();
+                break;
+
+            case 'wppconnect':
+                this.instance = new WPPConnectAdapter();
                 break;
 
             case 'twilio':
