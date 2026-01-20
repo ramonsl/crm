@@ -212,11 +212,12 @@ class QueueManager {
      * Process the queue
      */
     async process() {
+        var _a;
         if (this.processing || this.queue.length === 0)
             return;
         this.processing = true;
         // Dynamic import to avoid circular dependency
-        const { sendMessage } = await Promise.resolve().then(() => __importStar(require('../whatsapp')));
+        const { sendWhatsAppMessage } = await Promise.resolve().then(() => __importStar(require('../whatsapp/provider')));
         while (this.queue.length > 0) {
             const item = this.queue[0];
             item.status = 'processing';
@@ -236,8 +237,8 @@ class QueueManager {
                     this.addLog(`[YCloud] Sent to ${item.phone}`, 'success');
                 }
                 else {
-                    // Send via WhatsAppJS (local templates, custom messages)
-                    // Apply delay ONLY for WhatsAppJS to avoid blocking
+                    // Send via Baileys/WhatsAppJS (local providers)
+                    // Apply delay to avoid spam/ban
                     const { minDelay, maxDelay } = await this.getDelaySettings();
                     await this.applyDelay(minDelay, maxDelay, item.phone);
                     // Generate or substitute message
@@ -249,13 +250,16 @@ class QueueManager {
                     else {
                         item.message = this.substituteVariables(item.message, item.name);
                     }
-                    // Send message via WhatsAppJS
-                    this.addLog(`Sending to ${item.phone}...`, 'info');
-                    await sendMessage(item.phone, item.message);
+                    // Send message via Provider (Baileys or WWebJS)
+                    this.addLog(`Sending to ${item.phone} via Provider...`, 'info');
+                    const result = await sendWhatsAppMessage(item.phone, item.message);
+                    // Log ID if available
+                    const msgId = typeof result.id === 'string' ? result.id :
+                        ((_a = result.id) === null || _a === void 0 ? void 0 : _a._serialized) || 'unknown';
                     // Update stats
                     item.status = 'completed';
                     this.stats.processed++;
-                    this.addLog(`Successfully sent to ${item.phone}`, 'success');
+                    this.addLog(`Successfully sent to ${item.phone} (ID: ${msgId})`, 'success');
                 }
                 // Record success
                 await this.historyRecorder.recordSuccess(item);

@@ -10,6 +10,39 @@
  * - Socket.io attached to the same server for WebSocket connections
  * - Authentication middleware validates socket connections
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -23,7 +56,8 @@ const url_1 = require("url");
 const next_1 = __importDefault(require("next"));
 const socket_io_1 = require("socket.io");
 const emitter_1 = require("./src/lib/socket/emitter");
-const whatsapp_1 = require("./src/lib/whatsapp");
+const provider_1 = require("./src/lib/whatsapp/provider");
+const phoneUtils_1 = require("./src/lib/utils/phoneUtils");
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -91,6 +125,22 @@ app.prepare().then(() => {
             socket.leave(room);
             console.log(`[Socket] ${socket.id} left room ${room}`);
         });
+        // Handle phone room join (for WhatsApp Chat)
+        socket.on('room:join:phone', (phone) => {
+            // Normalize phone for consistent room naming
+            const normalizedPhone = (0, phoneUtils_1.normalizePhoneForSocket)(phone);
+            const room = `phone:${normalizedPhone}`;
+            socket.join(room);
+            console.log(`[Socket] ${socket.id} joined PHONE room ${room} (original: ${phone})`);
+        });
+        // Handle phone room leave
+        socket.on('room:leave:phone', (phone) => {
+            // Normalize phone for consistent room naming
+            const normalizedPhone = (0, phoneUtils_1.normalizePhoneForSocket)(phone);
+            const room = `phone:${normalizedPhone}`;
+            socket.leave(room);
+            console.log(`[Socket] ${socket.id} left PHONE room ${room} (original: ${phone})`);
+        });
         // Handle message send (optional - can keep using REST API)
         socket.on('message:send', async (data, callback) => {
             try {
@@ -116,8 +166,22 @@ app.prepare().then(() => {
     httpServer.listen(port, () => {
         console.log(`> Ready on http://${hostname}:${port}`);
         console.log(`> Socket.io server running on port ${port}`);
-        // Initialize WhatsApp client
-        console.log('> Initializing WhatsApp client...');
-        (0, whatsapp_1.getClient)();
+        // Initialize WhatsApp client using configured provider
+        const provider = (0, provider_1.getProvider)();
+        console.log(`> Initializing WhatsApp client (provider: ${provider})...`);
+        (0, provider_1.initializeWhatsApp)().catch(err => {
+            console.error('Failed to initialize WhatsApp:', err);
+        });
+        // Register Baileys Message Handler
+        if (provider === 'baileys') {
+            Promise.resolve().then(() => __importStar(require('./src/lib/whatsapp/provider'))).then(({ onWhatsAppMessage }) => {
+                Promise.resolve().then(() => __importStar(require('./src/services/BaileysMessageHandler'))).then(({ baileysMessageHandler }) => {
+                    onWhatsAppMessage(async (msg) => {
+                        await baileysMessageHandler.handle(msg);
+                    });
+                    console.log('> Baileys Message Handler registered');
+                });
+            });
+        }
     });
 });

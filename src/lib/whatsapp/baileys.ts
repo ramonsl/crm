@@ -20,6 +20,7 @@ import { messageQueue } from '@/lib/messageQueue';
 import type { WhatsAppStatus, WhatsAppStatusResponse, SendMessageResult } from './types';
 import { pool } from '../db';
 import * as QRCode from 'qrcode';
+import { emitWhatsAppStatus } from '@/lib/socket/emitter';
 
 // Session path configuration
 const SESSION_PATH = process.env.NODE_ENV === 'production'
@@ -148,6 +149,12 @@ export async function initializeBaileys(): Promise<void> {
                 state.qrCode = await QRCode.toDataURL(qr);
                 state.status = 'initializing';
                 messageQueue.addLog('QR Code gerado. Escaneie com seu WhatsApp.', 'info');
+
+                // Emit QR code via Socket.io
+                emitWhatsAppStatus({
+                    status: 'qr',
+                    qr: state.qrCode
+                });
             }
 
             // Connection opened
@@ -169,6 +176,12 @@ export async function initializeBaileys(): Promise<void> {
                 }
 
                 messageQueue.addLog('✅ WhatsApp conectado com sucesso!', 'success');
+
+                // Emit status update via Socket.io
+                emitWhatsAppStatus({
+                    status: 'ready',
+                    phoneNumber: state.phoneNumber || undefined
+                });
             }
 
             // Connection closed
@@ -196,6 +209,11 @@ export async function initializeBaileys(): Promise<void> {
                 state.status = 'disconnected';
                 state.qrCode = null;
                 state.isInitializing = false;
+
+                // Emit disconnected status via Socket.io
+                emitWhatsAppStatus({
+                    status: 'disconnected'
+                });
 
                 if (shouldResetSession) {
                     // Session invalidated - need to login again

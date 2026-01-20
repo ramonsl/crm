@@ -26,6 +26,7 @@ import type {
 } from './src/lib/socket/types';
 import { setSocketServer } from './src/lib/socket/emitter';
 import { initializeWhatsApp, getProvider } from './src/lib/whatsapp/provider';
+import { normalizePhoneForSocket } from './src/lib/utils/phoneUtils';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -108,6 +109,24 @@ app.prepare().then(() => {
             const room = `contact:${contactCpf}`;
             socket.leave(room);
             console.log(`[Socket] ${socket.id} left room ${room}`);
+        });
+
+        // Handle phone room join (for WhatsApp Chat)
+        socket.on('room:join:phone', (phone: string) => {
+            // Normalize phone for consistent room naming
+            const normalizedPhone = normalizePhoneForSocket(phone);
+            const room = `phone:${normalizedPhone}`;
+            socket.join(room);
+            console.log(`[Socket] ${socket.id} joined PHONE room ${room} (original: ${phone})`);
+        });
+
+        // Handle phone room leave
+        socket.on('room:leave:phone', (phone: string) => {
+            // Normalize phone for consistent room naming
+            const normalizedPhone = normalizePhoneForSocket(phone);
+            const room = `phone:${normalizedPhone}`;
+            socket.leave(room);
+            console.log(`[Socket] ${socket.id} left PHONE room ${room} (original: ${phone})`);
         });
 
         // Handle message send (optional - can keep using REST API)

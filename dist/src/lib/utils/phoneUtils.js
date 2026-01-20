@@ -10,6 +10,7 @@ exports.removeNonDigits = removeNonDigits;
 exports.normalizePhoneNumber = normalizePhoneNumber;
 exports.getPhoneVariations = getPhoneVariations;
 exports.formatForWhatsApp = formatForWhatsApp;
+exports.normalizePhoneForSocket = normalizePhoneForSocket;
 /**
  * Remove all non-digit characters from phone number
  *
@@ -112,6 +113,34 @@ function formatForWhatsApp(phone) {
     // Brazilian numbers (10 or 11 digits): add 55 if missing
     if ((normalized.length === 10 || normalized.length === 11) && !normalized.startsWith('55')) {
         return '55' + normalized;
+    }
+    return normalized;
+}
+/**
+ * Normalize phone number for Socket.io room names
+ *
+ * Ensures consistent room naming across server and client by removing
+ * WhatsApp JID suffixes and device IDs, then normalizing to include country code.
+ *
+ * @param phone - Phone number in any format (e.g., "5511999999999@s.whatsapp.net", "11999999999", "5511999999999:1@s.whatsapp.net")
+ * @returns Normalized phone number with country code (e.g., "5511999999999")
+ *
+ * @example
+ * normalizePhoneForSocket("5511999999999@s.whatsapp.net") // "5511999999999"
+ * normalizePhoneForSocket("11999999999") // "5511999999999"
+ * normalizePhoneForSocket("5511999999999:1@s.whatsapp.net") // "5511999999999"
+ */
+function normalizePhoneForSocket(phone) {
+    if (!phone)
+        return '';
+    // Remove WhatsApp JID suffixes (@s.whatsapp.net, @c.us)
+    // Remove device ID suffix (e.g., :1, :2)
+    let normalized = phone.split('@')[0].split(':')[0];
+    // Remove all non-digit characters
+    normalized = normalized.replace(/\D/g, '');
+    // Add country code if missing (assume Brazil - 55)
+    if (!normalized.startsWith('55') && normalized.length <= 11) {
+        normalized = '55' + normalized;
     }
     return normalized;
 }

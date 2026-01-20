@@ -53,6 +53,16 @@ export interface ClientToServerEvents {
      * Client leaves a contact's room
      */
     'room:leave': (contactCpf: string) => void;
+
+    /**
+     * Client requests to join a phone room for WhatsApp chat updates
+     */
+    'room:join:phone': (phone: string) => void;
+
+    /**
+     * Client leaves a phone room
+     */
+    'room:leave:phone': (phone: string) => void;
 }
 
 /**

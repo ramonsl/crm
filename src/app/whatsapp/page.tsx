@@ -5,6 +5,7 @@ import styles from './page.module.css';
 import { QrCode, RefreshCw, Smartphone, CheckCircle, AlertCircle, Terminal, Send, X, Cloud } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { useToast } from '@/contexts/ToastContext';
+import { useSocket } from '@/contexts/SocketContext';
 
 export default function WhatsAppPage() {
     const { success: toastSuccess, error: toastError } = useToast();
@@ -51,6 +52,39 @@ export default function WhatsAppPage() {
         }, 2000); // Poll every 2s for smoother UI
         return () => clearInterval(interval);
     }, []);
+
+    // Listen to real-time WhatsApp status updates via Socket.io
+    const { socket, isConnected } = useSocket();
+
+    useEffect(() => {
+        if (!socket || !isConnected) return;
+
+        const handleWhatsAppStatus = (data: {
+            status: 'connecting' | 'ready' | 'qr' | 'disconnected';
+            qr?: string;
+            phoneNumber?: string;
+        }) => {
+            console.log('[WhatsApp Page] Received whatsapp:status event:', data);
+
+            // Map 'qr' and 'connecting' to 'initializing'
+            if (data.status === 'qr' || data.status === 'connecting') {
+                setStatus('initializing');
+            } else {
+                setStatus(data.status as 'disconnected' | 'initializing' | 'ready');
+            }
+
+            setQrCode(data.qr || '');
+            setPhoneNumber(data.phoneNumber || null);
+        };
+
+        socket.on('whatsapp:status', handleWhatsAppStatus);
+        console.log('[WhatsApp Page] Listening to whatsapp:status events');
+
+        return () => {
+            socket.off('whatsapp:status', handleWhatsAppStatus);
+            console.log('[WhatsApp Page] Stopped listening to whatsapp:status events');
+        };
+    }, [socket, isConnected]);
 
     useEffect(() => {
         if (logsEndRef.current) {
