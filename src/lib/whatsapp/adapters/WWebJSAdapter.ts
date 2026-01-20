@@ -47,24 +47,30 @@ export class WWebJSAdapter implements IWhatsAppProvider {
     // ========================================================================
 
     async initialize(): Promise<void> {
+        console.log('[WWebJS] 🚀 initialize() called');
+
         if (this.state.isInitializing) {
+            console.log('[WWebJS] ⚠️ Already initializing, skipping');
             whatsappLogger.warn('WWebJS already initializing...');
             return;
         }
 
         if (this.state.status === 'ready') {
+            console.log('[WWebJS] ✅ Already ready, skipping');
             whatsappLogger.info('WWebJS already initialized and ready');
             return;
         }
 
         this.state.isInitializing = true;
         this.state.status = 'connecting';
+        console.log('[WWebJS] 📡 Status set to connecting');
 
         try {
             whatsappLogger.info('Initializing WWebJS WhatsApp Client...');
 
             // ALWAYS destroy existing client before creating new one
             if (this.state.client) {
+                console.log('[WWebJS] 🗑️ Destroying existing client');
                 whatsappLogger.debug('Existing client found. Destroying before fresh init...');
                 try {
                     await this.state.client.destroy();
@@ -75,6 +81,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
             }
 
             // Kill any existing Chrome processes for this session
+            console.log('[WWebJS] 🔫 Killing old Chrome processes');
             try {
                 const { execSync } = require('child_process');
                 execSync('pkill -f "chrome.*wwebjs"', { stdio: 'ignore' });
@@ -85,6 +92,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
 
             // Remove lock files that might prevent initialization
             const sessionPath = './.wwebjs_auth';
+            console.log('[WWebJS] 🔓 Removing lock files from:', sessionPath);
             try {
                 const fs = require('fs');
                 const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
@@ -99,6 +107,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
                 whatsappLogger.warn('Error removing lock files:', e);
             }
 
+            console.log('[WWebJS] 🏗️ Creating new Client instance');
             const client = new Client({
                 authStrategy: new LocalAuth({
                     dataPath: sessionPath
@@ -113,15 +122,25 @@ export class WWebJSAdapter implements IWhatsAppProvider {
             });
 
             this.state.client = client;
+            console.log('[WWebJS] ✅ Client instance created and stored');
+
+            // ========================================================================
+            // CRITICAL: Register ALL event handlers BEFORE initialize()
+            // ========================================================================
+
+            console.log('[WWebJS] 📋 Registering event handlers...');
 
             // QR Code event
             client.on('qr', async (qr) => {
+                console.log('[WWebJS] 📱 QR CODE EVENT FIRED!');
                 whatsappLogger.info('QR Code received');
                 this.state.qrCode = await QRCode.toDataURL(qr);
                 this.state.status = 'qr';
+                console.log('[WWebJS] ✅ QR Code converted to data URL, status = qr');
                 messageQueue.addLog('QR Code gerado. Escaneie com seu WhatsApp.', 'info');
 
                 // Emit via Socket.io
+                console.log('[WWebJS] 📡 Emitting QR via Socket.io');
                 emitWhatsAppStatus({
                     status: 'qr',
                     qr: this.state.qrCode
@@ -134,10 +153,12 @@ export class WWebJSAdapter implements IWhatsAppProvider {
                         qrCode: this.state.qrCode
                     });
                 }
+                console.log('[WWebJS] ✅ QR Code event handled completely');
             });
 
             // Ready event
             client.on('ready', () => {
+                console.log('[WWebJS] 🟢 READY EVENT FIRED!');
                 whatsappLogger.info('🟢 WWEBJS CONNECTED!');
                 this.state.status = 'ready';
                 this.state.qrCode = null;
@@ -169,6 +190,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
 
             // Disconnected event
             client.on('disconnected', (reason) => {
+                console.log('[WWebJS] 🔴 DISCONNECTED EVENT FIRED! Reason:', reason);
                 whatsappLogger.warn(`WWebJS disconnected: ${reason}`);
                 this.state.status = 'disconnected';
                 this.state.qrCode = null;
@@ -211,15 +233,24 @@ export class WWebJSAdapter implements IWhatsAppProvider {
                 }
             });
 
-            // Initialize client (don't await - let it run in background)
+            console.log('[WWebJS] ✅ All event handlers registered');
+
+            // ========================================================================
+            // NOW initialize (after all handlers are registered)
+            // ========================================================================
+            console.log('[WWebJS] 🎬 Calling client.initialize()...');
             client.initialize().catch(err => {
+                console.log('[WWebJS] ❌ Initialize FAILED:', err);
                 whatsappLogger.error('Failed to initialize client:', err);
                 messageQueue.addLog(`Falha ao inicializar: ${err instanceof Error ? err.message : String(err)}`, 'error');
                 this.state.status = 'disconnected';
                 this.state.isInitializing = false;
             });
 
+            console.log('[WWebJS] ✅ initialize() method completed (client running in background)');
+
         } catch (error) {
+            console.log('[WWebJS] ❌ EXCEPTION in initialize():', error);
             whatsappLogger.error('Failed to initialize WWebJS:', error);
             this.state.status = 'disconnected';
             this.state.isInitializing = false;
@@ -243,12 +274,22 @@ export class WWebJSAdapter implements IWhatsAppProvider {
     async logout(): Promise<void> {
         whatsappLogger.info('Logging out from WWebJS...');
 
-        if (this.state.client) {
-            await this.state.client.logout();
-            await this.state.client.destroy();
-            this.state.client = null;
+        if (!this.state.client) {
+            whatsappLogger.info('No client to logout from');
+            this.state.status = 'disconnected';
+            this.state.phoneNumber = null;
+            this.state.qrCode = null;
+            return;
         }
 
+        try {
+            await this.state.client.logout();
+            await this.state.client.destroy();
+        } catch (error) {
+            whatsappLogger.error('Error during logout:', error);
+        }
+
+        this.state.client = null;
         this.state.status = 'disconnected';
         this.state.phoneNumber = null;
         this.state.qrCode = null;
