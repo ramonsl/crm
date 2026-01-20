@@ -33,6 +33,7 @@ export class BaileysMessageHandler {
         const placeholders = variations.map((_, i) => `$${i + 1}`).join(',');
 
         // Query to find contact by any phone variation
+        // Query to find contact by any phone variation
         const result = await pool.query(`
             SELECT cpf, nome, telefone FROM leads 
             WHERE telefone IN (${placeholders})
@@ -40,17 +41,17 @@ export class BaileysMessageHandler {
             LIMIT 1
         `, variations);
 
-        let contact = result.rows[0] as ContactInfo | undefined;
+        const contact = result.rows[0] as ContactInfo | undefined;
 
-        // Fallback: Try matching by last 8 digits
-        if (!contact && phone.length >= 8) {
-            const last8 = phone.slice(-8);
-            const fallbackResult = await pool.query(
-                'SELECT cpf, nome, telefone FROM leads WHERE telefone LIKE $1',
-                [`%${last8}`]
-            );
-            contact = fallbackResult.rows[0] as ContactInfo | undefined;
+        if (contact) {
+            whatsappLogger.debug(`Contact found: ${contact.nome} (${contact.telefone}) for variations: ${variations.join(', ')}`);
+        } else {
+            whatsappLogger.debug(`No contact found for variations: ${variations.join(', ')}`);
         }
+
+        // REMOVED FALLBACK: The previous fallback matching last 8 digits was ignoring DDD 
+        // and causing wrong contact attribution (e.g. 51... matching 48...).
+        // getPhoneVariations() already handles 9th digit variations correctly with strict matching.
 
         return contact || null;
     }
