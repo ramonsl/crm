@@ -379,7 +379,7 @@ export default function WhatsAppPage() {
                                         className={styles.disconnectButton}
                                         disabled={isLoading}
                                     >
-                                        {loading ? 'Processando...' : 'Desconectar'}
+                                        {isLoading ? 'Processando...' : 'Desconectar'}
                                     </button>
                                     <button
                                         onClick={handleTestMessage}
@@ -486,7 +486,7 @@ export default function WhatsAppPage() {
                                             className={styles.connectButton}
                                             disabled={isLoading}
                                         >
-                                            {loading ? 'Iniciando...' : 'Conectar WhatsApp'}
+                                            {isLoading ? 'Iniciando...' : 'Conectar WhatsApp'}
                                         </button>
                                     )}
                                 </div>
