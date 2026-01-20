@@ -293,6 +293,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
         this.state.status = 'disconnected';
         this.state.phoneNumber = null;
         this.state.qrCode = null;
+        this.state.isInitializing = false;
 
         messageQueue.addLog('WhatsApp desconectado', 'info');
     }
@@ -300,8 +301,14 @@ export class WWebJSAdapter implements IWhatsAppProvider {
     async clearSession(autoReconnect = true): Promise<void> {
         whatsappLogger.info(`Clearing WWebJS session... (autoReconnect: ${autoReconnect})`);
 
+        this.state.isInitializing = false; // Force reset flag
+
         if (this.state.client) {
-            await this.state.client.destroy();
+            try {
+                await this.state.client.destroy();
+            } catch (e) {
+                // ignore
+            }
             this.state.client = null;
         }
 
