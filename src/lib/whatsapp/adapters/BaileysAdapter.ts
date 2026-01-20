@@ -211,7 +211,7 @@ export class BaileysAdapter implements IWhatsAppProvider {
                     if (shouldResetSession) {
                         // Session invalidated - need to login again
                         whatsappLogger.info('Session invalidated. Clearing session...');
-                        messageQueue.addLog('⚠️ Sessão invalidada. Reconecte o WhatsApp.', 'warning');
+                        messageQueue.addLog('⚠️ Sessão invalidada. Reconecte o WhatsApp.', 'error');
                         await this.clearSession(false);
                         this.state.isReconnecting = false;
                         this.reconnectAttempts = 0;
