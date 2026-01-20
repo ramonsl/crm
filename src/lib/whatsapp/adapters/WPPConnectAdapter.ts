@@ -56,10 +56,12 @@ export class WPPConnectAdapter implements IWhatsAppProvider {
         try {
             whatsappLogger.info('Initializing WPPConnect Client...');
 
-            // Dynamically load wppconnect to avoid build issues
+            // Dynamically load wppconnect to avoid build issues (Webpack/Turbopack scan)
             if (!wppconnect) {
                 try {
-                    wppconnect = await import('@wppconnect-team/wppconnect');
+                    // Use eval('require') to completely hide the dependency from the bundler
+                    const requireFunc = typeof __non_webpack_require__ !== 'undefined' ? __non_webpack_require__ : eval('require');
+                    wppconnect = requireFunc('@wppconnect-team/wppconnect');
                 } catch (e) {
                     console.error('Failed to load @wppconnect-team/wppconnect', e);
                     throw new Error('Failed to load WPPConnect library. Make sure it is installed.');
