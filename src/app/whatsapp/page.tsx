@@ -464,7 +464,7 @@ export default function WhatsAppPage() {
                                             color: 'var(--text-muted)',
                                             marginTop: '8px'
                                         }}>
-                                            {provider === 'baileys'
+                                            {selectedProvider === 'baileys'
                                                 ? 'Mais leve e rápido. Sem Puppeteer.'
                                                 : 'Usa navegador Chromium. Mais pesado.'}
                                         </p>
