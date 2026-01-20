@@ -109,3 +109,39 @@ Você é um engenheiro full-stack sênior especialista neste CRM.
 - Priorize qualidade, segurança e manutenibilidade acima de tudo.
 
 Essas são as regras específicas do projeto CRM Educacional. Respeite-as em todas as interações.
+
+---
+
+## 🔌 WhatsApp Provider Interface
+
+### Regra Obrigatória: Abstração de Provider
+
+**NUNCA** importe diretamente de `baileys.ts` ou `index.ts` (wwebjs).
+
+**SEMPRE** use a interface `IWhatsAppProvider` através da factory:
+
+```typescript
+// ❌ ERRADO
+import { sendBaileysMessage } from '@/lib/whatsapp/baileys';
+
+// ✅ CORRETO
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
+const provider = await WhatsAppProviderFactory.getProvider();
+await provider.sendTextMessage(phone, message);
+```
+
+### Métodos Disponíveis
+
+- **Lifecycle:** `initialize()`, `restart()`, `logout()`, `clearSession()`
+- **Status:** `getStatus()`, `isReady()`
+- **Mensagens Texto:** `sendTextMessage()`
+- **Mensagens Mídia:** `sendImage()`, `sendVideo()`, `sendAudio()`, `sendDocument()`
+- **Mensagens Genérica:** `sendMessage()` (detecta tipo automaticamente)
+- **Contatos:** `getProfilePicture()`, `validateNumber()`, `getContactInfo()`
+- **Eventos:** `onMessage()`, `onStatusChange()`
+
+### Seleção de Provider
+
+Provider é selecionado ao **conectar** via UI (`/whatsapp`).
+
+**NÃO** usar variável de ambiente `WHATSAPP_PROVIDER` (deprecado).
