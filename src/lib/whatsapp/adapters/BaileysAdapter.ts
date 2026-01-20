@@ -14,6 +14,7 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
+import * as path from 'path';
 import pino from 'pino';
 import { whatsappLogger } from '@/lib/logger';
 import { messageQueue } from '@/lib/messageQueue';
@@ -35,7 +36,7 @@ import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
 // Session path configuration
 const SESSION_PATH = process.env.NODE_ENV === 'production'
     ? '/tmp/baileys-session'
-    : './.baileys_auth';
+    : path.resolve(process.cwd(), '.baileys_auth');
 
 // Pino logger for Baileys (silent most logs)
 const baileysLogger = pino({ level: 'silent' }) as any;
