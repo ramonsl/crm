@@ -1,11 +1,9 @@
 import { getErrorMessage } from '@/lib/types';
-
 import { NextResponse, NextRequest } from 'next/server';
-import { sendMessage } from '@/lib/whatsapp';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 import { pool } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
-// POST /api/chat/send
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -13,7 +11,9 @@ export async function POST(req: NextRequest) {
 
         // Accept either telefone (preferred) or cpf
         if ((!cpf && !telefone) || !message) {
-            return NextResponse.json({ error: 'Phone or CPF and message are required' }, { status: 400 });
+            return NextResponse.json({
+                error: 'Phone or CPF and message are required'
+            }, { status: 400 });
         }
 
         let phone: string;
@@ -36,8 +36,26 @@ export async function POST(req: NextRequest) {
 
         console.log(`[API /chat/send] About to send message to phone: "${phone}"`);
 
-        // Send via WhatsApp
-        const result = await sendMessage(phone, message, mediaUrl, mediaType);
+        // Get WhatsApp provider
+        const provider = await WhatsAppProviderFactory.getProvider('baileys');
+
+        // Check if ready
+        const isReady = await provider.isReady();
+        if (!isReady) {
+            return NextResponse.json(
+                { error: 'WhatsApp is not connected' },
+                { status: 503 }
+            );
+        }
+
+        // Send via WhatsApp using provider
+        const result = await provider.sendMessage(phone, message, mediaUrl, mediaType);
+
+        if (!result.success) {
+            return NextResponse.json({
+                error: result.error || 'Failed to send message'
+            }, { status: 500 });
+        }
 
         // Get the CPF for database operations (if not provided, lookup by phone)
         let contactCpf = cpf;
@@ -49,14 +67,14 @@ export async function POST(req: NextRequest) {
         }
 
         // Store in database
-        const messageId = result.id || uuidv4();
+        const messageId = result.messageId || uuidv4();
 
         if (contactCpf) {
             await pool.query(`
-                INSERT INTO messages (id, contact_phone, content, from_me, type, media_url, timestamp)
-                VALUES ($1, $2, $3, true, $4, $5, NOW())
+                INSERT INTO messages (id, contact_phone, content, from_me, type, media_url, media_type, timestamp)
+                VALUES ($1, $2, $3, true, $4, $5, $6, NOW())
                 ON CONFLICT (id) DO NOTHING
-            `, [messageId, contactCpf, message, mediaType || 'text', mediaUrl || null]);
+            `, [messageId, contactCpf, message, mediaType || 'text', mediaUrl || null, mediaType || null]);
 
             // Update leads table with last message info
             await pool.query(`
@@ -80,6 +98,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, messageId });
     } catch (error: unknown) {
         console.error('Error sending message:', error);
-        return NextResponse.json({ error: getErrorMessage(error) || 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({
+            error: getErrorMessage(error) || 'Internal Server Error'
+        }, { status: 500 });
     }
 }

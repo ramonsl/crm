@@ -1,14 +1,6 @@
 import { getErrorMessage } from '@/lib/types';
-
 import { NextResponse, NextRequest } from 'next/server';
-import {
-    initializeWhatsApp,
-    getWhatsAppStatus,
-    sendWhatsAppMessage,
-    logoutWhatsApp,
-    resetWhatsAppSession,
-    getProvider
-} from '@/lib/whatsapp/provider';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 import { pool } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
@@ -18,17 +10,26 @@ import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-    const status = await getWhatsAppStatus();
-    const provider = getProvider();
+    try {
+        const provider = await WhatsAppProviderFactory.getProvider('baileys');
+        const status = await provider.getStatus();
+        const providerType = WhatsAppProviderFactory.getCurrentProviderType();
 
-    return NextResponse.json({
-        ...status,
-        provider,
-        reconnectAttempts: (global as any).whatsappReconnectAttempts || 0,
-        lastDisconnect: (global as any).whatsappLastDisconnect || null,
-        healthCheckActive: (global as any).whatsappHealthCheckTimer !== null,
-        restartHistory: (global as any).whatsappRestartHistory?.length || 0,
-    });
+        return NextResponse.json({
+            ...status,
+            provider: providerType,
+            reconnectAttempts: (global as any).whatsappReconnectAttempts || 0,
+            lastDisconnect: (global as any).whatsappLastDisconnect || null,
+            healthCheckActive: (global as any).whatsappHealthCheckTimer !== null,
+            restartHistory: (global as any).whatsappRestartHistory?.length || 0,
+        });
+    } catch (error) {
+        console.error('[API /api/whatsapp GET] Error:', error);
+        return NextResponse.json({
+            status: 'disconnected',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
 }
 
 export async function POST(req: NextRequest) {
@@ -50,21 +51,27 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { action } = body;
 
+        // Get provider instance
+        const providerType = body.provider || 'baileys';
+        const provider = await WhatsAppProviderFactory.getProvider(providerType);
+
         if (action === 'connect') {
-            const { provider } = body;
-            await initializeWhatsApp(provider);
-            return NextResponse.json({ message: 'Initializing', provider: getProvider() });
+            await provider.initialize();
+            return NextResponse.json({
+                message: 'Initializing',
+                provider: WhatsAppProviderFactory.getCurrentProviderType()
+            });
         }
 
         if (action === 'send') {
             let { phone, message } = body;
 
             // Check if WhatsApp is connected
-            const status = await getWhatsAppStatus();
+            const status = await provider.getStatus();
             if (status.status !== 'ready') {
                 const statusMessages: Record<string, string> = {
                     'disconnected': 'WhatsApp desconectado. Por favor, conecte-se na página WhatsApp.',
-                    'initializing': 'WhatsApp está inicializando. Aguarde alguns segundos e tente novamente.',
+                    'connecting': 'WhatsApp está inicializando. Aguarde alguns segundos e tente novamente.',
                     'qr': 'WhatsApp aguardando leitura do QR Code. Escaneie o código na página WhatsApp.'
                 };
                 const errorMessage = statusMessages[status.status] || `WhatsApp não está pronto (${status.status})`;
@@ -102,29 +109,33 @@ export async function POST(req: NextRequest) {
                         .replace(/{nome}/g, 'Visitante');
                 }
 
-                const sendResult = await sendWhatsAppMessage(phone, message);
+                const sendResult = await provider.sendTextMessage(phone, message);
+
+                if (!sendResult.success) {
+                    return NextResponse.json({
+                        error: sendResult.error || 'Erro ao enviar mensagem'
+                    }, { status: 500 });
+                }
 
                 // Save to messages table if we have a lead CPF
                 if (lead && lead.cpf) {
                     try {
-                        const messageId = typeof sendResult.id === 'object' && sendResult.id !== null
-                            ? (sendResult.id as any)._serialized || String(sendResult.id)
-                            : sendResult.id || uuidv4();
+                        const messageId = sendResult.messageId || uuidv4();
 
                         await pool.query(`
-                        INSERT INTO messages (id, contact_phone, content, from_me, type, timestamp)
-                        VALUES ($1, $2, $3, true, 'text', NOW())
-                        ON CONFLICT (id) DO NOTHING
-                    `, [messageId, lead.cpf, message]);
+                            INSERT INTO messages (id, contact_phone, content, from_me, type, timestamp)
+                            VALUES ($1, $2, $3, true, 'text', NOW())
+                            ON CONFLICT (id) DO NOTHING
+                        `, [messageId, lead.cpf, message]);
                         console.log(`[API] Message saved to DB for CPF ${lead.cpf}`);
 
                         await pool.query(`
-                        UPDATE leads 
-                        SET last_message = $1, 
-                            last_message_time = NOW(),
-                            updated_at = NOW()
-                        WHERE cpf = $2
-                    `, [message, lead.cpf]);
+                            UPDATE leads 
+                            SET last_message = $1, 
+                                last_message_time = NOW(),
+                                updated_at = NOW()
+                            WHERE cpf = $2
+                        `, [message, lead.cpf]);
                         console.log(`[API] Lead updated with last message for CPF ${lead.cpf}`);
 
                     } catch (dbError) {
@@ -134,19 +145,19 @@ export async function POST(req: NextRequest) {
                     console.warn(`[API] Message sent but not saved to DB: No lead found for phone ${phone}`);
                 }
 
-                return NextResponse.json({ success: true, messageId: sendResult.id });
+                return NextResponse.json({ success: true, messageId: sendResult.messageId });
             } catch (error: unknown) {
                 return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
             }
         }
 
         if (action === 'disconnect') {
-            await logoutWhatsApp();
+            await provider.logout();
             return NextResponse.json({ message: 'Disconnected', status: 'disconnected' });
         }
 
         if (action === 'reset') {
-            await resetWhatsAppSession();
+            await provider.clearSession(true);
             return NextResponse.json({ message: 'Session reset', status: 'disconnected' });
         }
 
@@ -165,7 +176,9 @@ export async function DELETE(req: NextRequest) {
         // Require authentication
         await requireAuth(req);
 
-        await logoutWhatsApp();
+        const provider = await WhatsAppProviderFactory.getProvider('baileys');
+        await provider.logout();
+
         return NextResponse.json({ message: 'Disconnected', status: 'disconnected' });
     } catch (error) {
         if (error instanceof UnauthorizedError) {
