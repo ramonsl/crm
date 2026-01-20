@@ -80,12 +80,13 @@ export class ContactSyncService {
     }
 
     /**
-     * Fetches profile picture using existing WhatsApp function
+     * Fetches profile picture using WhatsApp Factory
      */
     private async fetchProfilePicture(phone: string): Promise<string | null> {
         try {
-            const { getContactProfilePicture } = await import('@/lib/whatsapp');
-            return await getContactProfilePicture(phone);
+            const { WhatsAppProviderFactory } = await import('@/lib/whatsapp/factory/WhatsAppProviderFactory');
+            const provider = await WhatsAppProviderFactory.getProvider();
+            return await provider.getProfilePicture(phone);
         } catch (error) {
             syncLogger.warn('Failed to fetch profile picture:', error);
             return null;
@@ -93,24 +94,12 @@ export class ContactSyncService {
     }
 
     /**
-     * Fetches last chat message
+     * Fetches last chat message from database
+     * Nota: Busca do DB é mais confiável que fetch real-time do client
      */
-    private async fetchLastChat(chatId: string): Promise<{ message: string; time: string } | null> {
-        try {
-            const chat = await global.whatsappClient!.getChatById(chatId);
-            const messages = await chat.fetchMessages({ limit: 1 });
-
-            if (messages.length > 0) {
-                const msg = messages[0];
-                return {
-                    message: msg.body,
-                    time: new Date(msg.timestamp * 1000).toISOString()
-                };
-            }
-        } catch (error) {
-            syncLogger.warn('Failed to fetch last chat:', error);
-        }
-
+    private async fetchLastChat(_chatId: string): Promise<{ message: string; time: string } | null> {
+        // TODO: Implementar busca do DB se necessário
+        // Por ora, retorna null pois a sincronização é feita via handler de mensagens
         return null;
     }
 

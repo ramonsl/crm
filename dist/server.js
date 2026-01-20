@@ -56,10 +56,10 @@ const url_1 = require("url");
 const next_1 = __importDefault(require("next"));
 const socket_io_1 = require("socket.io");
 const emitter_1 = require("./src/lib/socket/emitter");
-const provider_1 = require("./src/lib/whatsapp/provider");
 const phoneUtils_1 = require("./src/lib/utils/phoneUtils");
+const factory_1 = require("./src/lib/whatsapp/factory");
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
+const hostname = process.env.HOSTNAME || 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
 // Initialize Next.js
 const app = (0, next_1.default)({ dev, hostname, port });
@@ -166,22 +166,37 @@ app.prepare().then(() => {
     httpServer.listen(port, () => {
         console.log(`> Ready on http://${hostname}:${port}`);
         console.log(`> Socket.io server running on port ${port}`);
-        // Initialize WhatsApp client using configured provider
-        const provider = (0, provider_1.getProvider)();
-        console.log(`> Initializing WhatsApp client (provider: ${provider})...`);
-        (0, provider_1.initializeWhatsApp)().catch(err => {
-            console.error('Failed to initialize WhatsApp:', err);
-        });
-        // Register Baileys Message Handler
-        if (provider === 'baileys') {
-            Promise.resolve().then(() => __importStar(require('./src/lib/whatsapp/provider'))).then(({ onWhatsAppMessage }) => {
-                Promise.resolve().then(() => __importStar(require('./src/services/BaileysMessageHandler'))).then(({ baileysMessageHandler }) => {
-                    onWhatsAppMessage(async (msg) => {
-                        await baileysMessageHandler.handle(msg);
-                    });
-                    console.log('> Baileys Message Handler registered');
+        // Initialize WhatsApp client using factory (load from DB persistence)
+        factory_1.WhatsAppProviderFactory.getProvider().then(async (provider) => {
+            console.log(`> Initializing WhatsApp provider: ${provider.getProviderName()}...`);
+            try {
+                // Register message handler BEFORE initialization to catch early messages
+                const { baileysMessageHandler } = await Promise.resolve().then(() => __importStar(require('./src/services/BaileysMessageHandler')));
+                provider.onMessage(async (msg) => {
+                    // Normalize the message object if needed, but BaileysMessageHandler expects
+                    // 'BaileysMessage' which matches 'WhatsAppMessage' structure closely enough
+                    // (from: string, body: string, isGroup: boolean, timestamp: Date, fromMe: boolean, id: string)
+                    await baileysMessageHandler.handle(msg);
                 });
-            });
-        }
+                // Register Log handler
+                try {
+                    const { messageQueue } = await Promise.resolve().then(() => __importStar(require('./src/lib/messageQueue')));
+                    provider.onLog((message, type) => {
+                        messageQueue.addLog(message, type);
+                    });
+                }
+                catch (e) {
+                    console.error('Failed to bind messageQueue logger:', e);
+                }
+                console.log('> WhatsApp Listeners registered (Message & Log)');
+                await provider.initialize();
+                console.log(`> ${provider.getProviderName()} initialized successfully`);
+            }
+            catch (err) {
+                console.error('Failed to initialize WhatsApp:', err);
+            }
+        }).catch((err) => {
+            console.error('Failed to get WhatsApp provider:', err);
+        });
     });
 });

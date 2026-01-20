@@ -4,6 +4,7 @@
     flex-direction: column;
     background: #000000;
     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23000000" width="100" height="100"/><path d="M0 0L100 100M100 0L0 100" stroke="%232c2e33" stroke-width="0.5" opacity="0.1"/></svg>');
+    position: relative;
 }
 
 .emptyState {
@@ -80,7 +81,6 @@
     flex-direction: column;
     gap: 8px;
     min-height: 0;
-    /* Important for flex item to respect parent constraints */
 }
 
 .loading {
@@ -138,20 +138,82 @@
 
 .messageTime {
     font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.messageIn .messageTime {
     color: #8696a0;
 }
 
 .checkSent {
-    color: #8696a0;
+    color: rgba(255, 255, 255, 0.6);
 }
 
 .checkDelivered {
-    color: #8696a0;
+    color: rgba(255, 255, 255, 0.6);
 }
 
 .checkRead {
     color: #53bdeb;
 }
+
+/* ========================================================================
+   MEDIA CONTENT
+   ======================================================================== */
+
+.mediaContainer {
+    max-width: 300px;
+}
+
+.mediaImage {
+    max-width: 100%;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.mediaImage:hover {
+    opacity: 0.9;
+}
+
+.mediaVideo {
+    max-width: 100%;
+    border-radius: 6px;
+}
+
+.mediaCaption {
+    margin: 6px 0 0 0;
+    font-size: 14px;
+}
+
+.audioContainer {
+    min-width: 200px;
+}
+
+.audioPlayer {
+    width: 100%;
+    height: 36px;
+}
+
+.documentLink {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    color: inherit;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.documentLink:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* ========================================================================
+   INPUT AREA
+   ======================================================================== */
 
 .inputContainer {
     display: flex;
@@ -172,11 +234,16 @@
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    transition: background 0.2s;
+    transition: all 0.2s;
 }
 
 .iconButton:hover {
     background: #2a3942;
+    color: #e9edef;
+}
+
+.iconButton.active {
+    color: #0090e7;
 }
 
 .messageInput {
@@ -217,4 +284,110 @@
 .sendButton:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* ========================================================================
+   EMOJI PICKER
+   ======================================================================== */
+
+.emojiPickerContainer {
+    position: absolute;
+    bottom: 70px;
+    left: 16px;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* ========================================================================
+   ATTACH MENU
+   ======================================================================== */
+
+.attachMenu {
+    position: absolute;
+    bottom: 70px;
+    left: 60px;
+    background: #191c24;
+    border-radius: 10px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+}
+
+.attachOption {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    color: #e9edef;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background 0.2s;
+    font-size: 14px;
+}
+
+.attachOption:hover {
+    background: #2a3942;
+}
+
+/* ========================================================================
+   RECORDING
+   ======================================================================== */
+
+.recordingContainer {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 16px;
+}
+
+.cancelRecording {
+    background: #dc3545;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.cancelRecording:hover {
+    background: #c82333;
+}
+
+.recordingIndicator {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #e9edef;
+    font-size: 16px;
+}
+
+.recordingDot {
+    width: 12px;
+    height: 12px;
+    background: #dc3545;
+    border-radius: 50%;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
 }

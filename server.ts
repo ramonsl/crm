@@ -157,20 +157,36 @@ app.prepare().then(() => {
         console.log(`> Ready on http://${hostname}:${port}`);
         console.log(`> Socket.io server running on port ${port}`);
 
-        // Initialize WhatsApp client using factory
-        WhatsAppProviderFactory.getProvider('baileys').then(async (provider) => {
+        // Initialize WhatsApp client using factory (load from DB persistence)
+        WhatsAppProviderFactory.getProvider().then(async (provider) => {
             console.log(`> Initializing WhatsApp provider: ${provider.getProviderName()}...`);
 
             try {
-                await provider.initialize();
-
-                // Register message handler
+                // Register message handler BEFORE initialization to catch early messages
                 const { baileysMessageHandler } = await import('./src/services/BaileysMessageHandler');
+
                 provider.onMessage(async (msg) => {
+                    // Normalize the message object if needed, but BaileysMessageHandler expects
+                    // 'BaileysMessage' which matches 'WhatsAppMessage' structure closely enough
+                    // (from: string, body: string, isGroup: boolean, timestamp: Date, fromMe: boolean, id: string)
                     await baileysMessageHandler.handle(msg);
                 });
 
-                console.log('> WhatsApp Message Handler registered');
+                // Register Log handler
+                try {
+                    const { messageQueue } = await import('./src/lib/messageQueue');
+                    provider.onLog((message, type) => {
+                        messageQueue.addLog(message, type);
+                    });
+                } catch (e) {
+                    console.error('Failed to bind messageQueue logger:', e);
+                }
+
+                console.log('> WhatsApp Listeners registered (Message & Log)');
+
+                await provider.initialize();
+                console.log(`> ${provider.getProviderName()} initialized successfully`);
+
             } catch (err) {
                 console.error('Failed to initialize WhatsApp:', err);
             }

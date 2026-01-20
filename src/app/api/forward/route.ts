@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
 import { ActivityRepository } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
-import { sendMessage, getStatus } from '@/lib/whatsapp';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
 import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
@@ -57,6 +57,7 @@ Gere um resumo BREVE (máximo 5 linhas) focando em:
 - Principais dúvidas ou objeções
 - Como o comercial pode ajudar a converter este lead
 - Finalizar dizendo que é para o curso presencial e se o candidato resistir me informar para eu novamente agir sobre esse lead
+- NUNCA invente informações, use apenas o texto fornecido.
 
 Conversa:
 ${conversationText}`;
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
 
         if (!rateLimitResult.success) {
             return NextResponse.json(
-                { error: 'Limite de encaminhamentos excedido. Aguarde 1 minuto.' },
+                { error: 'Limite de mensagens excedido. Aguarde 1 minuto.' },
                 { status: 429 }
             );
         }
@@ -155,8 +156,10 @@ export async function POST(req: NextRequest) {
 
         const leadCpf = lead.cpf;
 
-        // Check if WhatsApp is connected
-        const waStatus = await getStatus();
+        // Check if WhatsApp is connected via Factory (Persistent Provider)
+        const provider = await WhatsAppProviderFactory.getProvider();
+        const waStatus = await provider.getStatus();
+
         if (waStatus.status !== 'ready') {
             const statusMessages: Record<string, string> = {
                 'disconnected': 'WhatsApp desconectado. Por favor, conecte-se na página WhatsApp.',
@@ -194,8 +197,15 @@ export async function POST(req: NextRequest) {
             message += `\n\n📝 *Resumo da Conversa:*\n${summary}`;
         }
 
-        // Send via WhatsApp
-        await sendMessage(comercialPhone, message);
+        // Send via WhatsApp Provider
+        const sendResult = await provider.sendTextMessage(comercialPhone, message);
+
+        if (!sendResult.success) {
+            console.error('[Forward API] Failed to send message:', sendResult.error);
+            return NextResponse.json({
+                error: `Erro ao enviar WhatsApp: ${sendResult.error}`
+            }, { status: 500 });
+        }
 
         // Log the forward in the timeline
         await activityService.logForwarded(leadCpf, comercialName || 'Comercial');

@@ -180,6 +180,19 @@ export function emitWhatsAppStatus(data: WhatsAppStatusEvent): void {
 }
 
 /**
+ * Emit Queue update to all connected clients
+ */
+export function emitQueueUpdate(data: any): void {
+    const io = getIo();
+    if (!io) {
+        // Silent fail or debug log, queue updates might happen before socket ready
+        return;
+    }
+
+    io.emit('queue:update', data);
+}
+
+/**
  * Check if Socket.io server is initialized and ready
  */
 export function isSocketServerReady(): boolean {

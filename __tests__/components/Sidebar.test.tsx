@@ -39,7 +39,7 @@ describe('Sidebar', () => {
     it('should fetch WhatsApp status', async () => {
         render(<Sidebar />);
         await waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith('/api/whatsapp');
+            expect(global.fetch).toHaveBeenCalledWith('/api/whatsapp', expect.anything());
         });
     });
 });

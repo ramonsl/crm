@@ -18,19 +18,23 @@ class BaileysMessageHandler {
         // Create placeholders for PostgreSQL ($1, $2, etc)
         const placeholders = variations.map((_, i) => `$${i + 1}`).join(',');
         // Query to find contact by any phone variation
+        // Query to find contact by any phone variation
         const result = await db_1.pool.query(`
             SELECT cpf, nome, telefone FROM leads 
             WHERE telefone IN (${placeholders})
             ORDER BY CASE WHEN cpf != telefone THEN 0 ELSE 1 END, cpf
             LIMIT 1
         `, variations);
-        let contact = result.rows[0];
-        // Fallback: Try matching by last 8 digits
-        if (!contact && phone.length >= 8) {
-            const last8 = phone.slice(-8);
-            const fallbackResult = await db_1.pool.query('SELECT cpf, nome, telefone FROM leads WHERE telefone LIKE $1', [`%${last8}`]);
-            contact = fallbackResult.rows[0];
+        const contact = result.rows[0];
+        if (contact) {
+            logger_1.whatsappLogger.debug(`Contact found: ${contact.nome} (${contact.telefone}) for variations: ${variations.join(', ')}`);
         }
+        else {
+            logger_1.whatsappLogger.debug(`No contact found for variations: ${variations.join(', ')}`);
+        }
+        // REMOVED FALLBACK: The previous fallback matching last 8 digits was ignoring DDD 
+        // and causing wrong contact attribution (e.g. 51... matching 48...).
+        // getPhoneVariations() already handles 9th digit variations correctly with strict matching.
         return contact || null;
     }
     /**
@@ -123,23 +127,22 @@ class BaileysMessageHandler {
                     `, [msg.body, messageTime, contact.cpf]);
                 }
             }
-            // Save message
+            // Save message with media info
+            const messageType = msg.mediaType || 'text';
             await db_1.pool.query(`
-                INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type, read)
-                VALUES ($1, $2, $3, $4, $5, 'text', $6)
+                INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type, media_url, media_type, read)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (id) DO NOTHING
             `, [
                 msg.id,
-                contact.cpf, // Using CPF as foreign key reference if schema requires it? 
-                // Schema check: messages table contact_phone column.
-                // Is it FK to leads(cpf)? 
-                // Schema does NOT show generic FK. 
-                // But legacy code: INSERT INTO messages (contact_phone...) VALUES ($1...) [contact.cpf]
-                // So it stores CPF in contact_phone column? That's confusing naming but consistent with legacy.
+                contact.cpf,
                 msg.body,
                 msg.fromMe,
                 messageTime,
-                msg.fromMe ? true : false // read
+                messageType,
+                msg.mediaUrl || null,
+                msg.mediaType || null,
+                msg.fromMe ? true : false
             ]);
             // Emit Socket Events
             if (!msg.fromMe) {
@@ -148,12 +151,12 @@ class BaileysMessageHandler {
                     contactCpf: contact.cpf,
                     contactName: contact.nome,
                     message: {
-                        id: 0, // database valid id? 
+                        id: 0,
                         message_id: msg.id,
                         direction: 'incoming',
                         body: msg.body,
-                        media_url: null,
-                        media_type: null,
+                        media_url: msg.mediaUrl || null,
+                        media_type: msg.mediaType || null,
                         timestamp: messageTime,
                         status: 'received'
                     }
@@ -166,8 +169,8 @@ class BaileysMessageHandler {
                         message_id: msg.id,
                         direction: 'incoming',
                         body: msg.body,
-                        media_url: null,
-                        media_type: null,
+                        media_url: msg.mediaUrl || null,
+                        media_type: msg.mediaType || null,
                         timestamp: messageTime,
                         status: 'received'
                     }

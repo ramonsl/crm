@@ -40,7 +40,7 @@ describe('WhatsAppProviderFactory', () => {
         test('should throw error for unsupported provider', async () => {
             await expect(
                 WhatsAppProviderFactory.getProvider('twilio' as any)
-            ).rejects.toThrow('Twilio adapter not implemented yet');
+            ).rejects.toThrow('Twilio provider not implemented yet');
         });
 
         test('should throw error for unknown provider', async () => {

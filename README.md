@@ -18,7 +18,7 @@
 
 ### 📋 Captação de Leads
 - ✅ Importação de leads via Excel/CSV
-- ✅ Validação automática de WhatsApp
+- ✅ Validação automática de WhatsApp (com normalização inteligente)
 - ✅ Detecção de duplicados
 - ✅ Sincronização com sistemas acadêmicos
 
@@ -28,6 +28,7 @@
 - ✅ Templates personalizados com variáveis dinâmicas
 - ✅ Geração de mensagens com IA (OpenAI)
 - ✅ Integração YCloud para envios via API oficial
+- ✅ **Multi-Provider Support**: Escolha entre Baileys, WWebJS ou WPPConnect via UI.
 - ✅ Notificações em tempo real
 
 ### 📊 Gestão do Funil
@@ -52,8 +53,8 @@
 | **Linguagem** | TypeScript |
 | **Banco de Dados** | PostgreSQL (Neon Serverless) |
 | **Migrations** | node-pg-migrate |
-| **WhatsApp Local** | Baileys (Padrão) / whatsapp-web.js |
-| **WhatsApp API** | YCloud |
+| **WhatsApp Core** | Factory Pattern (IWhatsAppProvider) |
+| **Providers** | Baileys / WWebJS / WPPConnect |
 | **Real-Time** | Socket.io |
 | **IA** | OpenAI API |
 | **UI** | CSS Modules + Lucide Icons |
@@ -62,16 +63,15 @@
 
 ---
 
-## ⚡ Arquitetura de Tempo Real (e Baileys)
+## ⚡ Arquitetura de Tempo Real (e WhatsApp Factory)
 
-O sistema utiliza **WebSocket (Socket.io)** para comunicação instantânea e **Baileys** para conexão leve com WhatsApp:
+O sistema utiliza uma arquitetura robusta de **Provider Factory** para gerenciar conexões de WhatsApp:
 
-- ✅ **Baileys**: Conexão via WebSocket direto (sem Chrome/Puppeteer), ideal para produção/containers.
-- ✅ **Fallback**: Possibilidade de alternar para `whatsapp-web.js` via UI ou variável de ambiente se necessário.
-- ✅ **Mensagens em tempo real**: Status e recebimento sem refresh.
-- ✅ Notificações sonoras e desktop
-- ✅ Redução de ~99.99% das consultas ao banco
-- ✅ Suporte a múltiplos usuários simultâneos
+- ✅ **Provider Agnostic**: Troque de provider (Baileys <-> WPPConnect) via interface sem reiniciar o servidor.
+- ✅ **Persistência**: A escolha do provider é salva no banco de dados (`settings` table), garantindo consistência após restarts.
+- ✅ **Fallback**: Possibilidade de alternar para `whatsapp-web.js` ou `wppconnect` se um falhar.
+- ✅ **Mensagens em tempo real**: Status e recebimento via Socket.io com normalização de telefones e LIDs.
+- ✅ **Profile Pics**: Cache local (`/tmp`) para performance e compatibilidade com Railway.
 
 ---
 
@@ -97,7 +97,7 @@ npm install
 # Configure as variáveis de ambiente
 cp .env.example .env.local
 
-# Execute as migrations
+# Execute as migrations (inclui tabela de settings)
 npm run migrate:test
 
 # Inicie o servidor
@@ -184,6 +184,7 @@ coordena+/
 │   ├── hooks/                 # Hooks customizados
 │   ├── lib/                   # Utilitários
 │   │   ├── providers/         # Providers de mensagem
+│   │   ├── whatsapp/          # WhatsApp Core (Factory & Adapters)
 │   │   └── repositories/      # Acesso a dados
 │   └── services/              # Regras de negócio
 ├── __tests__/                 # Testes unitários
@@ -198,9 +199,9 @@ coordena+/
 
 ### ✅ Implementado
 - [x] CRUD de Leads/Contatos
-- [x] Integração WhatsApp (Baileys + whatsapp-web.js)
+- [x] Integração WhatsApp (Baileys + WWebJS + WPPConnect)
 - [x] Integração YCloud (API oficial)
-- [x] Chat com histórico
+- [x] Chat com histórico e suporte a LIDs
 - [x] Templates com IA
 - [x] Kanban board
 - [x] Envio em massa
@@ -208,6 +209,7 @@ coordena+/
 - [x] Exportação Google Contacts
 - [x] Fila de mensagens
 - [x] Controle de custos
+- [x] Configuração persistente via banco
 
 ### 📋 Próximas Features
 | Feature | Descrição |

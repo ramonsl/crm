@@ -13,8 +13,10 @@ exports.emitNewMessageToPhone = emitNewMessageToPhone;
 exports.emitSentMessage = emitSentMessage;
 exports.emitContactUpdated = emitContactUpdated;
 exports.emitWhatsAppStatus = emitWhatsAppStatus;
+exports.emitQueueUpdate = emitQueueUpdate;
 exports.isSocketServerReady = isSocketServerReady;
 const logger_1 = require("../../lib/logger");
+const phoneUtils_1 = require("../../lib/utils/phoneUtils");
 // Unique ID to detect duplicate module instances
 const MODULE_ID = `emitter-${Date.now()}-${Math.random()}`;
 logger_1.socketLogger.debug(`[${MODULE_ID}] Module loaded`);
@@ -92,11 +94,13 @@ function emitNewMessageToPhone(phone, data) {
         logger_1.socketLogger.error(`[${MODULE_ID}] Cannot emit - Socket.io not initialized`);
         return false;
     }
-    const room = `phone:${phone}`;
+    // CRITICAL: Normalize phone to match client-side room naming
+    const normalizedPhone = (0, phoneUtils_1.normalizePhoneForSocket)(phone);
+    const room = `phone:${normalizedPhone}`;
     const messageData = Object.assign(Object.assign({}, data), { contactCpf: phone });
     // Emit to specific phone room (for chat page)
     io.to(room).emit('message:new', messageData);
-    logger_1.socketLogger.debug(`[${MODULE_ID}] ✅ Emitted message:new to PHONE room ${room}`);
+    logger_1.socketLogger.debug(`[${MODULE_ID}] ✅ Emitted message:new to PHONE room ${room} (original: ${phone})`);
     // BROADCAST to ALL connected clients (for global notifications)
     io.sockets.emit('message:new', messageData);
     logger_1.socketLogger.debug(`[${MODULE_ID}] 🌍 BROADCAST message:new to ALL ${io.sockets.sockets.size} connected clients`);
@@ -138,6 +142,17 @@ function emitWhatsAppStatus(data) {
     }
     io.emit('whatsapp:status', data);
     logger_1.socketLogger.debug(`Emitted whatsapp:status: ${data.status}`);
+}
+/**
+ * Emit Queue update to all connected clients
+ */
+function emitQueueUpdate(data) {
+    const io = getIo();
+    if (!io) {
+        // Silent fail or debug log, queue updates might happen before socket ready
+        return;
+    }
+    io.emit('queue:update', data);
 }
 /**
  * Check if Socket.io server is initialized and ready

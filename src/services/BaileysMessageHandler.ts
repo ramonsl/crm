@@ -4,15 +4,7 @@ import { whatsappLogger } from '@/lib/logger';
 import { messageQueue } from '@/lib/messageQueue';
 import { emitNewMessage, emitContactUpdated, emitNewMessageToPhone } from '@/lib/socket/emitter';
 import { getPhoneVariations } from '@/lib/utils/phoneUtils';
-
-export interface BaileysMessage {
-    from: string;
-    body: string;
-    isGroup: boolean;
-    timestamp: Date;
-    fromMe: boolean;
-    id: string;
-}
+import type { WhatsAppMessage } from '@/lib/whatsapp/IWhatsAppProvider';
 
 export interface ContactInfo {
     cpf: string;
@@ -61,7 +53,7 @@ export class BaileysMessageHandler {
      */
     private async saveMessage(
         contact: ContactInfo,
-        msg: BaileysMessage,
+        msg: WhatsAppMessage,
         insertTime: string
     ): Promise<number> {
         const insertResult = await pool.query(`
@@ -114,7 +106,7 @@ export class BaileysMessageHandler {
     /**
      * Handle incoming/outgoing message
      */
-    async handle(msg: BaileysMessage): Promise<void> {
+    async handle(msg: WhatsAppMessage): Promise<void> {
         // Skip groups for now (simplified)
         if (msg.isGroup) return;
 
@@ -162,23 +154,22 @@ export class BaileysMessageHandler {
                 }
             }
 
-            // Save message
+            // Save message with media info
+            const messageType = msg.mediaType || 'text';
             await pool.query(`
-                INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type, read)
-                VALUES ($1, $2, $3, $4, $5, 'text', $6)
+                INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type, media_url, media_type, read)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (id) DO NOTHING
             `, [
                 msg.id,
-                contact.cpf, // Using CPF as foreign key reference if schema requires it? 
-                // Schema check: messages table contact_phone column.
-                // Is it FK to leads(cpf)? 
-                // Schema does NOT show generic FK. 
-                // But legacy code: INSERT INTO messages (contact_phone...) VALUES ($1...) [contact.cpf]
-                // So it stores CPF in contact_phone column? That's confusing naming but consistent with legacy.
+                contact.cpf,
                 msg.body,
                 msg.fromMe,
                 messageTime,
-                msg.fromMe ? true : false // read
+                messageType,
+                msg.mediaUrl || null,
+                msg.mediaType || null,
+                msg.fromMe ? true : false
             ]);
 
             // Emit Socket Events
@@ -188,12 +179,12 @@ export class BaileysMessageHandler {
                     contactCpf: contact.cpf,
                     contactName: contact.nome,
                     message: {
-                        id: 0, // database valid id? 
+                        id: 0,
                         message_id: msg.id,
                         direction: 'incoming',
                         body: msg.body,
-                        media_url: null,
-                        media_type: null,
+                        media_url: msg.mediaUrl || null,
+                        media_type: msg.mediaType || null,
                         timestamp: messageTime,
                         status: 'received'
                     }
@@ -207,8 +198,8 @@ export class BaileysMessageHandler {
                         message_id: msg.id,
                         direction: 'incoming',
                         body: msg.body,
-                        media_url: null,
-                        media_type: null,
+                        media_url: msg.mediaUrl || null,
+                        media_type: msg.mediaType || null,
                         timestamp: messageTime,
                         status: 'received'
                     }

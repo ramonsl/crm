@@ -33,6 +33,11 @@ export interface ServerToClientEvents {
      * General connection confirmation
      */
     'connected': () => void;
+
+    /**
+     * Emitted when queue state changes (logs, stats, items)
+     */
+    'queue:update': (data: any) => void;
 }
 
 /**

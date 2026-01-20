@@ -60,6 +60,7 @@ const logger_1 = require("../../lib/logger");
 const messageQueue_1 = require("../../lib/messageQueue");
 const db_1 = require("../db");
 const QRCode = __importStar(require("qrcode"));
+const emitter_1 = require("../../lib/socket/emitter");
 // Session path configuration
 const SESSION_PATH = process.env.NODE_ENV === 'production'
     ? '/tmp/baileys-session'
@@ -153,6 +154,11 @@ async function initializeBaileys() {
                 state.qrCode = await QRCode.toDataURL(qr);
                 state.status = 'initializing';
                 messageQueue_1.messageQueue.addLog('QR Code gerado. Escaneie com seu WhatsApp.', 'info');
+                // Emit QR code via Socket.io
+                (0, emitter_1.emitWhatsAppStatus)({
+                    status: 'qr',
+                    qr: state.qrCode
+                });
             }
             // Connection opened
             if (connection === 'open') {
@@ -170,6 +176,11 @@ async function initializeBaileys() {
                     logger_1.whatsappLogger.info(`Connected phone: ${state.phoneNumber}`);
                 }
                 messageQueue_1.messageQueue.addLog('✅ WhatsApp conectado com sucesso!', 'success');
+                // Emit status update via Socket.io
+                (0, emitter_1.emitWhatsAppStatus)({
+                    status: 'ready',
+                    phoneNumber: state.phoneNumber || undefined
+                });
             }
             // Connection closed
             if (connection === 'close') {
@@ -191,6 +202,10 @@ async function initializeBaileys() {
                 state.status = 'disconnected';
                 state.qrCode = null;
                 state.isInitializing = false;
+                // Emit disconnected status via Socket.io
+                (0, emitter_1.emitWhatsAppStatus)({
+                    status: 'disconnected'
+                });
                 if (shouldResetSession) {
                     // Session invalidated - need to login again
                     logger_1.whatsappLogger.info('Session invalidated. Clearing session...');
@@ -239,9 +254,8 @@ async function initializeBaileys() {
             if (m.type !== 'notify')
                 return;
             for (const msg of m.messages) {
-                // Skip messages from self
-                if (msg.key.fromMe)
-                    continue;
+                // Process ALL messages (both received and sent)
+                // This ensures messages sent from WhatsApp app also appear in CRM
                 // Extract message content
                 const messageContent = ((_a = msg.message) === null || _a === void 0 ? void 0 : _a.conversation)
                     || ((_c = (_b = msg.message) === null || _b === void 0 ? void 0 : _b.extendedTextMessage) === null || _c === void 0 ? void 0 : _c.text)
@@ -250,11 +264,11 @@ async function initializeBaileys() {
                     continue;
                 const from = msg.key.remoteJid || '';
                 const isGroup = from.endsWith('@g.us');
-                logger_1.whatsappLogger.debug(`Message from ${from}: ${messageContent.substring(0, 50)}...`);
+                logger_1.whatsappLogger.debug(`Message from ${from} (fromMe: ${msg.key.fromMe}): ${messageContent.substring(0, 50)}...`);
                 // Call external handler if registered
                 if (onMessageCallback) {
                     onMessageCallback({
-                        from: from.replace('@s.whatsapp.net', '').replace('@c.us', ''),
+                        from: from.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', ''),
                         body: messageContent,
                         isGroup,
                         timestamp: new Date(msg.messageTimestamp * 1000),

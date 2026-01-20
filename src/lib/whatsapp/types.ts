@@ -11,7 +11,7 @@ import { Client, MessageMedia } from 'whatsapp-web.js';
 // CLIENT STATE TYPES
 // ============================================================================
 
-export type WhatsAppStatus = 'disconnected' | 'initializing' | 'ready';
+export type WhatsAppStatus = 'disconnected' | 'initializing' | 'connecting' | 'qr' | 'ready';
 
 export interface WhatsAppClientState {
     client: Client | null;

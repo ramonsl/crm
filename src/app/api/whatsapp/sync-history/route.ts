@@ -2,18 +2,21 @@ import { getErrorMessage } from '@/lib/types';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
-import { getStatus, getClient } from '@/lib/whatsapp';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 import { WHATSAPP_CONFIG } from '@/lib/constants';
 
 export async function POST(req: NextRequest) {
     try {
-        const status = await getStatus();
+        const provider = await WhatsAppProviderFactory.getProvider();
+        const status = await provider.getStatus();
 
         if (status.status !== 'ready') {
             return NextResponse.json({ error: 'WhatsApp não está conectado', status: status.status }, { status: 400 });
         }
 
-        const client = getClient();
+        // NOTE: This legacy sync logic is specific to WWebJS and might need refactoring for Baileys
+        // For now, we are just fixing the connection check.
+        const client = (provider as any).client; // Attempt to access underlying client if available
         if (!client) {
             return NextResponse.json({ error: 'Cliente WhatsApp não disponível' }, { status: 400 });
         }
@@ -63,9 +66,10 @@ export async function POST(req: NextRequest) {
                 for (const phoneVariation of variations) {
                     try {
                         const chatId = `${phoneVariation}@c.us`;
-                        const client = await getClient(); // Added await and re-declared client as per instruction
-                        if (!client) { // Added check for client availability
-                            console.error('[Sync History] WhatsApp client not available inside loop.');
+                        // Attempt to access underlying client for legacy WWebJS logic
+                        const client = (provider as any).client || null;
+                        if (!client) {
+                            console.error('[Sync History] WhatsApp client not available (Provider might not support legacy client access).');
                             continue; // Skip to next variation if client is not available
                         }
                         const chat = await client.getChatById(chatId);

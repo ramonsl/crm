@@ -2,7 +2,8 @@ import { describe, it, expect } from '@jest/globals';
 import { POST } from '@/app/api/whatsapp/sync-profile-pic/route';
 import { NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
-import * as whatsapp from '@/lib/whatsapp';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
+import fs from 'fs';
 
 // Mock DB
 jest.mock('@/lib/db', () => ({
@@ -11,19 +12,51 @@ jest.mock('@/lib/db', () => ({
     }
 }));
 
-const mockPoolQuery = pool.query as jest.Mock;
-
-// Mock WhatsApp lib
-jest.mock('@/lib/whatsapp', () => ({
-    getContactProfilePicture: jest.fn()
+// Mock Factory
+jest.mock('@/lib/whatsapp/factory', () => ({
+    WhatsAppProviderFactory: {
+        getProvider: jest.fn()
+    }
 }));
 
+// Mock fs
+jest.mock('fs');
+jest.mock('path', () => ({
+    join: (...args: string[]) => args.join('/'),
+    extname: () => '.jpg'
+}));
+
+const mockPoolQuery = pool.query as jest.Mock;
+
 describe('Profile Sync API', () => {
-    it('should sync profile picture successfully', async () => {
-        // Setup mocks
-        (whatsapp.getContactProfilePicture as jest.Mock).mockResolvedValue('https://example.com/pic.jpg');
+    let mockProvider: any;
+
+    beforeEach(() => {
+        // Setup mock provider
+        mockProvider = {
+            getProfilePicture: jest.fn().mockResolvedValue('https://example.com/pic.jpg')
+        };
+        (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
+
+        // Setup DB mock
         mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 1 });
 
+        // Setup FS mocks
+        (fs.existsSync as jest.Mock).mockReturnValue(true);
+        (fs.mkdirSync as jest.Mock).mockImplementation(() => { });
+        (fs.writeFileSync as jest.Mock).mockImplementation(() => { });
+
+        // Setup global fetch
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            arrayBuffer: () => Promise.resolve(new ArrayBuffer(10)),
+            headers: {
+                get: () => 'image/jpeg'
+            }
+        } as any);
+    });
+
+    it('should sync profile picture successfully (download and cache)', async () => {
         const req = new NextRequest('http://localhost/api/whatsapp/sync-profile-pic', {
             method: 'POST',
             body: JSON.stringify({ phone: '5551999999999', cpf: '12345678900' })
@@ -34,17 +67,24 @@ describe('Profile Sync API', () => {
 
         expect(res.status).toBe(200);
         expect(data.success).toBe(true);
-        expect(data.profile_image).toBe('https://example.com/pic.jpg');
+        // Agora retorna uma URL local da API
+        expect(data.profile_image).toMatch(/^\/api\/profile-pic\//);
+
+        // Verify download was attempted
+        expect(global.fetch).toHaveBeenCalledWith('https://example.com/pic.jpg');
+
+        // Verify file was saved
+        expect(fs.writeFileSync).toHaveBeenCalled();
 
         // Verify DB update
         expect(mockPoolQuery).toHaveBeenCalledWith(
             expect.stringContaining('UPDATE leads SET profile_image'),
-            expect.arrayContaining(['https://example.com/pic.jpg', '12345678900'])
+            expect.arrayContaining([expect.stringMatching(/^\/api\/profile-pic\//), '12345678900'])
         );
     });
 
     it('should handle missing profile picture', async () => {
-        (whatsapp.getContactProfilePicture as jest.Mock).mockResolvedValue(null);
+        mockProvider.getProfilePicture.mockResolvedValue(null);
 
         const req = new NextRequest('http://localhost/api/whatsapp/sync-profile-pic', {
             method: 'POST',
@@ -57,5 +97,28 @@ describe('Profile Sync API', () => {
         expect(res.status).toBe(200);
         expect(data.success).toBe(false);
         expect(data.message).toBe('No profile picture found');
+    });
+
+    it('should fallback to remote URL if download fails', async () => {
+        // Mock download failure
+        (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Download failed'));
+
+        const req = new NextRequest('http://localhost/api/whatsapp/sync-profile-pic', {
+            method: 'POST',
+            body: JSON.stringify({ phone: '5551999999999', cpf: '12345678900' })
+        });
+
+        const res = await POST(req);
+        const data = await res.json();
+
+        expect(data.success).toBe(true);
+        // Deve retornar a URL original como fallback
+        expect(data.profile_image).toBe('https://example.com/pic.jpg');
+
+        // Verifica se salvou a URL remota no banco
+        expect(mockPoolQuery).toHaveBeenCalledWith(
+            expect.stringContaining('UPDATE leads SET profile_image'),
+            expect.arrayContaining(['https://example.com/pic.jpg', '12345678900'])
+        );
     });
 });

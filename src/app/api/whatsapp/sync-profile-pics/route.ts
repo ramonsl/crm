@@ -3,7 +3,7 @@ import { getErrorMessage } from '@/lib/types';
 import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
 import { WHATSAPP_CONFIG } from '@/lib/constants';
-import { getContactProfilePicture, getStatus } from '@/lib/whatsapp';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 
 /**
  * Execute batch update of profile images using a single query with CASE statement
@@ -45,7 +45,8 @@ async function executeBatchUpdate(batch: { cpf: string; profilePicUrl: string }[
 
 export async function POST(req: NextRequest) {
     try {
-        const status = await getStatus();
+        const provider = await WhatsAppProviderFactory.getProvider();
+        const status = await provider.getStatus();
 
         if (status.status !== 'ready') {
             return NextResponse.json({
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
             try {
                 console.log(`[Sync Profile Pics] Processing ${contact.nome} (${contact.telefone})...`);
 
-                const profilePicUrl = await getContactProfilePicture(contact.telefone);
+                const profilePicUrl = await provider.getProfilePicture(contact.telefone);
 
                 if (profilePicUrl) {
                     // Add to batch instead of updating immediately

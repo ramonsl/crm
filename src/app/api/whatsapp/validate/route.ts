@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { validateWhatsAppNumber } from '@/lib/whatsapp';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 
 export async function GET(req: NextRequest) {
     try {
@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
         }
 
-        const chatId = await validateWhatsAppNumber(phone);
+        const provider = await WhatsAppProviderFactory.getProvider();
+        const chatId = await provider.validateNumber(phone);
 
         return NextResponse.json({
             valid: !!chatId,

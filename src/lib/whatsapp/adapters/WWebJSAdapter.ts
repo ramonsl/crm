@@ -8,7 +8,6 @@
 import { Client, LocalAuth, Message as WWebMessage } from 'whatsapp-web.js';
 import * as QRCode from 'qrcode';
 import { whatsappLogger } from '@/lib/logger';
-import { messageQueue } from '@/lib/messageQueue';
 import { emitWhatsAppStatus } from '@/lib/socket/emitter';
 import type {
     IWhatsAppProvider,
@@ -18,8 +17,11 @@ import type {
     ContactInfo,
     MessageCallback,
     StatusCallback,
+    LogCallback,
     WhatsAppStatus,
-    MediaType
+    MediaType,
+    GroupMetadata,
+    GroupParticipant
 } from '../IWhatsAppProvider';
 import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
 
@@ -42,6 +44,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
 
     private messageCallback: MessageCallback | null = null;
     private statusCallback: StatusCallback | null = null;
+    private logCallback: LogCallback | null = null;
 
     // ========================================================================
     // LIFECYCLE
@@ -138,7 +141,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
                 this.state.qrCode = await QRCode.toDataURL(qr);
                 this.state.status = 'qr';
                 console.log('[WWebJS] ✅ QR Code converted to data URL, status = qr');
-                messageQueue.addLog('QR Code gerado. Escaneie com seu WhatsApp.', 'info');
+                this.log('QR Code gerado. Escaneie com seu WhatsApp.', 'info');
 
                 // Emit via Socket.io
                 console.log('[WWebJS] 📡 Emitting QR via Socket.io');
@@ -172,7 +175,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
                     whatsappLogger.info(`Connected phone: ${this.state.phoneNumber}`);
                 }
 
-                messageQueue.addLog('✅ WhatsApp conectado com sucesso!', 'success');
+                this.log('✅ WhatsApp conectado com sucesso!', 'success');
 
                 // Emit status update
                 emitWhatsAppStatus({
@@ -197,7 +200,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
                 this.state.qrCode = null;
                 this.state.isInitializing = false;
 
-                messageQueue.addLog('⚠️ WhatsApp desconectado', 'info');
+                this.log('⚠️ WhatsApp desconectado', 'info');
 
                 // Emit status update
                 emitWhatsAppStatus({
@@ -223,8 +226,25 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
 
                 // Call external handler if registered
                 if (this.messageCallback) {
+                    // Resolve LID to real phone number (ensure consistency with Baileys)
+                    let fromPhone = msg.from.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '');
+
+                    // If it's a LID (very long number not starting with country code), try to get real number
+                    if (fromPhone.length > 15 && !fromPhone.startsWith('55')) {
+                        // WWebJS can get the real number from contact
+                        try {
+                            const contactNumber = contact.number;
+                            if (contactNumber && contactNumber.length <= 15) {
+                                whatsappLogger.debug(`Resolved LID ${fromPhone} to ${contactNumber}`);
+                                fromPhone = contactNumber;
+                            }
+                        } catch (e) {
+                            whatsappLogger.warn(`Could not resolve LID to phone: ${fromPhone}`);
+                        }
+                    }
+
                     this.messageCallback({
-                        from: msg.from.replace('@c.us', '').replace('@s.whatsapp.net', ''),
+                        from: fromPhone,
                         body: msg.body,
                         isGroup: chat.isGroup,
                         timestamp: new Date(msg.timestamp * 1000),
@@ -243,7 +263,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
             client.initialize().catch(err => {
                 console.log('[WWebJS] ❌ Initialize FAILED:', err);
                 whatsappLogger.error('Failed to initialize client:', err);
-                messageQueue.addLog(`Falha ao inicializar: ${err instanceof Error ? err.message : String(err)}`, 'error');
+                this.log(`Falha ao inicializar: ${err instanceof Error ? err.message : String(err)}`, 'error');
                 this.state.status = 'disconnected';
                 this.state.isInitializing = false;
             });
@@ -255,7 +275,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
             whatsappLogger.error('Failed to initialize WWebJS:', error);
             this.state.status = 'disconnected';
             this.state.isInitializing = false;
-            messageQueue.addLog(`Falha ao inicializar: ${error instanceof Error ? error.message : String(error)}`, 'error');
+            this.log(`Falha ao inicializar: ${error instanceof Error ? error.message : String(error)}`, 'error');
             throw error;
         }
     }
@@ -296,7 +316,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
         this.state.qrCode = null;
         this.state.isInitializing = false;
 
-        messageQueue.addLog('WhatsApp desconectado', 'info');
+        this.log('WhatsApp desconectado', 'info');
     }
 
     async clearSession(autoReconnect = true): Promise<void> {
@@ -596,6 +616,63 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
     }
 
     // ========================================================================
+    // GROUPS
+    // ========================================================================
+
+    async listGroups(): Promise<GroupMetadata[]> {
+        if (!this.state.client || this.state.status !== 'ready') return [];
+
+        try {
+            const chats = await this.state.client.getChats();
+            const groups = chats.filter(c => c.isGroup);
+
+            return groups.map(g => ({
+                id: g.id._serialized,
+                subject: g.name,
+                description: undefined, // WWebJS definition of Chat doesn't always have description synchronously
+                creation: new Date(g.timestamp * 1000),
+                owner: undefined,
+                participants: [] // Fetching participants for all groups might be heavy, returning empty by default for list
+            }));
+        } catch (error) {
+            whatsappLogger.error('Error listing groups:', error);
+            return [];
+        }
+    }
+
+    async getGroupParticipants(groupId: string): Promise<GroupParticipant[]> {
+        if (!this.state.client || this.state.status !== 'ready') return [];
+
+        try {
+            const chat = await this.state.client.getChatById(groupId);
+            if (!chat.isGroup) return [];
+
+            return (chat as any).participants.map((p: any) => ({
+                id: p.id._serialized,
+                admin: p.isAdmin,
+                superAdmin: p.isSuperAdmin
+            }));
+
+        } catch (error) {
+            whatsappLogger.error(`Error getting participants for ${groupId}:`, error);
+            return [];
+        }
+    }
+
+    async isNumberInGroup(phone: string, groupId: string): Promise<boolean> {
+        if (!this.state.client || this.state.status !== 'ready') return false;
+
+        try {
+            const participants = await this.getGroupParticipants(groupId);
+            const jid = phone.includes('@') ? phone : `${phone}@c.us`;
+            return participants.some(p => p.id === jid);
+        } catch (error) {
+            whatsappLogger.error(`Error checking if ${phone} is in ${groupId}:`, error);
+            return false;
+        }
+    }
+
+    // ========================================================================
     // EVENTS
     // ========================================================================
 
@@ -607,12 +684,26 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
         this.statusCallback = callback;
     }
 
+    onLog(callback: LogCallback): void {
+        this.logCallback = callback;
+    }
+
     offMessage(): void {
         this.messageCallback = null;
     }
 
     offStatusChange(): void {
         this.statusCallback = null;
+    }
+
+    offLog(): void {
+        this.logCallback = null;
+    }
+
+    private log(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
+        if (this.logCallback) {
+            this.logCallback(message, type);
+        }
     }
 
     // ========================================================================

@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
 
         console.log(`[API /chat/send] About to send message to phone: "${phone}"`);
 
-        // Get WhatsApp provider
-        const provider = await WhatsAppProviderFactory.getProvider('baileys');
+        // Get active WhatsApp provider (or default to baileys if none)
+        const provider = await WhatsAppProviderFactory.getProvider();
 
         // Check if ready
         const isReady = await provider.isReady();

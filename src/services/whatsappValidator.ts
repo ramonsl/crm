@@ -2,11 +2,12 @@
  * WhatsAppValidator - Validates phone numbers against WhatsApp
  * 
  * Follows SRP: Only responsible for WhatsApp validation
- * Follows DIP: Depends on abstractions (PhoneFormatter)
+ * Follows DIP: Depends on abstractions (PhoneFormatter, WhatsAppProviderFactory)
  */
 
 import type { BrazilianPhoneFormatter, PhoneVariation } from './phoneFormatter';
 import { whatsappLogger } from '@/lib/logger';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
 
 export interface ValidationResult {
     valid: boolean;
@@ -29,7 +30,9 @@ export class WhatsAppValidator {
      * @returns Validation result with chatId if valid
      */
     async validate(phone: string): Promise<ValidationResult> {
-        if (!this.isClientReady()) {
+        const isReady = await this.isClientReady();
+
+        if (!isReady) {
             throw new Error('WhatsApp client is not ready');
         }
 
@@ -52,8 +55,13 @@ export class WhatsAppValidator {
     /**
      * Checks if WhatsApp client is ready
      */
-    private isClientReady(): boolean {
-        return !!(global.whatsappClient && global.whatsappStatus === 'ready');
+    private async isClientReady(): Promise<boolean> {
+        try {
+            const provider = await WhatsAppProviderFactory.getProvider();
+            return provider.isReady();
+        } catch {
+            return false;
+        }
     }
 
     /**
@@ -63,16 +71,13 @@ export class WhatsAppValidator {
         variation: PhoneVariation
     ): Promise<ValidationResult> {
         try {
-            const phoneWithPlus = `+${variation.formatted}`;
+            const provider = await WhatsAppProviderFactory.getProvider();
+            const validatedNumber = await provider.validateNumber(variation.formatted);
 
-            const registeredUser = await this.withTimeout(
-                global.whatsappClient!.getNumberId(phoneWithPlus)
-            );
-
-            if (registeredUser) {
+            if (validatedNumber) {
                 return {
                     valid: true,
-                    chatId: registeredUser._serialized,
+                    chatId: `${validatedNumber}@s.whatsapp.net`,
                     variation
                 };
             }
@@ -84,20 +89,5 @@ export class WhatsAppValidator {
         }
 
         return { valid: false, chatId: null, variation: null };
-    }
-
-    /**
-     * Wraps a promise with a timeout
-     */
-    private withTimeout<T>(promise: Promise<T>): Promise<T> {
-        return Promise.race([
-            promise,
-            new Promise<T>((_, reject) =>
-                setTimeout(
-                    () => reject(new Error('Validation timeout')),
-                    this.TIMEOUT_MS
-                )
-            )
-        ]);
     }
 }

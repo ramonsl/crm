@@ -7,7 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/neonDb';
-import { getStatus } from '@/lib/whatsapp';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 
 /**
  * Check database connection health
@@ -29,7 +29,8 @@ async function checkDatabaseConnection(): Promise<boolean> {
 export async function GET() {
     try {
         const dbHealthy = await checkDatabaseConnection();
-        const whatsappStatus = await getStatus();
+        const provider = await WhatsAppProviderFactory.getProvider();
+        const whatsappStatus = await provider.getStatus();
 
         const healthStatus = {
             status: dbHealthy ? 'healthy' : 'unhealthy',

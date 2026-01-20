@@ -50,8 +50,24 @@ export interface ContactInfo {
     profilePicture?: string;   // URL da foto de perfil
 }
 
+export interface GroupParticipant {
+    id: string;
+    admin: boolean;
+    superAdmin: boolean;
+}
+
+export interface GroupMetadata {
+    id: string;
+    subject: string;
+    description?: string;
+    creation?: Date;
+    owner?: string;
+    participants: GroupParticipant[];
+}
+
 export type MessageCallback = (message: WhatsAppMessage) => void;
 export type StatusCallback = (status: WhatsAppStatusResponse) => void;
+export type LogCallback = (message: string, type: 'info' | 'success' | 'error') => void;
 
 // ============================================================================
 // INTERFACE
@@ -187,6 +203,28 @@ export interface IWhatsAppProvider {
     getContactInfo(phone: string): Promise<ContactInfo | null>;
 
     // ========================================================================
+    // GROUPS
+    // ========================================================================
+
+    /**
+     * Lista todos os grupos
+     */
+    listGroups(): Promise<GroupMetadata[]>;
+
+    /**
+     * Busca participantes de um grupo
+     * @param groupId ID do grupo
+     */
+    getGroupParticipants(groupId: string): Promise<GroupParticipant[]>;
+
+    /**
+     * Verifica se número está no grupo
+     * @param phone Telefone
+     * @param groupId ID do grupo
+     */
+    isNumberInGroup(phone: string, groupId: string): Promise<boolean>;
+
+    // ========================================================================
     // EVENTS
     // ========================================================================
 
@@ -211,6 +249,16 @@ export interface IWhatsAppProvider {
      * Remove callback de status
      */
     offStatusChange(): void;
+
+    /**
+     * Registra callback para logs
+     */
+    onLog(callback: LogCallback): void;
+
+    /**
+     * Remove callback de logs
+     */
+    offLog(): void;
 
     // ========================================================================
     // UTILITIES

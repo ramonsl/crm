@@ -7,7 +7,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { whatsappLogger } from '@/lib/logger';
-import { messageQueue } from '@/lib/messageQueue';
 import { emitWhatsAppStatus } from '@/lib/socket/emitter';
 import type {
     IWhatsAppProvider,
@@ -17,8 +16,11 @@ import type {
     ContactInfo,
     MessageCallback,
     StatusCallback,
+    LogCallback,
     WhatsAppStatus,
-    MediaType
+    MediaType,
+    GroupMetadata,
+    GroupParticipant
 } from '../IWhatsAppProvider';
 import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
 
@@ -37,6 +39,7 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
     private phoneNumber: string | null = null;
     private messageCallback: MessageCallback | null = null;
     private statusCallback: StatusCallback | null = null;
+    private logCallback: LogCallback | null = null;
     private isInitializing: boolean = false;
 
     // ========================================================================
@@ -105,7 +108,7 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
                     this.qrCode = base64Qr;
 
                     whatsappLogger.info('QR Code received');
-                    messageQueue.addLog('QR Code gerado. Escaneie com seu WhatsApp.', 'info');
+                    this.log('QR Code gerado. Escaneie com seu WhatsApp.', 'info');
 
                     // Emit via socket
                     emitWhatsAppStatus({
@@ -137,7 +140,7 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
             whatsappLogger.error('Failed to initialize WPPConnect:', error);
             this.status = 'disconnected';
             this.isInitializing = false;
-            messageQueue.addLog(`Falha ao inicializar: ${error instanceof Error ? error.message : String(error)}`, 'error');
+            this.log(`Falha ao inicializar: ${error instanceof Error ? error.message : String(error)}`, 'error');
             throw error;
         }
     }
@@ -149,11 +152,22 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
         this.qrCode = null;
         this.isInitializing = false;
 
-        const device = await this.client.getHostDevice();
+        let device = await this.client.getHostDevice();
+        // Fallback if getHostDevice fails (common in recent versions)
+        if (!device?.wid) {
+            try {
+                const wid = await this.client.getWid();
+                if (wid) {
+                    device = { wid: { _serialized: wid } };
+                }
+            } catch (e) {
+                whatsappLogger.warn('Failed to get WID from getWid()', e);
+            }
+        }
         this.phoneNumber = device?.wid?._serialized?.split('@')[0] || null;
 
         whatsappLogger.info(`🟢 WPPCONNECT CONNECTED! Phone: ${this.phoneNumber}`);
-        messageQueue.addLog('✅ WhatsApp conectado com sucesso!', 'success');
+        this.log('✅ WhatsApp conectado com sucesso!', 'success');
 
         // Setup listeners
         this.setupListeners();
@@ -178,9 +192,26 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
         this.client.onMessage(async (message: any) => {
             if (!this.messageCallback) return;
 
+            // Resolve LID to real phone number (ensure consistency with Baileys)
+            let fromPhone = message.from.split('@')[0];
+
+            // If it's a LID (very long number not starting with country code), try to get real number
+            if (fromPhone.length > 15 && !fromPhone.startsWith('55')) {
+                // WPPConnect can get the real number from sender contact
+                try {
+                    const senderNumber = message.sender?.id?.split('@')[0];
+                    if (senderNumber && senderNumber.length <= 15) {
+                        whatsappLogger.debug(`Resolved LID ${fromPhone} to ${senderNumber}`);
+                        fromPhone = senderNumber;
+                    }
+                } catch (e) {
+                    whatsappLogger.warn(`Could not resolve LID to phone: ${fromPhone}`);
+                }
+            }
+
             // Normalize message
             const normalizedMsg: WhatsAppMessage = {
-                from: message.from.split('@')[0],
+                from: fromPhone,
                 body: message.body || message.caption || '',
                 isGroup: message.isGroupMsg,
                 timestamp: new Date(message.timestamp * 1000),
@@ -374,6 +405,58 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
     }
 
     // ========================================================================
+    // GROUPS
+    // ========================================================================
+
+    async listGroups(): Promise<GroupMetadata[]> {
+        if (!this.client || this.status !== 'ready') return [];
+
+        try {
+            const groups = await this.client.getAllGroups();
+            return groups.map((g: any) => ({
+                id: g.id._serialized,
+                subject: g.name || g.contact?.name || 'Sem nome',
+                description: g.desc,
+                creation: new Date(g.creation * 1000),
+                owner: g.owner?._serialized,
+                participants: [] // WPPConnect doesn't return participants in getAllGroups list by default for performance
+            }));
+        } catch (error) {
+            whatsappLogger.error('Error listing groups:', error);
+            return [];
+        }
+    }
+
+    async getGroupParticipants(groupId: string): Promise<GroupParticipant[]> {
+        if (!this.client || this.status !== 'ready') return [];
+
+        try {
+            const members = await this.client.getGroupMembers(groupId);
+            return members.map((m: any) => ({
+                id: m.id._serialized,
+                admin: m.isAdmin,
+                superAdmin: m.isSuperAdmin
+            }));
+        } catch (error) {
+            whatsappLogger.error(`Error getting participants for ${groupId}:`, error);
+            return [];
+        }
+    }
+
+    async isNumberInGroup(phone: string, groupId: string): Promise<boolean> {
+        if (!this.client || this.status !== 'ready') return false;
+
+        try {
+            const participants = await this.getGroupParticipants(groupId);
+            const jid = this.formatToDefaultJid(phone);
+            return participants.some(p => p.id === jid);
+        } catch (error) {
+            whatsappLogger.error(`Error checking if ${phone} is in ${groupId}:`, error);
+            return false;
+        }
+    }
+
+    // ========================================================================
     // EVENTS
     // ========================================================================
 
@@ -385,12 +468,26 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
         this.statusCallback = callback;
     }
 
+    onLog(callback: LogCallback): void {
+        this.logCallback = callback;
+    }
+
     offMessage(): void {
         this.messageCallback = null;
     }
 
     offStatusChange(): void {
         this.statusCallback = null;
+    }
+
+    offLog(): void {
+        this.logCallback = null;
+    }
+
+    private log(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
+        if (this.logCallback) {
+            this.logCallback(message, type);
+        }
     }
 
     // ========================================================================

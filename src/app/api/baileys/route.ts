@@ -5,39 +5,34 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import {
-    initializeBaileys,
-    getBaileysStatus,
-    sendBaileysMessage,
-    restartBaileys,
-    logoutBaileys,
-    clearSession
-} from '@/lib/whatsapp/baileys';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
 
 // GET /api/baileys - Get status or initialize
 export async function GET(request: NextRequest) {
     const action = request.nextUrl.searchParams.get('action');
 
     try {
+        const provider = await WhatsAppProviderFactory.getProvider();
+
         switch (action) {
             case 'init':
-                await initializeBaileys();
-                return NextResponse.json({ success: true, message: 'Baileys initialized', status: getBaileysStatus() });
+                await provider.initialize();
+                return NextResponse.json({ success: true, message: 'Provider initialized', status: await provider.getStatus() });
 
             case 'restart':
-                await restartBaileys();
-                return NextResponse.json({ success: true, message: 'Baileys restarted', status: getBaileysStatus() });
+                await provider.restart();
+                return NextResponse.json({ success: true, message: 'Provider restarted', status: await provider.getStatus() });
 
             case 'logout':
-                await logoutBaileys();
+                await provider.logout();
                 return NextResponse.json({ success: true, message: 'Logged out' });
 
             case 'reset':
-                await clearSession();
+                await provider.clearSession();
                 return NextResponse.json({ success: true, message: 'Session cleared' });
 
             default:
-                return NextResponse.json({ success: true, status: getBaileysStatus() });
+                return NextResponse.json({ success: true, status: await provider.getStatus() });
         }
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -58,7 +53,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const result = await sendBaileysMessage(phone, message, mediaUrl);
+        const provider = await WhatsAppProviderFactory.getProvider();
+        const result = await provider.sendMessage(phone, message, mediaUrl);
         return NextResponse.json({ success: true, result });
 
     } catch (error) {

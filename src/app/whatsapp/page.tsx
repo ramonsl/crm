@@ -25,6 +25,8 @@ export default function WhatsAppPage() {
 
     const checkStatus = async () => {
         try {
+            // Fix: Do not send desiredProvider to avoid forcing a reset/reinitialization
+            // Just query the current status
             const res = await fetch('/api/whatsapp');
             const data = await res.json();
             setStatus(data.status);
@@ -95,12 +97,18 @@ export default function WhatsAppPage() {
             console.log('[WhatsApp Page] State updated - status:', data.status, 'hasQR:', !!data.qr);
         };
 
+        const handleQueueUpdate = (data: any) => {
+            setQueueState(data);
+        };
+
         socket.on('whatsapp:status', handleWhatsAppStatus);
-        console.log('[WhatsApp Page] Listening to whatsapp:status events');
+        socket.on('queue:update', handleQueueUpdate);
+        console.log('[WhatsApp Page] Listening to whatsapp:status and queue:update events');
 
         return () => {
             socket.off('whatsapp:status', handleWhatsAppStatus);
-            console.log('[WhatsApp Page] Stopped listening to whatsapp:status events');
+            socket.off('queue:update', handleQueueUpdate);
+            console.log('[WhatsApp Page] Stopped listening to events');
         };
     }, [socket, isConnected]);
 

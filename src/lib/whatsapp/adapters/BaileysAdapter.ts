@@ -10,14 +10,15 @@ import makeWASocket, {
     useMultiFileAuthState,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
-    WASocket
+    WASocket,
+    downloadMediaMessage,
+    proto
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
 import * as path from 'path';
 import pino from 'pino';
 import { whatsappLogger } from '@/lib/logger';
-import { messageQueue } from '@/lib/messageQueue';
 import { emitWhatsAppStatus } from '@/lib/socket/emitter';
 import * as QRCode from 'qrcode';
 import type {
@@ -28,8 +29,11 @@ import type {
     ContactInfo,
     MessageCallback,
     StatusCallback,
+    LogCallback,
     WhatsAppStatus,
-    MediaType
+    MediaType,
+    GroupMetadata,
+    GroupParticipant
 } from '../IWhatsAppProvider';
 import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
 
@@ -71,6 +75,54 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
     private reconnectTimeout: NodeJS.Timeout | null = null;
     private messageCallback: MessageCallback | null = null;
     private statusCallback: StatusCallback | null = null;
+    private logCallback: LogCallback | null = null;
+
+    // LID to Phone mapping cache (LIDs are temporary WhatsApp identifiers)
+    private lidToPhoneMap: Map<string, string> = new Map();
+
+    // ========================================================================
+    // MEDIA HELPERS
+    // ========================================================================
+
+    /**
+     * Download media from a Baileys message
+     */
+    private async downloadMedia(msg: any, sock: WASocket): Promise<Buffer | null> {
+        try {
+            const buffer = await downloadMediaMessage(
+                msg,
+                'buffer',
+                {},
+                {
+                    logger: baileysLogger,
+                    reuploadRequest: sock.updateMediaMessage
+                }
+            );
+            return buffer as Buffer;
+        } catch (error) {
+            whatsappLogger.error('Error downloading media:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Save media buffer to file and return URL
+     */
+    private async saveMediaToFile(buffer: Buffer, type: string, ext: string): Promise<string> {
+        const { v4: uuidv4 } = await import('uuid');
+        const filename = `${uuidv4()}.${ext}`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'chat');
+
+        // Ensure directory exists
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        const filepath = path.join(uploadDir, filename);
+        fs.writeFileSync(filepath, buffer);
+
+        return `/uploads/chat/${filename}`;
+    }
 
     // ========================================================================
     // LIFECYCLE
@@ -126,7 +178,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                     whatsappLogger.info('QR Code received');
                     this.state.qrCode = await QRCode.toDataURL(qr);
                     this.state.status = 'qr';
-                    messageQueue.addLog('QR Code gerado. Escaneie com seu WhatsApp.', 'info');
+                    this.log('QR Code gerado. Escaneie com seu WhatsApp.', 'info');
 
                     // Emit QR code via Socket.io
                     emitWhatsAppStatus({
@@ -161,7 +213,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                         whatsappLogger.info(`Connected phone: ${this.state.phoneNumber}`);
                     }
 
-                    messageQueue.addLog('✅ WhatsApp conectado com sucesso!', 'success');
+                    this.log('✅ WhatsApp conectado com sucesso!', 'success');
 
                     // Emit status update via Socket.io
                     emitWhatsAppStatus({
@@ -213,7 +265,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                     if (shouldResetSession) {
                         // Session invalidated - need to login again
                         whatsappLogger.info('Session invalidated. Clearing session...');
-                        messageQueue.addLog('⚠️ Sessão invalidada. Reconecte o WhatsApp.', 'error');
+                        this.log('⚠️ Sessão invalidada. Reconecte o WhatsApp.', 'error');
                         await this.clearSession(false);
                         this.state.isReconnecting = false;
                         this.reconnectAttempts = 0;
@@ -225,7 +277,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
 
                         if (this.reconnectAttempts > RECONNECT_CONFIG.maxAttempts) {
                             whatsappLogger.error(`Max reconnection attempts (${RECONNECT_CONFIG.maxAttempts}) reached. Giving up.`);
-                            messageQueue.addLog(`❌ Máximo de tentativas de reconexão atingido (${RECONNECT_CONFIG.maxAttempts}). Clique em conectar para tentar novamente.`, 'error');
+                            this.log(`❌ Máximo de tentativas de reconexão atingido (${RECONNECT_CONFIG.maxAttempts}). Clique em conectar para tentar novamente.`, 'error');
                             this.state.isReconnecting = false;
                             this.reconnectAttempts = 0;
                             return;
@@ -239,7 +291,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
 
                         this.state.isReconnecting = true;
                         whatsappLogger.info(`Reconnection attempt ${this.reconnectAttempts}/${RECONNECT_CONFIG.maxAttempts} in ${delay / 1000}s...`);
-                        messageQueue.addLog(`Reconectando (tentativa ${this.reconnectAttempts}/${RECONNECT_CONFIG.maxAttempts})...`, 'info');
+                        this.log(`Reconectando (tentativa ${this.reconnectAttempts}/${RECONNECT_CONFIG.maxAttempts})...`, 'info');
 
                         this.reconnectTimeout = setTimeout(() => {
                             this.state.isReconnecting = false;
@@ -258,17 +310,118 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
 
                 for (const msg of m.messages) {
                     // Process ALL messages (both received and sent)
-                    // This ensures messages sent from WhatsApp app also appear in CRM
+                    const rawJid = msg.key.remoteJid || '';
+                    const isGroup = rawJid.endsWith('@g.us');
 
-                    // Extract message content
-                    const messageContent = msg.message?.conversation
-                        || msg.message?.extendedTextMessage?.text
-                        || '';
+                    // Resolve LID to real phone number
+                    // Baileys sometimes returns @lid identifiers instead of real phone numbers
+                    let from = rawJid;
 
-                    if (!messageContent) continue;
+                    // Check if this is a Link ID (LID)
+                    if (rawJid.includes('@lid')) {
+                        // Try alternative JID fields provided by Baileys
+                        const altJid = (msg.key as any).remoteJidAlt;
+                        if (altJid && altJid.includes('@s.whatsapp.net')) {
+                            from = altJid;
+                            whatsappLogger.debug(`Resolved LID via remoteJidAlt: ${rawJid} -> ${altJid}`);
+                        } else {
+                            // Check for cached mapping
+                            const lidClean = rawJid.replace('@lid', '');
+                            const cachedPhone = this.lidToPhoneMap.get(lidClean);
+                            if (cachedPhone) {
+                                from = cachedPhone + '@s.whatsapp.net';
+                                whatsappLogger.debug(`Resolved LID via cache: ${rawJid} -> ${from}`);
+                            } else {
+                                // Log warning - this LID couldn't be resolved
+                                whatsappLogger.warn(`Could not resolve LID to phone: ${rawJid}. Message may appear in wrong chat.`);
+                            }
+                        }
+                    }
 
-                    const from = msg.key.remoteJid || '';
-                    const isGroup = from.endsWith('@g.us');
+                    // Extract message content and media info
+                    let messageContent = '';
+                    let mediaUrl: string | undefined;
+                    let mediaType: MediaType | undefined;
+
+                    const message = msg.message;
+                    if (!message) continue;
+
+                    // Text messages
+                    if (message.conversation) {
+                        messageContent = message.conversation;
+                    } else if (message.extendedTextMessage?.text) {
+                        messageContent = message.extendedTextMessage.text;
+                    }
+                    // Image messages
+                    else if (message.imageMessage) {
+                        messageContent = message.imageMessage.caption || '[Imagem]';
+                        mediaType = 'image';
+                        try {
+                            const buffer = await this.downloadMedia(msg, sock);
+                            if (buffer) {
+                                mediaUrl = await this.saveMediaToFile(buffer, 'image', 'jpg');
+                            }
+                        } catch (e) {
+                            whatsappLogger.error('Error downloading image:', e);
+                        }
+                    }
+                    // Video messages
+                    else if (message.videoMessage) {
+                        messageContent = message.videoMessage.caption || '[Vídeo]';
+                        mediaType = 'video';
+                        try {
+                            const buffer = await this.downloadMedia(msg, sock);
+                            if (buffer) {
+                                mediaUrl = await this.saveMediaToFile(buffer, 'video', 'mp4');
+                            }
+                        } catch (e) {
+                            whatsappLogger.error('Error downloading video:', e);
+                        }
+                    }
+                    // Audio messages
+                    else if (message.audioMessage) {
+                        messageContent = '[Áudio]';
+                        mediaType = 'audio';
+                        try {
+                            const buffer = await this.downloadMedia(msg, sock);
+                            if (buffer) {
+                                const ext = message.audioMessage.mimetype?.includes('ogg') ? 'ogg' : 'mp3';
+                                mediaUrl = await this.saveMediaToFile(buffer, 'audio', ext);
+                            }
+                        } catch (e) {
+                            whatsappLogger.error('Error downloading audio:', e);
+                        }
+                    }
+                    // Document messages
+                    else if (message.documentMessage) {
+                        messageContent = message.documentMessage.fileName || '[Documento]';
+                        mediaType = 'document';
+                        try {
+                            const buffer = await this.downloadMedia(msg, sock);
+                            if (buffer) {
+                                const ext = path.extname(message.documentMessage.fileName || '.bin').slice(1) || 'bin';
+                                mediaUrl = await this.saveMediaToFile(buffer, 'document', ext);
+                            }
+                        } catch (e) {
+                            whatsappLogger.error('Error downloading document:', e);
+                        }
+                    }
+                    // Sticker messages
+                    else if (message.stickerMessage) {
+                        messageContent = '[Sticker]';
+                        mediaType = 'image';
+                        try {
+                            const buffer = await this.downloadMedia(msg, sock);
+                            if (buffer) {
+                                mediaUrl = await this.saveMediaToFile(buffer, 'image', 'webp');
+                            }
+                        } catch (e) {
+                            whatsappLogger.error('Error downloading sticker:', e);
+                        }
+                    }
+
+                    // Skip if no content
+                    if (!messageContent && !mediaUrl) continue;
 
                     whatsappLogger.debug(`Message from ${from} (fromMe: ${msg.key.fromMe}): ${messageContent.substring(0, 50)}...`);
 
@@ -280,7 +433,9 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                             isGroup,
                             timestamp: new Date((msg.messageTimestamp as number) * 1000),
                             fromMe: msg.key.fromMe || false,
-                            id: msg.key.id || ''
+                            id: msg.key.id || '',
+                            mediaUrl,
+                            mediaType
                         });
                     }
                 }
@@ -290,7 +445,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
             whatsappLogger.error('Failed to initialize Baileys:', error);
             this.state.status = 'disconnected';
             this.state.isInitializing = false;
-            messageQueue.addLog(`Falha ao inicializar: ${error instanceof Error ? error.message : String(error)}`, 'error');
+            this.log(`Falha ao inicializar: ${error instanceof Error ? error.message : String(error)}`, 'error');
             throw error;
         }
     }
@@ -328,7 +483,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
         this.state.phoneNumber = null;
         this.state.qrCode = null;
 
-        messageQueue.addLog('WhatsApp desconectado', 'info');
+        this.log('WhatsApp desconectado', 'info');
     }
 
     async clearSession(autoReconnect = true): Promise<void> {
@@ -534,6 +689,67 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
     }
 
     // ========================================================================
+    // GROUPS
+    // ========================================================================
+
+    async listGroups(): Promise<GroupMetadata[]> {
+        if (!this.state.socket || this.state.status !== 'ready') return [];
+
+        try {
+            // Baileys method to get all groups the user is participating in
+            const groupsDict = await this.state.socket.groupFetchAllParticipating();
+            const groups = Object.values(groupsDict);
+
+            return groups.map(g => ({
+                id: g.id,
+                subject: g.subject,
+                description: g.desc,
+                creation: new Date((g.creation || 0) * 1000),
+                owner: g.owner,
+                participants: g.participants.map(p => ({
+                    id: p.id.split('@')[0], // Remove suffix for cleaner ID
+                    admin: p.admin === 'admin',
+                    superAdmin: p.admin === 'superadmin'
+                }))
+            }));
+        } catch (error) {
+            whatsappLogger.error('Error listing groups:', error);
+            return [];
+        }
+    }
+
+    async getGroupParticipants(groupId: string): Promise<GroupParticipant[]> {
+        if (!this.state.socket || this.state.status !== 'ready') return [];
+
+        try {
+            const metadata = await this.state.socket.groupMetadata(groupId);
+            return metadata.participants.map(p => ({
+                id: p.id.split('@')[0],
+                admin: p.admin === 'admin',
+                superAdmin: p.admin === 'superadmin'
+            }));
+
+        } catch (error) {
+            whatsappLogger.error(`Error getting participants for ${groupId}:`, error);
+            return [];
+        }
+    }
+
+    async isNumberInGroup(phone: string, groupId: string): Promise<boolean> {
+        if (!this.state.socket || this.state.status !== 'ready') return false;
+
+        try {
+            const participants = await this.getGroupParticipants(groupId);
+            // Ensure phone is just numbers (no suffix)
+            const cleanPhone = phone.split('@')[0];
+            return participants.some(p => p.id === cleanPhone);
+        } catch (error) {
+            whatsappLogger.error(`Error checking if ${phone} is in ${groupId}:`, error);
+            return false;
+        }
+    }
+
+    // ========================================================================
     // EVENTS
     // ========================================================================
 
@@ -545,12 +761,26 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
         this.statusCallback = callback;
     }
 
+    onLog(callback: LogCallback): void {
+        this.logCallback = callback;
+    }
+
     offMessage(): void {
         this.messageCallback = null;
     }
 
     offStatusChange(): void {
         this.statusCallback = null;
+    }
+
+    offLog(): void {
+        this.logCallback = null;
+    }
+
+    private log(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
+        if (this.logCallback) {
+            this.logCallback(message, type);
+        }
     }
 
     // ========================================================================

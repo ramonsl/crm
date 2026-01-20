@@ -1,16 +1,25 @@
 /**
  * Tests for ContactSyncService
+ * Updated for Provider Interface Architecture
  */
 
 import { ContactSyncService } from '@/services/contactSyncService';
 import type { WhatsAppValidator } from '@/services/whatsappValidator';
 import type { IContactRepository } from '@/repositories/contactRepository';
 
+// Mock the factory
+jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory', () => ({
+    WhatsAppProviderFactory: {
+        getProvider: jest.fn()
+    }
+}));
+jest.mock('@/lib/logger');
+
 describe('ContactSyncService', () => {
     let syncService: ContactSyncService;
     let mockValidator: jest.Mocked<WhatsAppValidator>;
     let mockRepository: jest.Mocked<IContactRepository>;
-    let mockClient: any;
+    let mockProvider: any;
 
     beforeEach(() => {
         // Mock validator
@@ -24,13 +33,14 @@ describe('ContactSyncService', () => {
             findByPhone: jest.fn().mockResolvedValue({ nome: 'João Silva' })
         };
 
-        // Mock WhatsApp client
-        mockClient = {
-            getChatById: jest.fn(),
-            getContactProfilePicture: jest.fn()
+        // Mock provider instance
+        mockProvider = {
+            getProfilePicture: jest.fn().mockResolvedValue('https://example.com/pic.jpg')
         };
 
-        global.whatsappClient = mockClient;
+        // Import and set up mock
+        const { WhatsAppProviderFactory } = require('@/lib/whatsapp/factory/WhatsAppProviderFactory');
+        (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
 
         syncService = new ContactSyncService(mockValidator, mockRepository);
     });
@@ -48,22 +58,11 @@ describe('ContactSyncService', () => {
                 variation: { formatted: '5551999998888', type: '13-digit' }
             });
 
-            // Mock chat
-            const mockChat = {
-                fetchMessages: jest.fn().mockResolvedValue([
-                    {
-                        body: 'Olá, tudo bem?',
-                        timestamp: 1701795600
-                    }
-                ])
-            };
-            mockClient.getChatById.mockResolvedValue(mockChat);
-
             const result = await syncService.syncContact('51999998888');
 
             expect(result.valid).toBe(true);
             expect(result.chatId).toBe('5551999998888@c.us');
-            expect(result.lastMessage).toBe('Olá, tudo bem?');
+            expect(result.profilePicture).toBe('https://example.com/pic.jpg');
             expect(result.updated).toBe(true);
 
             // Verify database was updated
@@ -71,7 +70,7 @@ describe('ContactSyncService', () => {
                 '51999998888',
                 expect.objectContaining({
                     whatsapp_valido: true,
-                    last_message: 'Olá, tudo bem?'
+                    profile_picture: 'https://example.com/pic.jpg'
                 })
             );
         });
@@ -107,23 +106,20 @@ describe('ContactSyncService', () => {
             expect(result.error).toBe('Network error');
         });
 
-        it('should handle missing chat data', async () => {
+        it('should handle missing profile picture', async () => {
             mockValidator.validate.mockResolvedValue({
                 valid: true,
                 chatId: '5551999998888@c.us',
                 variation: { formatted: '5551999998888', type: '13-digit' }
             });
 
-            // Chat has no messages
-            const mockChat = {
-                fetchMessages: jest.fn().mockResolvedValue([])
-            };
-            mockClient.getChatById.mockResolvedValue(mockChat);
+            // Profile picture not available
+            mockProvider.getProfilePicture.mockResolvedValue(null);
 
             const result = await syncService.syncContact('51999998888');
 
             expect(result.valid).toBe(true);
-            expect(result.lastMessage).toBeNull();
+            expect(result.profilePicture).toBeNull();
         });
     });
 });

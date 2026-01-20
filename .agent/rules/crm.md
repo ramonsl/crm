@@ -48,10 +48,29 @@ trigger: always_on
   → `/lib/db` (conexão única)
 - Serviços devem ser puros e sem acoplamento com Next.js.
 
-### 4. WhatsApp (whatsapp-web.js)
-- Sessão deve ser salva em `/tmp/whatsapp-session` (compatível com Railway efêmero).
-- Sempre use o client centralizado em `/lib/whatsapp.ts`.
-- QR code e reconexão devem ser tratados com resiliência.
+## 4 🔌 WhatsApp Provider Interface
+### Regra Obrigatória: Abstração de Provider
+**NUNCA** importe diretamente de `baileys.ts` ou `index.ts` (wwebjs).
+**SEMPRE** use a interface `IWhatsAppProvider` através da factory:
+\`\`\`typescript
+// ❌ ERRADO
+import { sendBaileysMessage } from '@/lib/whatsapp/baileys';
+// ✅ CORRETO
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
+const provider = await WhatsAppProviderFactory.getProvider();
+await provider.sendTextMessage(phone, message);
+\`\`\`
+### Métodos Disponíveis
+- **Lifecycle:** `initialize()`, `restart()`, `logout()`, `clearSession()`
+- **Status:** `getStatus()`, `isReady()`
+- **Mensagens Texto:** `sendTextMessage()`
+- **Mensagens Mídia:** `sendImage()`, `sendVideo()`, `sendAudio()`, `sendDocument()`
+- **Mensagens Genérica:** `sendMessage()` (detecta tipo automaticamente)
+- **Contatos:** `getProfilePicture()`, `validateNumber()`, `getContactInfo()`
+- **Eventos:** `onMessage()`, `onStatusChange()`
+### Seleção de Provider
+Provider é selecionado ao **conectar** via UI (`/whatsapp`).
+**NÃO** usar variável de ambiente `WHATSAPP_PROVIDER` (deprecado).
 
 ### 5. Segredos e Variáveis de Ambiente
 - **NUNCA comite valores reais.**
@@ -111,37 +130,3 @@ Você é um engenheiro full-stack sênior especialista neste CRM.
 Essas são as regras específicas do projeto CRM Educacional. Respeite-as em todas as interações.
 
 ---
-
-## 🔌 WhatsApp Provider Interface
-
-### Regra Obrigatória: Abstração de Provider
-
-**NUNCA** importe diretamente de `baileys.ts` ou `index.ts` (wwebjs).
-
-**SEMPRE** use a interface `IWhatsAppProvider` através da factory:
-
-```typescript
-// ❌ ERRADO
-import { sendBaileysMessage } from '@/lib/whatsapp/baileys';
-
-// ✅ CORRETO
-import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
-const provider = await WhatsAppProviderFactory.getProvider();
-await provider.sendTextMessage(phone, message);
-```
-
-### Métodos Disponíveis
-
-- **Lifecycle:** `initialize()`, `restart()`, `logout()`, `clearSession()`
-- **Status:** `getStatus()`, `isReady()`
-- **Mensagens Texto:** `sendTextMessage()`
-- **Mensagens Mídia:** `sendImage()`, `sendVideo()`, `sendAudio()`, `sendDocument()`
-- **Mensagens Genérica:** `sendMessage()` (detecta tipo automaticamente)
-- **Contatos:** `getProfilePicture()`, `validateNumber()`, `getContactInfo()`
-- **Eventos:** `onMessage()`, `onStatusChange()`
-
-### Seleção de Provider
-
-Provider é selecionado ao **conectar** via UI (`/whatsapp`).
-
-**NÃO** usar variável de ambiente `WHATSAPP_PROVIDER` (deprecado).

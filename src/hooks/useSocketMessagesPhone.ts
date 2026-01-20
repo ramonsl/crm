@@ -51,18 +51,18 @@ export function useSocketMessagesPhone({
         // Leave previous room if exists
         if (currentRoomRef.current && currentRoomRef.current !== room) {
             console.log(`[SocketPhone] Leaving room: phone:${currentRoomRef.current}`);
-            socket.emit('room:leave', currentRoomRef.current);
+            socket.emit('room:leave:phone', currentRoomRef.current);
         }
 
         // Join new room
         console.log(`[SocketPhone] Joining room: phone:${room}`);
-        socket.emit('room:join', room);
+        socket.emit('room:join:phone', room);
         currentRoomRef.current = room;
 
         return () => {
             if (currentRoomRef.current) {
                 console.log(`[SocketPhone] Cleanup: Leaving room phone:${currentRoomRef.current}`);
-                socket.emit('room:leave', currentRoomRef.current);
+                socket.emit('room:leave:phone', currentRoomRef.current);
                 currentRoomRef.current = null;
             }
         };

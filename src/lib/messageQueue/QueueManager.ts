@@ -21,6 +21,7 @@ import type {
     ISettingsProvider
 } from './interfaces';
 import { queueLogger } from '@/lib/logger';
+import { emitQueueUpdate } from '@/lib/socket/emitter';
 
 declare global {
     var messageQueueInstance_v9: QueueManager | undefined;
@@ -78,7 +79,7 @@ export class QueueManager {
 
         this.queue.push(...newItems);
         this.stats.total += newItems.length;
-        this.addLog(`Enqueued ${newItems.length} messages.`, 'info');
+        this.addLog(`${newItems.length} mensagens adicionadas à fila.`, 'info');
 
         if (!this.processing) {
             this.process();
@@ -92,7 +93,7 @@ export class QueueManager {
         const count = this.queue.length;
         this.queue = [];
         this.stats.total = Math.max(0, this.stats.total - count);
-        this.addLog('Queue cleared by user.', 'info');
+        this.addLog('Fila limpa pelo usuário.', 'info');
     }
 
     /**
@@ -103,6 +104,9 @@ export class QueueManager {
         if (this.logs.length > QUEUE_CONFIG.MAX_LOGS_COUNT) {
             this.logs.pop();
         }
+
+        // Emit update to clients
+        emitQueueUpdate(this.getState());
     }
 
     /**
@@ -163,7 +167,7 @@ export class QueueManager {
      */
     private async applyDelay(minDelay: number, maxDelay: number, phone: string): Promise<void> {
         const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
-        this.addLog(`Waiting ${Math.round(delay / 1000)}s before sending to ${phone}...`, 'info');
+        this.addLog(`Aguardando ${Math.round(delay / 1000)}s antes de enviar para ${phone}...`, 'info');
         await new Promise(resolve => setTimeout(resolve, delay));
     }
 
@@ -235,7 +239,7 @@ export class QueueManager {
                 // Check if this is a YCloud template message
                 if (item.provider === 'ycloud' && item.templateName && item.variables) {
                     // Send via YCloud provider - NO DELAY needed (API handles rate limiting)
-                    this.addLog(`[YCloud] Sending template "${item.templateName}" to ${item.phone}...`, 'info');
+                    this.addLog(`[YCloud] Enviando template "${item.templateName}" para ${item.phone}...`, 'info');
 
                     const { YCloudProvider } = await import('../providers/YCloudProvider');
                     const yCloudProvider = new YCloudProvider();
@@ -252,7 +256,7 @@ export class QueueManager {
 
                     item.status = 'completed';
                     this.stats.processed++;
-                    this.addLog(`[YCloud] Sent to ${item.phone}`, 'success');
+                    this.addLog(`[YCloud] Enviado para ${item.phone}`, 'success');
                 } else {
                     // Send via Baileys/WhatsAppJS (local providers)
                     // Apply delay to avoid spam/ban
@@ -261,25 +265,24 @@ export class QueueManager {
 
                     // Generate or substitute message
                     if (item.isAi) {
-                        this.addLog(`Generating AI message for ${item.name || item.phone}...`, 'info');
+                        this.addLog(`Gerando mensagem com IA para ${item.name || item.phone}...`, 'info');
                         item.message = await this.aiGenerator.generate(item.message, item.name);
-                        this.addLog(`AI Message generated: "${item.message.substring(0, 50)}..."`, 'success');
+                        this.addLog(`Mensagem IA gerada: "${item.message.substring(0, 50)}..."`, 'success');
                     } else {
                         item.message = this.substituteVariables(item.message, item.name);
                     }
 
                     // Send message via Provider (Baileys or WWebJS)
-                    this.addLog(`Sending to ${item.phone} via Provider...`, 'info');
+                    this.addLog(`Enviando para ${item.phone} via Provider...`, 'info');
                     const result = await sendWhatsAppMessage(item.phone, item.message);
 
                     // Log ID if available
-                    const msgId = typeof result.id === 'string' ? result.id :
-                        (result.id as any)?._serialized || 'unknown';
+                    const msgId = result.messageId || 'unknown';
 
                     // Update stats
                     item.status = 'completed';
                     this.stats.processed++;
-                    this.addLog(`Successfully sent to ${item.phone} (ID: ${msgId})`, 'success');
+                    this.addLog(`Enviado com sucesso para ${item.phone} (ID: ${msgId})`, 'success');
                 }
 
                 // Record success
@@ -308,7 +311,7 @@ export class QueueManager {
         }
 
         this.processing = false;
-        this.addLog('Queue processing finished.', 'info');
+        this.addLog('Processamento da fila finalizado.', 'info');
 
         // Trigger queue automation when queue becomes empty
         await this.triggerQueueAutomation();

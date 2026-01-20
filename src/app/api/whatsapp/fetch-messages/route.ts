@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@/lib/types';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClient, getStatus } from '@/lib/whatsapp';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 
 // GET /api/whatsapp/fetch-messages?phone=51981636027&limit=20&offset=0
 export async function GET(req: NextRequest) {
@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
         }
 
-        const status = await getStatus();
+        const provider = await WhatsAppProviderFactory.getProvider();
+        const status = await provider.getStatus();
         if (status.status !== 'ready') {
             return NextResponse.json({
                 error: 'WhatsApp não está conectado',
@@ -23,10 +24,11 @@ export async function GET(req: NextRequest) {
             }, { status: 400 });
         }
 
-        const client = await getClient();
+        // Attempt to access underlying client for legacy WWebJS logic
+        const client = (provider as any).client || null;
         if (!client) {
             return NextResponse.json({
-                error: 'Cliente WhatsApp não disponível'
+                error: 'Cliente WhatsApp não disponível (Provider não suporta acesso direto ao client)'
             }, { status: 400 });
         }
 

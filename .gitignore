@@ -45,6 +45,8 @@ next-env.d.ts
 .wwebjs_cache/
 .baileys_auth/
 baileys_auth_info/
+.wppconnect_auth/
+dist/
 
 # Database (contains user data)
 *.db

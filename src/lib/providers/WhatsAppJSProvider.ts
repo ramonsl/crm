@@ -19,10 +19,10 @@ export class WhatsAppJSProvider implements IMessageProvider {
         options?: SendOptions
     ): Promise<SendResult> {
         try {
-            // Dynamic import to avoid circular dependency
-            const { sendMessage } = await import('../whatsapp');
+            // Import from the wrapper module
+            const { sendWhatsAppMessage } = await import('../whatsapp/provider');
 
-            const result = await sendMessage(
+            const result = await sendWhatsAppMessage(
                 phone,
                 message,
                 options?.mediaUrl,
@@ -32,7 +32,7 @@ export class WhatsAppJSProvider implements IMessageProvider {
             if (result.success) {
                 return {
                     success: true,
-                    messageId: result.id
+                    messageId: result.messageId
                 };
             }
 
@@ -64,7 +64,7 @@ export class WhatsAppJSProvider implements IMessageProvider {
      */
     async validateNumber(phone: string): Promise<boolean> {
         try {
-            const { validateWhatsAppNumber } = await import('../whatsapp');
+            const { validateWhatsAppNumber } = await import('../whatsapp/provider');
             const result = await validateWhatsAppNumber(phone);
             return result !== null;
         } catch {
@@ -77,8 +77,8 @@ export class WhatsAppJSProvider implements IMessageProvider {
      */
     async isReady(): Promise<boolean> {
         try {
-            const { isClientReady } = await import('../whatsapp');
-            return await isClientReady();
+            const { isWhatsAppReady } = await import('../whatsapp/provider');
+            return await isWhatsAppReady();
         } catch {
             return false;
         }

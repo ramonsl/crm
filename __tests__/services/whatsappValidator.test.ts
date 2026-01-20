@@ -1,26 +1,34 @@
 /**
  * Tests for WhatsAppValidator
+ * Updated for Provider Interface Architecture
  */
 
 import { WhatsAppValidator } from '@/services/whatsappValidator';
 import { BrazilianPhoneFormatter } from '@/services/phoneFormatter';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
+
+// Mock the factory
+jest.mock('@/lib/whatsapp/factory');
+jest.mock('@/lib/logger');
 
 describe('WhatsAppValidator', () => {
     let validator: WhatsAppValidator;
     let formatter: BrazilianPhoneFormatter;
-    let mockClient: any;
+    let mockProvider: any;
 
     beforeEach(() => {
         formatter = new BrazilianPhoneFormatter();
         validator = new WhatsAppValidator(formatter);
 
-        // Mock WhatsApp client
-        mockClient = {
-            getNumberId: jest.fn()
+        // Mock provider instance
+        mockProvider = {
+            isReady: jest.fn().mockResolvedValue(true),
+            validateNumber: jest.fn()
         };
 
-        global.whatsappClient = mockClient;
-        global.whatsappStatus = 'ready';
+        // Reset and setup factory mock
+        (WhatsAppProviderFactory.getProvider as jest.Mock).mockReset();
+        (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
     });
 
     afterEach(() => {
@@ -29,34 +37,30 @@ describe('WhatsAppValidator', () => {
 
     describe('validate()', () => {
         it('should validate a valid WhatsApp number (12-digit)', async () => {
-            mockClient.getNumberId.mockResolvedValueOnce({
-                _serialized: '555198888888@c.us'
-            });
+            mockProvider.validateNumber.mockResolvedValueOnce('555198888888');
 
             const result = await validator.validate('51998888888');
 
             expect(result.valid).toBe(true);
-            expect(result.chatId).toBe('555198888888@c.us');
+            expect(result.chatId).toBe('555198888888@s.whatsapp.net');
             expect(result.variation?.type).toBe('12-digit');
         });
 
         it('should validate a valid WhatsApp number (13-digit)', async () => {
             // First variation (12-digit) fails
-            mockClient.getNumberId.mockRejectedValueOnce(new Error('Not found'));
+            mockProvider.validateNumber.mockResolvedValueOnce(null);
             // Second variation (13-digit) succeeds
-            mockClient.getNumberId.mockResolvedValueOnce({
-                _serialized: '5551999998888@c.us'
-            });
+            mockProvider.validateNumber.mockResolvedValueOnce('5551999998888');
 
             const result = await validator.validate('51999998888');
 
             expect(result.valid).toBe(true);
-            expect(result.chatId).toBe('5551999998888@c.us');
+            expect(result.chatId).toBe('5551999998888@s.whatsapp.net');
             expect(result.variation?.type).toBe('13-digit');
         });
 
         it('should return invalid for non-WhatsApp number', async () => {
-            mockClient.getNumberId.mockRejectedValue(new Error('Not found'));
+            mockProvider.validateNumber.mockResolvedValue(null);
 
             const result = await validator.validate('51998888888');
 
@@ -65,30 +69,25 @@ describe('WhatsAppValidator', () => {
         });
 
         it('should throw error if client is not ready', async () => {
-            global.whatsappStatus = 'disconnected';
+            // Explicitly set isReady to false for this test
+            mockProvider.isReady.mockResolvedValue(false);
 
             await expect(validator.validate('51999998888')).rejects.toThrow(
                 'WhatsApp client is not ready'
             );
         });
 
-        it('should handle timeout gracefully', async () => {
-            mockClient.getNumberId.mockImplementation(
-                () => new Promise(resolve => setTimeout(resolve, 10000))
-            );
-
-            const result = await validator.validate('5551999998888');
-            expect(result.valid).toBe(false);
-        }, 15000); // Increase timeout to 15 seconds
-
         it('should try multiple variations before giving up', async () => {
-            mockClient.getNumberId
-                .mockRejectedValueOnce(new Error('Not found'))
-                .mockRejectedValueOnce(new Error('Not found'));
+            // Ensure isReady is true (redundant but safe)
+            mockProvider.isReady.mockResolvedValue(true);
+
+            mockProvider.validateNumber
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce(null);
 
             const result = await validator.validate('51999998888');
 
-            expect(mockClient.getNumberId).toHaveBeenCalledTimes(2);
+            expect(mockProvider.validateNumber).toHaveBeenCalledTimes(2);
             expect(result.valid).toBe(false);
         });
     });

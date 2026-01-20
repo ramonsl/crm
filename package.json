@@ -29,8 +29,10 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "@wppconnect-team/wppconnect": "^1.37.11",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
+    "emoji-picker-react": "^4.16.1",
     "jimp": "^1.6.0",
     "lucide-react": "^0.555.0",
     "next": "^16.0.10",

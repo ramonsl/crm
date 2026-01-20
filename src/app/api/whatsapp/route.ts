@@ -9,8 +9,13 @@ import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 // Force this route to be dynamic to avoid caching status
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
+        // Fix: Do not allow GET requests to switch provider.
+        // GET should only return the status of the CURRENT active provider (or default if none).
+
+        // If we pass an argument to getProvider, it might instantiate a new one.
+        // We want to check the existing one or the persisted one.
         const provider = await WhatsAppProviderFactory.getProvider();
         const status = await provider.getStatus();
         const providerType = WhatsAppProviderFactory.getCurrentProviderType();
@@ -60,6 +65,12 @@ export async function POST(req: NextRequest) {
             provider.initialize().catch((error) => {
                 console.error('[API /api/whatsapp] Error initializing provider:', error);
             });
+
+            // Persist user preference for server restarts
+            const resolvedType = WhatsAppProviderFactory.getCurrentProviderType();
+            if (resolvedType) {
+                await WhatsAppProviderFactory.persistProvider(resolvedType);
+            }
 
             return NextResponse.json({
                 message: 'Initializing',

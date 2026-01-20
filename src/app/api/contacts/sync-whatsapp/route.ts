@@ -1,14 +1,15 @@
-import { getErrorMessage } from '@/lib/types';
-
 /**
  * API Route - Sync WhatsApp Contact Data
  * POST /api/contacts/sync-whatsapp
  * 
  * Validates WhatsApp number and synchronizes contact data
+ * Refatorado para usar WhatsAppProviderFactory
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
 import { SQLiteContactRepository } from '@/repositories/contactRepository';
+import { getErrorMessage } from '@/lib/types';
 
 export async function POST(req: NextRequest) {
     try {
@@ -22,12 +23,15 @@ export async function POST(req: NextRequest) {
         }
 
         console.log(`[API Sync] Syncing ${phone}...`);
-        console.log(`[API Sync] WhatsApp status: ${global.whatsappStatus}`);
-        console.log(`[API Sync] WhatsApp client exists: ${!!global.whatsappClient}`);
 
-        // Warn if WhatsApp might not be ready, but continue anyway
-        if (!global.whatsappClient || global.whatsappStatus !== 'ready') {
-            console.warn('[API Sync] ⚠️ Warning: WhatsApp may not be ready, but will try anyway');
+        // Get provider via Factory
+        const provider = await WhatsAppProviderFactory.getProvider();
+        const isReady = await provider.isReady();
+
+        console.log(`[API Sync] Provider ready: ${isReady}`);
+
+        if (!isReady) {
+            console.warn('[API Sync] ⚠️ Warning: WhatsApp may not be ready');
         }
 
         // Format phone - add 55 if needed
@@ -41,67 +45,32 @@ export async function POST(req: NextRequest) {
 
         console.log(`[API Sync] Formatted phone: ${formattedPhone}`);
 
+        // Validate number via provider
         let chatId: string | null = null;
         let valid = false;
 
-        // Try to get WhatsApp ID - test both 12 and 13 digit versions
-        const variations = [];
-
-        if (formattedPhone.length === 13) {
-            // 5551999998888 -> try both with and without 9
-            const without9 = formattedPhone.substring(0, 4) + formattedPhone.substring(5);
-            variations.push(without9, formattedPhone);
-        } else if (formattedPhone.length === 12) {
-            // 555198888888 -> try both as-is and with 9
-            const with9 = formattedPhone.substring(0, 4) + '9' + formattedPhone.substring(4);
-            variations.push(formattedPhone, with9);
-        } else {
-            variations.push(formattedPhone);
-        }
-
-        console.log(`[API Sync] Trying variations:`, variations);
-
-        for (const variant of variations) {
-            try {
-                console.log(`[API Sync] Testing +${variant}...`);
-                const result = await global.whatsappClient!.getNumberId(`+${variant}`);
-
-                if (result && result._serialized) {
-                    chatId = result._serialized;
-                    valid = true;
-                    console.log(`[API Sync] ✅ Found! ChatId: ${chatId}`);
-                    break;
-                }
-            } catch (error) {
-                console.log(`[API Sync] ❌ +${variant} not found`);
+        try {
+            const validatedNumber = await provider.validateNumber(formattedPhone);
+            if (validatedNumber) {
+                chatId = `${validatedNumber}@s.whatsapp.net`;
+                valid = true;
+                console.log(`[API Sync] ✅ Valid! ChatId: ${chatId}`);
+            } else {
+                console.log(`[API Sync] ❌ Number not valid on WhatsApp`);
             }
+        } catch (error) {
+            console.warn('[API Sync] Validation error:', error);
         }
-
-        console.log(`[API Sync] Final result - Valid: ${valid}, ChatId: ${chatId}`);
 
         let profilePicture = null;
-        let lastMessage = null;
-        let lastMessageTime = null;
 
-        // If valid, fetch additional data
-        if (valid && chatId) {
+        // If valid, fetch profile picture
+        if (valid) {
             try {
-                // Fetch profile picture
-                const { getContactProfilePicture } = await import('@/lib/whatsapp');
-                profilePicture = await getContactProfilePicture(phone);
+                profilePicture = await provider.getProfilePicture(formattedPhone);
                 console.log(`[API Sync] Profile picture: ${profilePicture ? 'found' : 'not found'}`);
-
-                // Fetch last chat
-                const chat = await global.whatsappClient!.getChatById(chatId);
-                const messages = await chat.fetchMessages({ limit: 1 });
-
-                if (messages.length > 0) {
-                    lastMessage = messages[0].body;
-                    lastMessageTime = new Date(messages[0].timestamp * 1000).toISOString();
-                    console.log(`[API Sync] Last message: ${lastMessage?.substring(0, 30)}...`);
-                }
             } catch (error) {
-                console.warn('[API Sync] Failed to fetch additional data:', error);
+                console.warn('[API Sync] Failed to fetch profile picture:', error);
             }
         }
 
@@ -110,8 +79,8 @@ export async function POST(req: NextRequest) {
         await repository.updateWhatsAppData(phone, {
             whatsapp_valido: valid,
             profile_picture: profilePicture,
-            last_message: lastMessage,
-            last_message_time: lastMessageTime
+            last_message: null,  // Mensagens são sincronizadas via message handler
+            last_message_time: null
         });
 
         console.log(`[API Sync] ✅ Updated database for ${phone}`);
@@ -120,8 +89,8 @@ export async function POST(req: NextRequest) {
             valid,
             chatId,
             profilePicture,
-            lastMessage,
-            lastMessageTime,
+            lastMessage: null,
+            lastMessageTime: null,
             updated: true
         });
 

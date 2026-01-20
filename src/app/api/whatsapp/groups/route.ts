@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listAllGroups, isNumberInGroup, getGroupParticipants } from '@/lib/whatsapp';
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 
 /**
  * GET /api/whatsapp/groups
@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
         switch (action) {
             case 'list': {
                 // Listar todos os grupos
-                const groups = await listAllGroups();
+                const provider = await WhatsAppProviderFactory.getProvider();
+                const groups = await provider.listGroups(); // Interface now guarantees this method
                 return NextResponse.json({
                     success: true,
                     groups,
@@ -37,7 +38,8 @@ export async function GET(request: NextRequest) {
                     }, { status: 400 });
                 }
 
-                const isInGroup = await isNumberInGroup(phone, groupId);
+                const provider = await WhatsAppProviderFactory.getProvider();
+                const isInGroup = await provider.isNumberInGroup(phone, groupId);
                 return NextResponse.json({
                     success: true,
                     phone,
@@ -55,7 +57,8 @@ export async function GET(request: NextRequest) {
                     }, { status: 400 });
                 }
 
-                const participants = await getGroupParticipants(groupId);
+                const provider = await WhatsAppProviderFactory.getProvider();
+                const participants = await provider.getGroupParticipants(groupId);
                 return NextResponse.json({
                     success: true,
                     groupId,

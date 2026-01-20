@@ -43,6 +43,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.QueueManager = void 0;
 const constants_1 = require("../constants");
 const logger_1 = require("../../lib/logger");
+const emitter_1 = require("../../lib/socket/emitter");
 class QueueManager {
     constructor(aiGenerator, historyRecorder, settingsProvider) {
         this.aiGenerator = aiGenerator;
@@ -83,7 +84,7 @@ class QueueManager {
         }));
         this.queue.push(...newItems);
         this.stats.total += newItems.length;
-        this.addLog(`Enqueued ${newItems.length} messages.`, 'info');
+        this.addLog(`${newItems.length} mensagens adicionadas à fila.`, 'info');
         if (!this.processing) {
             this.process();
         }
@@ -95,7 +96,7 @@ class QueueManager {
         const count = this.queue.length;
         this.queue = [];
         this.stats.total = Math.max(0, this.stats.total - count);
-        this.addLog('Queue cleared by user.', 'info');
+        this.addLog('Fila limpa pelo usuário.', 'info');
     }
     /**
      * Add a log entry
@@ -105,6 +106,8 @@ class QueueManager {
         if (this.logs.length > constants_1.QUEUE_CONFIG.MAX_LOGS_COUNT) {
             this.logs.pop();
         }
+        // Emit update to clients
+        (0, emitter_1.emitQueueUpdate)(this.getState());
     }
     /**
      * Get current queue state
@@ -161,7 +164,7 @@ class QueueManager {
      */
     async applyDelay(minDelay, maxDelay, phone) {
         const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
-        this.addLog(`Waiting ${Math.round(delay / 1000)}s before sending to ${phone}...`, 'info');
+        this.addLog(`Aguardando ${Math.round(delay / 1000)}s antes de enviar para ${phone}...`, 'info');
         await new Promise(resolve => setTimeout(resolve, delay));
     }
     /**
@@ -212,7 +215,6 @@ class QueueManager {
      * Process the queue
      */
     async process() {
-        var _a;
         if (this.processing || this.queue.length === 0)
             return;
         this.processing = true;
@@ -225,7 +227,7 @@ class QueueManager {
                 // Check if this is a YCloud template message
                 if (item.provider === 'ycloud' && item.templateName && item.variables) {
                     // Send via YCloud provider - NO DELAY needed (API handles rate limiting)
-                    this.addLog(`[YCloud] Sending template "${item.templateName}" to ${item.phone}...`, 'info');
+                    this.addLog(`[YCloud] Enviando template "${item.templateName}" para ${item.phone}...`, 'info');
                     const { YCloudProvider } = await Promise.resolve().then(() => __importStar(require('../providers/YCloudProvider')));
                     const yCloudProvider = new YCloudProvider();
                     const result = await yCloudProvider.sendTemplateMessage(item.phone, item.templateName, item.variables);
@@ -234,7 +236,7 @@ class QueueManager {
                     }
                     item.status = 'completed';
                     this.stats.processed++;
-                    this.addLog(`[YCloud] Sent to ${item.phone}`, 'success');
+                    this.addLog(`[YCloud] Enviado para ${item.phone}`, 'success');
                 }
                 else {
                     // Send via Baileys/WhatsAppJS (local providers)
@@ -243,23 +245,22 @@ class QueueManager {
                     await this.applyDelay(minDelay, maxDelay, item.phone);
                     // Generate or substitute message
                     if (item.isAi) {
-                        this.addLog(`Generating AI message for ${item.name || item.phone}...`, 'info');
+                        this.addLog(`Gerando mensagem com IA para ${item.name || item.phone}...`, 'info');
                         item.message = await this.aiGenerator.generate(item.message, item.name);
-                        this.addLog(`AI Message generated: "${item.message.substring(0, 50)}..."`, 'success');
+                        this.addLog(`Mensagem IA gerada: "${item.message.substring(0, 50)}..."`, 'success');
                     }
                     else {
                         item.message = this.substituteVariables(item.message, item.name);
                     }
                     // Send message via Provider (Baileys or WWebJS)
-                    this.addLog(`Sending to ${item.phone} via Provider...`, 'info');
+                    this.addLog(`Enviando para ${item.phone} via Provider...`, 'info');
                     const result = await sendWhatsAppMessage(item.phone, item.message);
                     // Log ID if available
-                    const msgId = typeof result.id === 'string' ? result.id :
-                        ((_a = result.id) === null || _a === void 0 ? void 0 : _a._serialized) || 'unknown';
+                    const msgId = result.messageId || 'unknown';
                     // Update stats
                     item.status = 'completed';
                     this.stats.processed++;
-                    this.addLog(`Successfully sent to ${item.phone} (ID: ${msgId})`, 'success');
+                    this.addLog(`Enviado com sucesso para ${item.phone} (ID: ${msgId})`, 'success');
                 }
                 // Record success
                 await this.historyRecorder.recordSuccess(item);
@@ -283,7 +284,7 @@ class QueueManager {
             }
         }
         this.processing = false;
-        this.addLog('Queue processing finished.', 'info');
+        this.addLog('Processamento da fila finalizado.', 'info');
         // Trigger queue automation when queue becomes empty
         await this.triggerQueueAutomation();
     }
