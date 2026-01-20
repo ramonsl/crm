@@ -1,8 +1,7 @@
 /**
  * WhatsApp Provider Factory
  * 
- * Factory pattern para criar e gerenciar instâncias de providers WhatsApp.
- * Implementa singleton pattern para garantir única instância por provider.
+ * Singleton factory para gerenciar instâncias de providers WhatsApp
  */
 
 import type { IWhatsAppProvider } from '../IWhatsAppProvider';
@@ -14,29 +13,31 @@ export type ProviderType = 'baileys' | 'wwebjs' | 'twilio';
 
 export class WhatsAppProviderFactory {
     private static instance: IWhatsAppProvider | null = null;
-    private static currentProviderType: ProviderType | null = null;
+    private static currentType: ProviderType | null = null;
 
     /**
-     * Obtém instância do provider (singleton)
-     * @param type Tipo de provider (default: baileys)
-     * @returns Instância do provider
+     * Get or create provider instance
+     * If type is not provided, returns current active provider or defaults to 'baileys'
      */
-    static async getProvider(type: ProviderType = 'baileys'): Promise<IWhatsAppProvider> {
-        // Se já existe instância do mesmo tipo, retorna
-        if (this.instance && this.currentProviderType === type) {
-            return this.instance;
-        }
+    static async getProvider(type?: ProviderType): Promise<IWhatsAppProvider> {
+        // If no type specified, use current type if available, otherwise default to 'baileys'
+        const requestedType = type || this.currentType || 'baileys';
 
-        // Se existe instância de outro tipo, limpa antes
-        if (this.instance && this.currentProviderType !== type) {
-            whatsappLogger.info(`Switching provider from ${this.currentProviderType} to ${type}`);
+        // If requesting different provider, reset current instance
+        if (this.currentType && this.currentType !== requestedType) {
+            whatsappLogger.info(`[Factory] Switching provider from ${this.currentType} to ${requestedType}`);
             await this.reset();
         }
 
-        // Cria nova instância
-        whatsappLogger.info(`Creating ${type} provider instance...`);
+        // Return existing instance if available
+        if (this.instance && this.currentType === requestedType) {
+            return this.instance;
+        }
 
-        switch (type) {
+        // Create new instance
+        whatsappLogger.info(`[Factory] Creating new ${requestedType} provider instance`);
+
+        switch (requestedType) {
             case 'baileys':
                 this.instance = new BaileysAdapter();
                 break;
@@ -46,14 +47,13 @@ export class WhatsAppProviderFactory {
                 break;
 
             case 'twilio':
-                // TODO: Implementar TwilioAdapter
-                throw new Error('Twilio adapter not implemented yet');
+                throw new Error('Twilio provider not implemented yet');
 
             default:
-                throw new Error(`Unknown provider type: ${type}`);
+                throw new Error(`Unknown provider type: ${requestedType}`);
         }
 
-        this.currentProviderType = type;
+        this.currentType = requestedType;
         return this.instance;
     }
 
@@ -69,7 +69,7 @@ export class WhatsAppProviderFactory {
      * Retorna o tipo de provider atual
      */
     static getCurrentProviderType(): ProviderType | null {
-        return this.currentProviderType;
+        return this.currentType;
     }
 
     /**
@@ -94,7 +94,7 @@ export class WhatsAppProviderFactory {
             }
 
             this.instance = null;
-            this.currentProviderType = null;
+            this.currentType = null;
         }
     }
 }

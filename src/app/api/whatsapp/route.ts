@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         const { action } = body;
 
         // Get provider instance
-        const providerType = body.provider || 'baileys';
+        const providerType = body.provider; // If undefined, getProvider uses current active
         const provider = await WhatsAppProviderFactory.getProvider(providerType);
 
         if (action === 'connect') {
