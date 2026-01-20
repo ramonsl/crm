@@ -506,7 +506,7 @@ export default function WhatsAppPage() {
                                 className={styles.secondaryButton}
                                 style={{ padding: '4px 8px', fontSize: '0.75rem' }}
                                 title="Limpar fila de mensagens"
-                                disabled={loading || queueState?.queueLength === 0}
+                                disabled={isLoading || queueState?.queueLength === 0}
                             >
                                 Limpar Fila
                             </button>
