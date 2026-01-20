@@ -7,6 +7,7 @@
 
 import type { IWhatsAppProvider } from '../IWhatsAppProvider';
 import { BaileysAdapter } from '../adapters/BaileysAdapter';
+import { WWebJSAdapter } from '../adapters/WWebJSAdapter';
 import { whatsappLogger } from '@/lib/logger';
 
 export type ProviderType = 'baileys' | 'wwebjs' | 'twilio';
@@ -41,8 +42,8 @@ export class WhatsAppProviderFactory {
                 break;
 
             case 'wwebjs':
-                // TODO: Implementar WWebJSAdapter
-                throw new Error('WWebJS adapter not implemented yet');
+                this.instance = new WWebJSAdapter();
+                break;
 
             case 'twilio':
                 // TODO: Implementar TwilioAdapter

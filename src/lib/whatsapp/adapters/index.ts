@@ -3,4 +3,5 @@
  */
 
 export { BaileysAdapter } from './BaileysAdapter';
-// export { WWebJSAdapter } from './WWebJSAdapter'; // TODO: Implementar
+export { WWebJSAdapter } from './WWebJSAdapter';
+
