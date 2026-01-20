@@ -274,8 +274,8 @@ export async function initializeBaileys(): Promise<void> {
             if (m.type !== 'notify') return;
 
             for (const msg of m.messages) {
-                // Skip messages from self
-                if (msg.key.fromMe) continue;
+                // Process ALL messages (both received and sent)
+                // This ensures messages sent from WhatsApp app also appear in CRM
 
                 // Extract message content
                 const messageContent = msg.message?.conversation
@@ -287,12 +287,12 @@ export async function initializeBaileys(): Promise<void> {
                 const from = msg.key.remoteJid || '';
                 const isGroup = from.endsWith('@g.us');
 
-                whatsappLogger.debug(`Message from ${from}: ${messageContent.substring(0, 50)}...`);
+                whatsappLogger.debug(`Message from ${from} (fromMe: ${msg.key.fromMe}): ${messageContent.substring(0, 50)}...`);
 
                 // Call external handler if registered
                 if (onMessageCallback) {
                     onMessageCallback({
-                        from: from.replace('@s.whatsapp.net', '').replace('@c.us', ''),
+                        from: from.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', ''),
                         body: messageContent,
                         isGroup,
                         timestamp: new Date((msg.messageTimestamp as number) * 1000),
