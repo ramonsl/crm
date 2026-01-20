@@ -63,6 +63,17 @@ export class WWebJSAdapter implements IWhatsAppProvider {
         try {
             whatsappLogger.info('Initializing WWebJS WhatsApp Client...');
 
+            // ALWAYS destroy existing client before creating new one
+            if (this.state.client) {
+                whatsappLogger.debug('Existing client found. Destroying before fresh init...');
+                try {
+                    await this.state.client.destroy();
+                } catch (e) {
+                    whatsappLogger.error('Error destroying existing client:', e);
+                }
+                this.state.client = null;
+            }
+
             // Kill any existing Chrome processes for this session
             try {
                 const { execSync } = require('child_process');
@@ -72,25 +83,31 @@ export class WWebJSAdapter implements IWhatsAppProvider {
                 // Ignore cleanup errors
             }
 
+            // Remove lock files that might prevent initialization
+            const sessionPath = './.wwebjs_auth';
+            try {
+                const fs = require('fs');
+                const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+                lockFiles.forEach((lockFile: string) => {
+                    const lockPath = `${sessionPath}/session/${lockFile}`;
+                    if (fs.existsSync(lockPath)) {
+                        fs.unlinkSync(lockPath);
+                        whatsappLogger.debug(`Removed lock file: ${lockPath}`);
+                    }
+                });
+            } catch (e) {
+                whatsappLogger.warn('Error removing lock files:', e);
+            }
+
             const client = new Client({
                 authStrategy: new LocalAuth({
-                    dataPath: './.wwebjs_auth'
+                    dataPath: sessionPath
                 }),
                 puppeteer: {
                     headless: true,
-                    timeout: 60000, // 60 seconds timeout
                     args: [
                         '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
-                        '--no-first-run',
-                        '--no-zygote',
-                        '--disable-gpu',
-                        '--disable-extensions',
-                        '--disable-background-timer-throttling',
-                        '--disable-backgrounding-occluded-windows',
-                        '--disable-renderer-backgrounding'
+                        '--disable-setuid-sandbox'
                     ]
                 }
             });
