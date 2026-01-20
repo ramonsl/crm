@@ -18,7 +18,7 @@ export default function WhatsAppPage() {
     const [currentProvider, setCurrentProvider] = useState<string | null>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
-    // Listen to real-time WhatsApp status updates via Socket.io
+    // MUST be declared BEFORE any useEffect that uses isConnected
     const { socket, isConnected } = useSocket();
 
     const checkStatus = async () => {
