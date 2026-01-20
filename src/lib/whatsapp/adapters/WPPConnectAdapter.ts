@@ -20,6 +20,7 @@ import type {
     WhatsAppStatus,
     MediaType
 } from '../IWhatsAppProvider';
+import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
 
 const SESSION_PATH = './.wppconnect_auth';
 
@@ -29,7 +30,7 @@ declare const __non_webpack_require__: any;
 // Dynamic import holder
 let wppconnect: any;
 
-export class WPPConnectAdapter implements IWhatsAppProvider {
+export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvider {
     private client: any | null = null;
     private status: WhatsAppStatus = 'disconnected';
     private qrCode: string | null = null;
@@ -273,37 +274,27 @@ export class WPPConnectAdapter implements IWhatsAppProvider {
      * Helper to normalize phone and get correct JID from WhatsApp
      * Handles +55 prefix and 8 vs 9 digit issues
      */
-    private async getChatId(phone: string): Promise<string> {
-        // If already has domain, assume it's a valid JID
-        if (phone.includes('@')) return phone;
 
-        // Sanitize - remove message formatting
-        let clean = phone.replace(/\D/g, '');
+    protected formatToDefaultJid(number: string): string {
+        return `${number}@c.us`;
+    }
 
-        // Add Brazil DDI (55) if it looks like a local mobile/landline (10 or 11 digits)
-        // DDD + NUMBER = 10 or 11
-        if (clean.length >= 10 && clean.length <= 11) {
-            clean = '55' + clean;
-        }
+    protected async verifyJidOnNetwork(number: string): Promise<string | null> {
+        if (!this.client) return null;
 
-        const probableId = `${clean}@c.us`;
+        const jid = this.formatToDefaultJid(number);
 
         try {
-            if (this.client) {
-                // Check if number exists on WhatsApp Network
-                // This returns the canonical ID (handling 8 vs 9 digits automatically)
-                const result = await this.client.checkNumberStatus(probableId);
+            // Check if number exists on WhatsApp Network
+            const result = await this.client.checkNumberStatus(jid);
 
-                if (result?.numberExists && result.id?._serialized) {
-                    return result.id._serialized;
-                }
+            if (result?.numberExists && result.id?._serialized) {
+                return result.id._serialized;
             }
         } catch (e) {
-            // Silently fail checking and fallback to probable ID
-            whatsappLogger.warn(`WPPConnect checkNumberStatus failed for ${probableId}`, e);
+            whatsappLogger.warn(`WPPConnect checkNumberStatus failed for ${jid}`, e);
         }
-
-        return probableId;
+        return null;
     }
 
     async sendMessage(

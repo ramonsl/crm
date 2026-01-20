@@ -30,6 +30,7 @@ import type {
     WhatsAppStatus,
     MediaType
 } from '../IWhatsAppProvider';
+import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
 
 // Session path configuration
 const SESSION_PATH = process.env.NODE_ENV === 'production'
@@ -55,7 +56,7 @@ interface BaileysState {
     isInitializing: boolean;
 }
 
-export class BaileysAdapter implements IWhatsAppProvider {
+export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvider {
     private state: BaileysState = {
         socket: null,
         status: 'disconnected',
@@ -392,38 +393,27 @@ export class BaileysAdapter implements IWhatsAppProvider {
     }
 
 
-    async getChatId(phone: string): Promise<string> {
-        // If already has domain, assume it's a valid JID
-        if (phone.includes('@')) return phone;
 
-        // Sanitize - remove message formatting
-        let clean = phone.replace(/\D/g, '');
+    protected formatToDefaultJid(number: string): string {
+        return `${number}@s.whatsapp.net`;
+    }
 
-        // Add Brazil DDI (55) if it looks like a local mobile/landline (10 or 11 digits)
-        // DDD + NUMBER = 10 or 11
-        if (clean.length >= 10 && clean.length <= 11) {
-            clean = '55' + clean;
-        }
+    protected async verifyJidOnNetwork(number: string): Promise<string | null> {
+        if (!this.state.socket) return null;
 
-        const probableId = `${clean}@s.whatsapp.net`;
+        const jid = this.formatToDefaultJid(number);
 
         try {
-            if (this.state.socket) {
-                // Check if number exists on WhatsApp Network
-                // This returns the canonical ID (handling 8 vs 9 digits automatically)
-                const results = await this.state.socket.onWhatsApp(probableId);
-                const result = results?.[0];
+            const results = await this.state.socket.onWhatsApp(jid);
+            const result = results?.[0];
 
-                if (result?.exists) {
-                    return result.jid;
-                }
+            if (result?.exists) {
+                return result.jid;
             }
         } catch (e) {
-            // Silently fail checking and fallback to probable ID
-            whatsappLogger.warn(`Baileys onWhatsApp failed for ${probableId}`, e);
+            whatsappLogger.warn(`Baileys onWhatsApp failed for ${jid}`, e);
         }
-
-        return probableId;
+        return null;
     }
 
     async sendMessage(
