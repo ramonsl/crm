@@ -23,6 +23,9 @@ import type {
 
 const SESSION_PATH = './.wppconnect_auth';
 
+// Declare webpack global for TS
+declare const __non_webpack_require__: any;
+
 // Dynamic import holder
 let wppconnect: any;
 
