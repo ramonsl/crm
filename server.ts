@@ -22,10 +22,9 @@ import { Server as SocketIOServer } from 'socket.io';
 import type {
     ServerToClientEvents,
     ClientToServerEvents,
-    InterServerEvents,
     SocketData
 } from './src/lib/socket/types';
-import { registerSocketServer } from './src/lib/socket/emitter';
+import { setSocketServer } from './src/lib/socket/emitter';
 import { normalizePhoneForSocket } from './src/lib/utils/phoneUtils';
 import { WhatsAppProviderFactory } from './src/lib/whatsapp/factory';
 
@@ -51,7 +50,7 @@ app.prepare().then(() => {
     });
 
     // Initialize Socket.io
-    const io = new SocketServer<
+    const io = new SocketIOServer<
         ClientToServerEvents,
         ServerToClientEvents,
         {},
@@ -158,23 +157,25 @@ app.prepare().then(() => {
         console.log(`> Ready on http://${hostname}:${port}`);
         console.log(`> Socket.io server running on port ${port}`);
 
-        // Initialize WhatsApp client using configured provider
-        const provider = getProvider();
-        console.log(`> Initializing WhatsApp client (provider: ${provider})...`);
-        initializeWhatsApp().catch(err => {
-            console.error('Failed to initialize WhatsApp:', err);
-        });
+        // Initialize WhatsApp client using factory
+        WhatsAppProviderFactory.getProvider('baileys').then(async (provider) => {
+            console.log(`> Initializing WhatsApp provider: ${provider.getProviderName()}...`);
 
-        // Register Baileys Message Handler
-        if (provider === 'baileys') {
-            import('./src/lib/whatsapp/provider').then(({ onWhatsAppMessage }) => {
-                import('./src/services/BaileysMessageHandler').then(({ baileysMessageHandler }) => {
-                    onWhatsAppMessage(async (msg) => {
-                        await baileysMessageHandler.handle(msg);
-                    });
-                    console.log('> Baileys Message Handler registered');
+            try {
+                await provider.initialize();
+
+                // Register message handler
+                const { baileysMessageHandler } = await import('./src/services/BaileysMessageHandler');
+                provider.onMessage(async (msg) => {
+                    await baileysMessageHandler.handle(msg);
                 });
-            });
-        }
+
+                console.log('> WhatsApp Message Handler registered');
+            } catch (err) {
+                console.error('Failed to initialize WhatsApp:', err);
+            }
+        }).catch((err) => {
+            console.error('Failed to get WhatsApp provider:', err);
+        });
     });
 });
