@@ -14,7 +14,9 @@ export default function WhatsAppPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [queueState, setQueueState] = useState<any>(null);
     const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
-    const [selectedProvider, setSelectedProvider] = useState<'baileys' | 'wwebjs'>('baileys');
+    const [selectedProvider, setSelectedProvider] = useState<'baileys' | 'wwebjs' | 'wppconnect'>('baileys');
+
+
     const [currentProvider, setCurrentProvider] = useState<string | null>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -463,7 +465,7 @@ export default function WhatsAppPage() {
                                         </label>
                                         <select
                                             value={selectedProvider}
-                                            onChange={(e) => setSelectedProvider(e.target.value as 'baileys' | 'wwebjs')}
+                                            onChange={(e) => setSelectedProvider(e.target.value as 'baileys' | 'wwebjs' | 'wppconnect')}
                                             className={styles.input}
                                             style={{
                                                 width: 'auto',
@@ -474,6 +476,7 @@ export default function WhatsAppPage() {
                                         >
                                             <option value="baileys">🚀 Baileys (Recomendado)</option>
                                             <option value="wwebjs">🌐 WhatsApp Web.js</option>
+                                            <option value="wppconnect">📱 WPPConnect (Puppeteer V2)</option>
                                         </select>
                                         <p style={{
                                             fontSize: '0.75rem',
@@ -482,7 +485,9 @@ export default function WhatsAppPage() {
                                         }}>
                                             {selectedProvider === 'baileys'
                                                 ? 'Mais leve e rápido. Sem Puppeteer.'
-                                                : 'Usa navegador Chromium. Mais pesado.'}
+                                                : selectedProvider === 'wppconnect'
+                                                    ? 'Usa Puppeteer (Chrome). Mais estável que WWebJS.'
+                                                    : 'Usa navegador Chromium. Mais pesado.'}
                                         </p>
                                     </div>
                                 )}
