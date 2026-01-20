@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const provider = await WhatsAppProviderFactory.getProvider('baileys');
+        const provider = await WhatsAppProviderFactory.getProvider();
         const status = await provider.getStatus();
         const providerType = WhatsAppProviderFactory.getCurrentProviderType();
 
@@ -180,7 +180,7 @@ export async function DELETE(req: NextRequest) {
         // Require authentication
         await requireAuth(req);
 
-        const provider = await WhatsAppProviderFactory.getProvider('baileys');
+        const provider = await WhatsAppProviderFactory.getProvider();
         await provider.logout();
 
         return NextResponse.json({ message: 'Disconnected', status: 'disconnected' });
