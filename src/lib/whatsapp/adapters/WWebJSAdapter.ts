@@ -63,6 +63,15 @@ export class WWebJSAdapter implements IWhatsAppProvider {
         try {
             whatsappLogger.info('Initializing WWebJS WhatsApp Client...');
 
+            // Kill any existing Chrome processes for this session
+            try {
+                const { execSync } = require('child_process');
+                execSync('pkill -f "chrome.*wwebjs"', { stdio: 'ignore' });
+                whatsappLogger.info('Cleaned up old Chrome processes');
+            } catch (cleanupError) {
+                // Ignore cleanup errors
+            }
+
             const client = new Client({
                 authStrategy: new LocalAuth({
                     dataPath: './.wwebjs_auth'
