@@ -9,12 +9,12 @@ import { useSocket } from '@/contexts/SocketContext';
 
 export default function WhatsAppPage() {
     const { success: toastSuccess, error: toastError } = useToast();
-    const [status, setStatus] = useState<'disconnected' | 'initializing' | 'ready'>('disconnected');
-    const [qrCode, setQrCode] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [status, setStatus] = useState<'connecting' | 'ready' | 'qr' | 'disconnected'>('disconnected');
+    const [qrCode, setQrCode] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
     const [queueState, setQueueState] = useState<any>(null);
     const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
-    const [provider, setProvider] = useState<'baileys' | 'wwebjs'>('baileys');
+    const [selectedProvider, setSelectedProvider] = useState<'baileys' | 'wwebjs'>('baileys');
     const [currentProvider, setCurrentProvider] = useState<string | null>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -93,12 +93,15 @@ export default function WhatsAppPage() {
     }, [queueState?.logs]);
 
     const handleConnect = async () => {
-        setLoading(true);
+        setIsLoading(true);
         try {
-            await fetch('/api/whatsapp', {
+            const response = await fetch('/api/whatsapp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'connect', provider })
+                body: JSON.stringify({
+                    action: 'connect',
+                    provider: selectedProvider
+                })
             });
             // Poll immediately after action
             setTimeout(checkStatus, 1000);
