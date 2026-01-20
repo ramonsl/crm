@@ -18,18 +18,19 @@ config({ path: resolve(process.cwd(), '.env.local') });
 import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
-import { Server as SocketServer } from 'socket.io';
+import { Server as SocketIOServer } from 'socket.io';
 import type {
     ServerToClientEvents,
     ClientToServerEvents,
+    InterServerEvents,
     SocketData
 } from './src/lib/socket/types';
-import { setSocketServer } from './src/lib/socket/emitter';
-import { initializeWhatsApp, getProvider } from './src/lib/whatsapp/provider';
+import { registerSocketServer } from './src/lib/socket/emitter';
 import { normalizePhoneForSocket } from './src/lib/utils/phoneUtils';
+import { WhatsAppProviderFactory } from './src/lib/whatsapp/factory';
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
+const hostname = process.env.HOSTNAME || 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
 
 // Initialize Next.js
