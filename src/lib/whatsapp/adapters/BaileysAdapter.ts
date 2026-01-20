@@ -439,7 +439,7 @@ export class BaileysAdapter implements IWhatsAppProvider {
 
             return {
                 success: true,
-                messageId: sentMsg?.key?.id
+                messageId: sentMsg?.key?.id || undefined
             };
         } catch (error) {
             whatsappLogger.error('Error sending message:', error);
