@@ -78,6 +78,7 @@ export class WWebJSAdapter implements IWhatsAppProvider {
                 }),
                 puppeteer: {
                     headless: true,
+                    timeout: 60000, // 60 seconds timeout
                     args: [
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
@@ -85,7 +86,11 @@ export class WWebJSAdapter implements IWhatsAppProvider {
                         '--disable-accelerated-2d-canvas',
                         '--no-first-run',
                         '--no-zygote',
-                        '--disable-gpu'
+                        '--disable-gpu',
+                        '--disable-extensions',
+                        '--disable-background-timer-throttling',
+                        '--disable-backgrounding-occluded-windows',
+                        '--disable-renderer-backgrounding'
                     ]
                 }
             });
