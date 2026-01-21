@@ -41,7 +41,7 @@ describe('/api/dashboard', () => {
             rowCount: 1
         });
 
-        const req = createRequest('GET', '/api/dashboard');
+        createRequest('GET', '/api/dashboard');
         const res = await GET();
 
         expect(res.status).toBe(200);

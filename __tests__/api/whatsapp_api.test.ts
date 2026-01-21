@@ -1,4 +1,4 @@
-import { GET as GET_STATUS, POST as POST_ACTION, DELETE as DELETE_SESSION } from '@/app/api/whatsapp/route';
+import { GET as GET_STATUS, POST as POST_ACTION } from '@/app/api/whatsapp/route';
 import { POST as POST_QUEUE, GET as GET_QUEUE, DELETE as DELETE_QUEUE } from '@/app/api/whatsapp/queue/route';
 import { GET as GET_VALIDATE } from '@/app/api/whatsapp/validate/route';
 import { NextRequest } from 'next/server';

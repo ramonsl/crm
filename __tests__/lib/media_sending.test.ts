@@ -28,8 +28,11 @@ jest.mock('@/lib/db', () => ({
 describe('Debug Media', () => {
     it('should create MessageMedia from file path', async () => {
         // Setup global client
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { Client } = require('whatsapp-web.js');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global as any).whatsappClient = new Client();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global as any).whatsappStatus = 'ready';
 
         const mediaUrl = '/uploads/test.png';

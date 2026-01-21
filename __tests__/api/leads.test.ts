@@ -17,7 +17,7 @@ jest.mock('@/lib/db', () => ({
 
 const mockPoolQuery = pool.query as jest.Mock;
 
-function createRequest(method: string, url: string, body?: any) {
+function createRequest(method: string, url: string, body?: unknown) {
     return new NextRequest(new URL(url, 'http://localhost'), {
         method,
         headers: { 'Content-Type': 'application/json' },

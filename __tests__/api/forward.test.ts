@@ -2,6 +2,7 @@ import { POST } from '@/app/api/forward/route';
 import { pool } from '@/lib/db';
 
 import { NextRequest } from 'next/server';
+import { IWhatsAppProvider } from '@/lib/whatsapp/IWhatsAppProvider';
 
 // Mock DB
 jest.mock('@/lib/db', () => ({
@@ -29,7 +30,7 @@ jest.mock('@/lib/auth/requireAuth', () => ({
 const mockPoolQuery = pool.query as jest.Mock;
 
 
-function createRequest(method: string, url: string, body?: any) {
+function createRequest(method: string, url: string, body?: unknown) {
     return new NextRequest(new URL(url, 'http://localhost'), {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -38,14 +39,38 @@ function createRequest(method: string, url: string, body?: any) {
 }
 
 describe('/api/forward', () => {
-    let mockProvider: any;
+    let mockProvider: jest.Mocked<IWhatsAppProvider>;
 
     beforeEach(() => {
         jest.clearAllMocks();
 
         mockProvider = {
+            initialize: jest.fn(),
+            restart: jest.fn(),
+            logout: jest.fn(),
+            clearSession: jest.fn(),
             getStatus: jest.fn().mockResolvedValue({ status: 'ready' }),
-            sendTextMessage: jest.fn().mockResolvedValue({ success: true, messageId: 'msg_123' })
+            isReady: jest.fn().mockResolvedValue(true),
+            sendTextMessage: jest.fn().mockResolvedValue({ success: true, messageId: 'msg_123' }),
+            sendImage: jest.fn(),
+            sendVideo: jest.fn(),
+            sendAudio: jest.fn(),
+            sendDocument: jest.fn(),
+            sendMessage: jest.fn(),
+            getProfilePicture: jest.fn(),
+            getContactInfo: jest.fn(),
+            validateNumber: jest.fn(),
+            onMessage: jest.fn(),
+            onStatusChange: jest.fn(),
+            offMessage: jest.fn(),
+            offStatusChange: jest.fn(),
+            getProviderName: jest.fn().mockReturnValue('Mock'),
+            getProviderVersion: jest.fn().mockReturnValue('1.0.0'),
+            listGroups: jest.fn(),
+            getGroupParticipants: jest.fn(),
+            isNumberInGroup: jest.fn(),
+            onLog: jest.fn(),
+            offLog: jest.fn(),
         };
 
         (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
@@ -86,7 +111,7 @@ describe('/api/forward', () => {
         if (res.status === 500) {
             const calls = (console.error as jest.Mock).mock.calls;
             process.stdout.write('Detailed 500 Error Calls:\n');
-            calls.forEach((args: any[]) => {
+            calls.forEach((args: unknown[]) => {
                 args.forEach(arg => {
                     if (arg instanceof Error) {
                         process.stdout.write(`Error: ${arg.message}\nStack: ${arg.stack}\n`);

@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/services/AuthService';
 import { UserRepository } from '@/lib/repositories/UserRepository';
 
@@ -7,12 +7,13 @@ jest.mock('@/services/AuthService');
 jest.mock('@/lib/repositories/UserRepository');
 
 describe('Security Audit: Privilege Escalation in /api/users', () => {
-    let POST: any;
+    let POST: (req: NextRequest) => Promise<NextResponse>;
 
     beforeEach(() => {
         jest.clearAllMocks();
         // Reset modules and re-require route to capture fresh mock instances
         jest.isolateModules(() => {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
             POST = require('@/app/api/users/route').POST;
         });
     });
@@ -61,7 +62,6 @@ describe('Security Audit: Privilege Escalation in /api/users', () => {
 
     it('SECURITY FIX: allows ADMIN user to create users', async () => {
         const authServiceMock = (AuthService as unknown as jest.Mock).mock.instances[0];
-        const userRepoMock = (UserRepository as unknown as jest.Mock).mock.instances[0];
 
         if (!authServiceMock) {
             throw new Error('AuthService mock instance not found.');

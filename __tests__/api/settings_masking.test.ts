@@ -1,6 +1,5 @@
 import { GET } from '@/app/api/settings/route';
 import { pool } from '@/lib/db';
-import { NextResponse } from 'next/server';
 
 // Mock dependencies
 jest.mock('@/lib/db', () => ({
@@ -26,7 +25,7 @@ describe('Settings API - GET', () => {
         });
 
         const response = await GET();
-        const data = await (response as any).json();
+        const data = await response.json();
 
         expect(data.openaiApiKey).toBe('sk-...cdef');
         expect(data.yCloudApiKey).toBe('***1234');
@@ -41,7 +40,7 @@ describe('Settings API - GET', () => {
         });
 
         const response = await GET();
-        const data = await (response as any).json();
+        const data = await response.json();
 
         expect(data.openaiApiKey).toBe('');
     });

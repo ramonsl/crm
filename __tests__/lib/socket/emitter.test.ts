@@ -6,16 +6,16 @@
 
 import { setSocketServer, emitNewMessage, emitContactUpdated, isSocketServerReady } from '@/lib/socket/emitter';
 import type { Server as SocketServer } from 'socket.io';
-import type { ServerToClientEvents, ClientToServerEvents, SocketData } from '@/lib/socket/types';
 
 describe('Socket Emitter', () => {
-    let mockIo: jest.Mocked<SocketServer<ClientToServerEvents, ServerToClientEvents, {}, SocketData>>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let mockIo: jest.Mocked<SocketServer<any, any, any, any>>;
 
     beforeEach(() => {
-        // Create mock Socket.io server
         mockIo = {
             to: jest.fn().mockReturnThis(),
             emit: jest.fn(),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
     });
 
@@ -42,6 +42,7 @@ describe('Socket Emitter', () => {
                     direction: 'incoming' as const,
                     body: 'Test message',
                     media_url: null,
+                    media_type: null,
                     timestamp: '2024-01-01T00:00:00Z',
                     status: 'sent'
                 }
@@ -55,6 +56,7 @@ describe('Socket Emitter', () => {
 
         it('should not fail if socket server is not initialized', () => {
             // Reset to null
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             setSocketServer(null as any);
 
             expect(() => {
@@ -66,6 +68,7 @@ describe('Socket Emitter', () => {
                         direction: 'incoming',
                         body: 'Test',
                         media_url: null,
+                        media_type: null,
                         timestamp: '2024-01-01T00:00:00Z',
                         status: 'sent'
                     }
@@ -96,6 +99,7 @@ describe('Socket Emitter', () => {
 
     describe('isSocketServerReady', () => {
         it('should return false when no server is set', () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             setSocketServer(null as any);
             expect(isSocketServerReady()).toBe(false);
         });

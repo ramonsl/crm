@@ -3,6 +3,7 @@ import { POST } from '@/app/api/whatsapp/sync-profile-pic/route';
 import { NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
+import { IWhatsAppProvider } from '@/lib/whatsapp/IWhatsAppProvider';
 import fs from 'fs';
 
 // Mock DB
@@ -29,12 +30,37 @@ jest.mock('path', () => ({
 const mockPoolQuery = pool.query as jest.Mock;
 
 describe('Profile Sync API', () => {
-    let mockProvider: any;
+    let mockProvider: jest.Mocked<IWhatsAppProvider>;
 
     beforeEach(() => {
         // Setup mock provider
         mockProvider = {
-            getProfilePicture: jest.fn().mockResolvedValue('https://example.com/pic.jpg')
+            initialize: jest.fn(),
+            restart: jest.fn(),
+            logout: jest.fn(),
+            clearSession: jest.fn(),
+            getStatus: jest.fn().mockResolvedValue({ status: 'ready' }),
+            isReady: jest.fn().mockResolvedValue(true),
+            sendTextMessage: jest.fn(),
+            sendImage: jest.fn(),
+            sendVideo: jest.fn(),
+            sendAudio: jest.fn(),
+            sendDocument: jest.fn(),
+            sendMessage: jest.fn(),
+            getProfilePicture: jest.fn().mockResolvedValue('https://example.com/pic.jpg'),
+            getContactInfo: jest.fn(),
+            validateNumber: jest.fn(),
+            onMessage: jest.fn(),
+            onStatusChange: jest.fn(),
+            offMessage: jest.fn(),
+            offStatusChange: jest.fn(),
+            getProviderName: jest.fn().mockReturnValue('Mock'),
+            getProviderVersion: jest.fn().mockReturnValue('1.0.0'),
+            listGroups: jest.fn(),
+            getGroupParticipants: jest.fn(),
+            isNumberInGroup: jest.fn(),
+            onLog: jest.fn(),
+            offLog: jest.fn(),
         };
         (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
 
@@ -53,7 +79,7 @@ describe('Profile Sync API', () => {
             headers: {
                 get: () => 'image/jpeg'
             }
-        } as any);
+        } as unknown as Response);
     });
 
     it('should sync profile picture successfully (download and cache)', async () => {

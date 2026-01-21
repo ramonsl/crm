@@ -1,5 +1,4 @@
 import { socketAuthMiddleware } from '@/lib/socket/authMiddleware';
-import { Socket } from 'socket.io';
 
 
 // Since we can't easily change the mock factory within the `it` blocks for top-level imports in Jest (without isolateModules),
@@ -16,6 +15,7 @@ jest.mock('@/services/AuthService', () => {
 });
 
 describe('Socket Auth Middleware (Security #81) - Implementation', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let mockSocket: any;
     let next: jest.Mock;
 

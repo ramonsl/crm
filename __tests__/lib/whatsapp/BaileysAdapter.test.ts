@@ -5,7 +5,7 @@
  */
 
 import { BaileysAdapter } from '@/lib/whatsapp/adapters/BaileysAdapter';
-import type { WhatsAppMessage } from '@/lib/whatsapp/IWhatsAppProvider';
+// WhatsAppMessage import removed (unused)
 
 // Mock dependencies
 jest.mock('@whiskeysockets/baileys');
@@ -193,7 +193,7 @@ describe('BaileysAdapter', () => {
 
             requiredMethods.forEach(method => {
                 expect(adapter).toHaveProperty(method);
-                expect(typeof (adapter as any)[method]).toBe('function');
+                expect(typeof (adapter as unknown as Record<string, unknown>)[method]).toBe('function');
             });
         });
     });

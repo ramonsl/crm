@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ContactsTable } from '@/components/contacts/ContactsTable';
 import * as useContactsHook from '@/hooks/useContacts';
 import * as useContactsFiltersHook from '@/hooks/useContactsFilters';
@@ -8,7 +8,7 @@ import * as toastContext from '@/contexts/ToastContext';
 
 // Mock child components to simplify testing
 jest.mock('@/components/contacts/ContactsTableRow', () => ({
-    ContactsTableRow: ({ contact }: any) => (
+    ContactsTableRow: ({ contact }: { contact: { nome: string } }) => (
         <tr data-testid="contact-row">
             <td>{contact.nome}</td>
         </tr>
@@ -16,7 +16,7 @@ jest.mock('@/components/contacts/ContactsTableRow', () => ({
 }));
 
 jest.mock('@/components/contacts/ContactsPagination', () => ({
-    ContactsPagination: ({ onPageChange }: any) => (
+    ContactsPagination: ({ onPageChange }: { onPageChange: (page: number) => void }) => (
         <button data-testid="next-page" onClick={() => onPageChange(2)}>Next</button>
     )
 }));
@@ -37,6 +37,7 @@ const mockUseContactsFilters = {
     updateFilter: jest.fn(),
     updateFilters: jest.fn(),
     resetFilters: jest.fn(),
+    setFilters: jest.fn(),
 };
 
 const mockUseContactsSelection = {
@@ -50,13 +51,19 @@ const mockUseContactsSelection = {
 };
 
 const mockUseWhatsAppStatus = {
-    status: 'ready',
+    status: 'ready' as const,
     isReady: true,
+    loading: false,
+    isDisconnected: false,
+    isInitializing: false,
 };
 
 const mockToast = {
     success: jest.fn(),
     error: jest.fn(),
+    warning: jest.fn(),
+    info: jest.fn(),
+    showToast: jest.fn(),
 };
 
 describe('ContactsTable', () => {
@@ -91,12 +98,13 @@ describe('ContactsTable', () => {
 
     it('should render list of contacts', () => {
         const contacts = [
-            { cpf: '1', nome: 'John Doe' },
-            { cpf: '2', nome: 'Jane Doe' }
+            { cpf: '1', nome: 'John Doe', telefone: '123', status: 'lead' },
+            { cpf: '2', nome: 'Jane Doe', telefone: '456', status: 'lead' }
         ];
         jest.spyOn(useContactsHook, 'useContacts').mockReturnValue({
             ...mockUseContacts,
-            contacts: contacts as any[],
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            contacts: contacts as unknown as { cpf: string; nome: string; telefone: string; status: string }[] as any[],
             totalCount: 2
         });
 
