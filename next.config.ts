@@ -29,6 +29,9 @@ const nextConfig: NextConfig = {
 
   // Silencia erro de Turbopack + Webpack config
   turbopack: {},
+
+  // SECURITY FIX #61: Desabilita header X-Powered-By
+  poweredByHeader: false,
 };
 
 export default nextConfig;
