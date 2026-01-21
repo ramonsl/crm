@@ -1,6 +1,6 @@
 import { POST } from '@/app/api/forward/route';
 import { pool } from '@/lib/db';
-import { getStatus, sendMessage } from '@/lib/whatsapp';
+
 import { NextRequest } from 'next/server';
 
 // Mock DB
@@ -11,10 +11,14 @@ jest.mock('@/lib/db', () => ({
 }));
 
 // Mock WhatsApp
-jest.mock('@/lib/whatsapp', () => ({
-    getStatus: jest.fn(),
-    sendMessage: jest.fn(),
+// Mock WhatsApp Provider Factory
+jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory', () => ({
+    WhatsAppProviderFactory: {
+        getProvider: jest.fn(),
+    }
 }));
+
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
 
 // Mock Auth
 jest.mock('@/lib/auth/requireAuth', () => ({
@@ -23,8 +27,7 @@ jest.mock('@/lib/auth/requireAuth', () => ({
 }));
 
 const mockPoolQuery = pool.query as jest.Mock;
-const mockGetStatus = getStatus as jest.Mock;
-const mockSendMessage = sendMessage as jest.Mock;
+
 
 function createRequest(method: string, url: string, body?: any) {
     return new NextRequest(new URL(url, 'http://localhost'), {
@@ -35,8 +38,17 @@ function createRequest(method: string, url: string, body?: any) {
 }
 
 describe('/api/forward', () => {
+    let mockProvider: any;
+
     beforeEach(() => {
-        jest.resetAllMocks();
+        jest.clearAllMocks();
+
+        mockProvider = {
+            getStatus: jest.fn().mockResolvedValue({ status: 'ready' }),
+            sendTextMessage: jest.fn().mockResolvedValue({ success: true, messageId: 'msg_123' })
+        };
+
+        (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
     });
 
     it('should forward lead successfully', async () => {
@@ -47,7 +59,7 @@ describe('/api/forward', () => {
         });
 
         // 2. getStatus called (mocked to ready)
-        mockGetStatus.mockReturnValue({ status: 'ready' });
+        mockProvider.getStatus.mockResolvedValue({ status: 'ready' });
 
         // 3. fetch messages
         mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
@@ -86,8 +98,9 @@ describe('/api/forward', () => {
         }
 
         expect(res.status).toBe(200);
-        expect(mockSendMessage).toHaveBeenCalledWith('5551987654321', expect.stringContaining('Novo Lead'));
-        expect(mockGetStatus).toHaveBeenCalled();
+        expect(res.status).toBe(200);
+        expect(mockProvider.sendTextMessage).toHaveBeenCalledWith('5551987654321', expect.stringContaining('Novo Lead'));
+        expect(mockProvider.getStatus).toHaveBeenCalled();
     });
 
     it('should return error if WhatsApp not ready', async () => {
@@ -97,7 +110,7 @@ describe('/api/forward', () => {
             rowCount: 1
         });
 
-        mockGetStatus.mockReturnValue({ status: 'disconnected' });
+        mockProvider.getStatus.mockResolvedValue({ status: 'disconnected' });
 
         const body = { cpf: '123', comercialPhone: '5551987654321' };
         const req = createRequest('POST', '/api/forward', body);

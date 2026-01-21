@@ -4,15 +4,18 @@ import { GET as GET_VALIDATE } from '@/app/api/whatsapp/validate/route';
 import { NextRequest } from 'next/server';
 import { messageQueue } from '@/lib/messageQueue';
 import { pool } from '@/lib/db';
-import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 
 // Mock dependencies
-jest.mock('@/lib/whatsapp/factory', () => ({
+jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory', () => ({
     WhatsAppProviderFactory: {
         getProvider: jest.fn(),
-        hasProvider: jest.fn()
+        hasProvider: jest.fn(),
+        getCurrentProviderType: jest.fn(),
+        persistProvider: jest.fn()
     }
 }));
+
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
 
 jest.mock('@/lib/messageQueue', () => ({
     messageQueue: {
@@ -44,11 +47,11 @@ describe('WhatsApp API', () => {
 
         // Setup mock provider
         mockProvider = {
-            getStatus: jest.fn().mockReturnValue('connected'),
+            getStatus: jest.fn().mockResolvedValue({ status: 'connected' }),
             initialize: jest.fn(),
             logout: jest.fn(),
-            sendTextMessage: jest.fn().mockResolvedValue({ id: '123' }),
-            validateNumber: jest.fn().mockResolvedValue('5511999999999'),
+            sendTextMessage: jest.fn().mockResolvedValue({ id: '123', success: true }),
+            validateNumber: jest.fn().mockResolvedValue('5511999999999@s.whatsapp.net'),
             isReady: jest.fn().mockResolvedValue(true)
         };
 
@@ -64,6 +67,7 @@ describe('WhatsApp API', () => {
 
             // Factory is called to get status
             expect(WhatsAppProviderFactory.getProvider).toHaveBeenCalled();
+            if (data.status !== 'connected') console.log('GET Route Debug:', JSON.stringify(data, null, 2));
             expect(data.status).toBe('connected');
         });
 
@@ -85,7 +89,7 @@ describe('WhatsApp API', () => {
                 rowCount: 1
             });
 
-            mockProvider.getStatus.mockReturnValue('ready');
+            mockProvider.getStatus.mockResolvedValue({ status: 'ready' });
 
             const req = new NextRequest('http://localhost/api/whatsapp', {
                 method: 'POST',
@@ -148,7 +152,7 @@ describe('WhatsApp API', () => {
 
     describe('Validate Route (/api/whatsapp/validate)', () => {
         it('GET should validate number', async () => {
-            mockProvider.validateNumber.mockResolvedValue('5551999999999');
+            mockProvider.validateNumber.mockResolvedValue('5551999999999@s.whatsapp.net');
 
             const req = new NextRequest('http://localhost/api/whatsapp/validate?phone=123');
             const res = await GET_VALIDATE(req);

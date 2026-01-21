@@ -71,6 +71,14 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // SECURITY FIX #80: Only admins can create users
+        if (auth.user?.role !== 'admin') {
+            return NextResponse.json(
+                { error: 'Acesso negado. Apenas administradores podem criar usuários.' },
+                { status: 403 }
+            );
+        }
+
         const body = await req.json();
         const { email, password, name, role } = body;
 

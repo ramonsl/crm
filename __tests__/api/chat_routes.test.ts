@@ -2,7 +2,7 @@ import { GET as GET_CONTACTS } from '@/app/api/chat/contacts/route';
 import { POST as POST_SEND } from '@/app/api/chat/send/route';
 import { NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
-import { sendMessage } from '@/lib/whatsapp';
+
 
 // Mock DB
 jest.mock('@/lib/db', () => ({
@@ -14,13 +14,27 @@ jest.mock('@/lib/db', () => ({
 const mockPoolQuery = pool.query as jest.Mock;
 
 // Mock WhatsApp
-jest.mock('@/lib/whatsapp', () => ({
-    sendMessage: jest.fn()
+// Mock WhatsApp Provider Factory
+jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory', () => ({
+    WhatsAppProviderFactory: {
+        getProvider: jest.fn(),
+    }
 }));
 
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
+
 describe('Chat Routes API', () => {
+    let mockProvider: any;
+
     beforeEach(() => {
         jest.clearAllMocks();
+
+        mockProvider = {
+            isReady: jest.fn().mockResolvedValue(true),
+            sendMessage: jest.fn().mockResolvedValue({ success: true, messageId: 'msg_123' })
+        };
+
+        (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
     });
 
     describe('GET /api/chat/contacts', () => {
@@ -64,7 +78,7 @@ describe('Chat Routes API', () => {
             });
 
             // Mock WhatsApp success
-            (sendMessage as jest.Mock).mockResolvedValue({ id: 'msg_123' });
+
 
             const req = new NextRequest('http://localhost/api/chat/send', {
                 method: 'POST',
@@ -80,7 +94,7 @@ describe('Chat Routes API', () => {
             expect(res.status).toBe(200);
             expect(data.success).toBe(true);
             expect(data.messageId).toBe('msg_123');
-            expect(sendMessage).toHaveBeenCalledWith('5511999999999', 'Hello World', undefined, undefined);
+            expect(mockProvider.sendMessage).toHaveBeenCalledWith('5511999999999', 'Hello World', undefined, undefined);
         });
 
         it('should return 404 if contact not found', async () => {

@@ -8,34 +8,52 @@ import type { NextRequest } from 'next/server';
 export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
-    // Public paths that don't require authentication
+    // 1. Define Public Routes (Whitelist)
     const publicPaths = [
         '/login',
-        '/api/auth/login',
-        '/api/auth/register',
+        '/register',
+        '/favicon.ico',
+        '/logo.png',
+        '/landing', // Example
     ];
 
-    // Check if path is public or an API route
-    const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
-    const isApiRoute = pathname.startsWith('/api/');
+    const publicPrefixes = [
+        '/api/auth',
+        '/api/webhooks',
+        '/api/public',
+        '/_next',
+        '/static',
+        '/images',
+    ];
 
-    // Allow access to public paths, API routes (they handle their own auth), and static assets
-    if (isPublicPath || isApiRoute || pathname.startsWith('/_next') || pathname.startsWith('/favicon.ico')) {
+    // Check if path is public
+    const isPublic = publicPaths.includes(pathname) ||
+        publicPrefixes.some(prefix => pathname.startsWith(prefix));
+
+    if (isPublic) {
         return NextResponse.next();
     }
 
-    // Check for session cookie (only for non-API routes)
+    // 2. Check Authentication (Session Cookie)
     const sessionId = request.cookies.get('session_id')?.value;
 
-    // If no session, redirect to login
+    // 3. Handle Unauthorized Access
     if (!sessionId) {
+        // API Routes -> Return 401
+        if (pathname.startsWith('/api')) {
+            return NextResponse.json(
+                { error: 'Authentication required' },
+                { status: 401 }
+            );
+        }
+
+        // Dashboard/Page Routes -> Redirect to Login
         const loginUrl = new URL('/login', request.url);
-        loginUrl.searchParams.set('redirect', pathname);
+        loginUrl.searchParams.set('callbackUrl', pathname);
         return NextResponse.redirect(loginUrl);
     }
 
-    // Session exists, allow access
-    // Note: Session validation happens in API routes for security
+    // 4. Update Session (Optional)
     return NextResponse.next();
 }
 

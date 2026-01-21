@@ -1,5 +1,5 @@
 import { messageQueue } from '@/lib/messageQueue';
-import * as whatsapp from '@/lib/whatsapp';
+
 
 // Mock whatsapp-web.js
 jest.mock('whatsapp-web.js', () => {
@@ -33,8 +33,14 @@ jest.mock('@/lib/db', () => ({
     },
 }));
 
-// Spy on sendMessage
-const sendMessageSpy = jest.spyOn(whatsapp, 'sendMessage');
+// Mock whatsapp library
+// Mock whatsapp library provider directly as used by QueueManager
+jest.mock('@/lib/whatsapp/provider', () => ({
+    sendWhatsAppMessage: jest.fn().mockResolvedValue({ id: { id: 'mock_msg_id' } }),
+}));
+
+import { messageQueue } from '@/lib/messageQueue';
+import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 
 describe('Message Queue Reproduction', () => {
     beforeEach(() => {
@@ -60,10 +66,10 @@ describe('Message Queue Reproduction', () => {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Check if sendMessage was called
-        expect(sendMessageSpy).toHaveBeenCalled();
+        expect(sendWhatsAppMessage).toHaveBeenCalled();
 
         // Check arguments
         // It should be called with the phone exactly as passed to enqueue
-        expect(sendMessageSpy).toHaveBeenCalledWith('51981636027', 'Test message');
+        expect(sendWhatsAppMessage).toHaveBeenCalledWith('51981636027', 'Test message');
     });
 });

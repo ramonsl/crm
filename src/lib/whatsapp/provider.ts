@@ -129,3 +129,9 @@ export async function logoutBaileys() { return logoutWhatsApp(); }
 export async function clearSession() { return resetWhatsAppSession(); }
 export async function validateBaileysNumber(p: string) { return validateWhatsAppNumber(p); }
 export async function getBaileysProfilePicture(p: string) { return getContactProfilePicture(p); }
+
+// Legacy aliases expected by some tests
+export async function sendMessage(p: string, m: string, u?: string, t?: any) { return sendWhatsAppMessage(p, m, u, t); }
+export async function getStatus() { return getWhatsAppStatus(); }
+export async function initialize(o?: any) { return initializeWhatsApp(o); }
+export async function isReady() { return isWhatsAppReady(); }

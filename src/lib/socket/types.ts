@@ -74,9 +74,10 @@ export interface ClientToServerEvents {
  * Data attached to each socket connection
  */
 export interface SocketData {
-    userId?: string;
+    userId?: number;
     username?: string;
     sessionId?: string;
+    userRole?: string;
 }
 
 // Message events

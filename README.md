@@ -45,6 +45,14 @@
 
 ---
 
+### 🔒 Segurança
+- ✅ **Global Middleware**: Proteção de rotas `/api` e `/dashboard` por padrão.
+- ✅ **WebSocket Secure**: Autenticação rigorosa em conexões Socket.io.
+- ✅ **Role-Based Access**: Verificação de permissões para ações administrativas.
+- ✅ **Audit Logs**: Registro de envio de mensagens e atividades.
+
+---
+
 ## 🛠️ Stack Tecnológica
 
 | Categoria | Tecnologia |

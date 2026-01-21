@@ -8,7 +8,8 @@ import { BrazilianPhoneFormatter } from '@/services/phoneFormatter';
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 
 // Mock the factory
-jest.mock('@/lib/whatsapp/factory');
+// Mock the factory specific file
+jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory');
 jest.mock('@/lib/logger');
 
 describe('WhatsAppValidator', () => {

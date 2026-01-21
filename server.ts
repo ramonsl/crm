@@ -27,6 +27,7 @@ import type {
 import { setSocketServer } from './src/lib/socket/emitter';
 import { normalizePhoneForSocket } from './src/lib/utils/phoneUtils';
 import { WhatsAppProviderFactory } from './src/lib/whatsapp/factory';
+import { socketAuthMiddleware } from './src/lib/socket/authMiddleware';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = process.env.HOSTNAME || 'localhost';
@@ -68,27 +69,7 @@ app.prepare().then(() => {
     setSocketServer(io);
 
     // Socket.io authentication middleware
-    io.use(async (socket, next) => {
-        try {
-            // Extract session from handshake (cookies are automatically sent)
-            const cookies = socket.handshake.headers.cookie;
-
-            if (!cookies) {
-                console.warn('[Socket] No cookies in handshake');
-                return next(new Error('Authentication required'));
-            }
-
-            // For now, we accept any connection with cookies
-            // In production, validate session token here
-            socket.data.sessionId = 'session-' + Date.now();
-
-            console.log(`[Socket] Client authenticated: ${socket.id}`);
-            next();
-        } catch (error) {
-            console.error('[Socket] Authentication error:', error);
-            next(new Error('Authentication failed'));
-        }
-    });
+    io.use(socketAuthMiddleware);
 
     // Socket.io connection handler
     io.on('connection', (socket) => {
