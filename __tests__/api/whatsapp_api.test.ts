@@ -16,6 +16,7 @@ jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory', () => ({
 }));
 
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
+import { IWhatsAppProvider } from '@/lib/whatsapp/IWhatsAppProvider';
 
 jest.mock('@/lib/messageQueue', () => ({
     messageQueue: {
@@ -40,7 +41,7 @@ jest.mock('@/lib/auth/requireAuth', () => ({
 const mockPoolQuery = pool.query as jest.Mock;
 
 describe('WhatsApp API', () => {
-    let mockProvider: any;
+    let mockProvider: jest.Mocked<IWhatsAppProvider>;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -52,8 +53,19 @@ describe('WhatsApp API', () => {
             logout: jest.fn(),
             sendTextMessage: jest.fn().mockResolvedValue({ id: '123', success: true }),
             validateNumber: jest.fn().mockResolvedValue('5511999999999@s.whatsapp.net'),
-            isReady: jest.fn().mockResolvedValue(true)
-        };
+            isReady: jest.fn().mockResolvedValue(true),
+            sendImage: jest.fn(),
+            sendVideo: jest.fn(),
+            sendAudio: jest.fn(),
+            sendDocument: jest.fn(),
+            sendMessage: jest.fn(),
+            getProfilePicture: jest.fn(),
+            getContactInfo: jest.fn(),
+            onMessage: jest.fn(),
+            onStatusChange: jest.fn(),
+            restart: jest.fn(),
+            clearSession: jest.fn()
+        } as unknown as jest.Mocked<IWhatsAppProvider>;
 
         // Setup Factory mock
         (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
@@ -62,7 +74,8 @@ describe('WhatsApp API', () => {
 
     describe('Main Route (/api/whatsapp)', () => {
         it('GET should return status', async () => {
-            const res = await GET_STATUS();
+            const req = new NextRequest('http://localhost/api/whatsapp');
+            const res = await GET_STATUS(req);
             const data = await res.json();
 
             // Factory is called to get status

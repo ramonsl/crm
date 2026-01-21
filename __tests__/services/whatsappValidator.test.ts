@@ -6,6 +6,7 @@
 import { WhatsAppValidator } from '@/services/whatsappValidator';
 import { BrazilianPhoneFormatter } from '@/services/phoneFormatter';
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
+import { IWhatsAppProvider } from '@/lib/whatsapp/IWhatsAppProvider';
 
 // Mock the factory
 // Mock the factory specific file
@@ -15,7 +16,7 @@ jest.mock('@/lib/logger');
 describe('WhatsAppValidator', () => {
     let validator: WhatsAppValidator;
     let formatter: BrazilianPhoneFormatter;
-    let mockProvider: any;
+    let mockProvider: jest.Mocked<IWhatsAppProvider>;
 
     beforeEach(() => {
         formatter = new BrazilianPhoneFormatter();
@@ -24,8 +25,23 @@ describe('WhatsAppValidator', () => {
         // Mock provider instance
         mockProvider = {
             isReady: jest.fn().mockResolvedValue(true),
-            validateNumber: jest.fn()
-        };
+            validateNumber: jest.fn(),
+            getStatus: jest.fn(),
+            initialize: jest.fn(),
+            logout: jest.fn(),
+            sendTextMessage: jest.fn(),
+            sendImage: jest.fn(),
+            sendVideo: jest.fn(),
+            sendAudio: jest.fn(),
+            sendDocument: jest.fn(),
+            sendMessage: jest.fn(),
+            getProfilePicture: jest.fn(),
+            getContactInfo: jest.fn(),
+            onMessage: jest.fn(),
+            onStatusChange: jest.fn(),
+            restart: jest.fn(),
+            clearSession: jest.fn()
+        } as unknown as jest.Mocked<IWhatsAppProvider>;
 
         // Reset and setup factory mock
         (WhatsAppProviderFactory.getProvider as jest.Mock).mockReset();

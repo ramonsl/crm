@@ -6,6 +6,7 @@
 import { AutoReplyService } from '@/services/autoReplyService';
 import * as autoReplyRepo from '@/lib/repositories/AutoReplyRepository';
 import * as intentService from '@/services/intentDetectionService';
+import type { AutoReplyLog } from '@/types/autoReply';
 
 // Mock dependencies
 jest.mock('@/lib/repositories/AutoReplyRepository');
@@ -145,7 +146,7 @@ describe('AutoReplyService', () => {
             mockRepo.hasRecentAutoReply.mockResolvedValue(false);
             mockRepo.findActive.mockResolvedValue(mockActiveReplies);
             mockIntentService.detectIntent.mockResolvedValue(mockDetection);
-            mockRepo.createLog.mockResolvedValue({} as any);
+            mockRepo.createLog.mockResolvedValue({} as unknown as AutoReplyLog);
 
             const result = await service.processIncomingMessage(phone, message);
 
