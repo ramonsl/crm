@@ -110,6 +110,7 @@ export function ContactEditModal({ contact, isOpen, onClose, onSave }: ContactEd
                     <div className={styles.formGroup}>
                         <label>Nome *</label>
                         <input
+                            id="contactName"
                             type="text"
                             value={formData.nome || ''}
                             onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
@@ -121,6 +122,7 @@ export function ContactEditModal({ contact, isOpen, onClose, onSave }: ContactEd
                         <div className={styles.formGroup}>
                             <label>CPF</label>
                             <input
+                                id="contactCpf"
                                 type="text"
                                 value={formData.cpf || ''}
                                 onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
@@ -131,6 +133,7 @@ export function ContactEditModal({ contact, isOpen, onClose, onSave }: ContactEd
                         <div className={styles.formGroup}>
                             <label>Telefone *</label>
                             <input
+                                id="contactPhone"
                                 type="text"
                                 value={formData.telefone || ''}
                                 onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
@@ -142,6 +145,7 @@ export function ContactEditModal({ contact, isOpen, onClose, onSave }: ContactEd
                     <div className={styles.formGroup}>
                         <label>Email</label>
                         <input
+                            id="contactEmail"
                             type="email"
                             value={formData.email || ''}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -152,6 +156,7 @@ export function ContactEditModal({ contact, isOpen, onClose, onSave }: ContactEd
                         <div className={styles.formGroup}>
                             <label>Status</label>
                             <select
+                                id="contactStatus"
                                 value={formData.status || ''}
                                 onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                                 disabled={loadingStatuses}

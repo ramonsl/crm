@@ -55,7 +55,7 @@ describe('General APIs', () => {
             const res = await GET_SETTINGS();
             const data = await res.json();
 
-            expect(data.openaiApiKey).toBe('sk-123');
+            expect(data.openaiApiKey).toBe('sk-...-123');
         });
 
         it('POST should update settings', async () => {
