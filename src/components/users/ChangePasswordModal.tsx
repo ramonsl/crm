@@ -31,7 +31,7 @@ export default function ChangePasswordModal({ user, onClose, onSuccess }: Change
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ password }),
+                body: JSON.stringify({ newPassword: password }),
             });
 
             const data = await res.json();

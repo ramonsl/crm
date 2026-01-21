@@ -84,8 +84,8 @@ test.describe('Gerenciamento de Usuários', () => {
         // Alterar senha (o listener de dialog aceita o alert de sucesso automaticamente)
         await usersPage.changePassword(testEmail, 'NovaSenha@456');
 
-        // Verificar que o fluxo completou (modal fechou após alert aceito)
-        // Não há texto visível de sucesso pois o componente usa alert() nativo
+        // Verificar que o fluxo completou (modal deve fechar se houver sucesso)
+        await expect(usersPage.modal).toBeHidden();
     });
 
     test('deve excluir um usuário', async ({ page }) => {
