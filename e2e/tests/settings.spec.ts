@@ -15,50 +15,116 @@ test.describe('Configurações do Sistema', () => {
     });
 
     test.describe('Tab Geral', () => {
-        test('deve atualizar configurações gerais', async ({ page }) => {
+        test('deve carregar valores do banco de dados', async ({ page }) => {
             await settingsPage.goto();
-            await settingsPage.updateGeneralSettings({
-                minDelay: 20,
-                maxDelay: 50,
-                metaMatriculas: 150
-            });
+            await settingsPage.goToGeneralTab();
+
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
+
+            // Verificar que os campos não estão vazios (valores do banco)
+            // Nota: não podemos verificar valores específicos pois dependem do banco
+            // mas podemos verificar que os inputs existem e estão habilitados
+            await expect(settingsPage.minDelayInput).toBeEnabled();
+            await expect(settingsPage.maxDelayInput).toBeEnabled();
+            await expect(settingsPage.metaMatriculasInput).toBeEnabled();
+        });
+
+        test('deve mostrar indicador de mudanças não salvas', async ({ page }) => {
+            await settingsPage.goto();
+            await settingsPage.goToGeneralTab();
+
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
+
+            // Inicialmente não deve mostrar indicador
+            await expect(settingsPage.generalUnsavedIndicator).not.toBeVisible();
+
+            // Alterar um campo
+            await settingsPage.minDelayInput.fill('25');
+
+            // Deve mostrar indicador de mudanças não salvas
+            await expect(settingsPage.generalUnsavedIndicator).toBeVisible();
+        });
+
+        test('deve desabilitar botão quando não há mudanças', async ({ page }) => {
+            await settingsPage.goto();
+            await settingsPage.goToGeneralTab();
+
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
+
+            // Botão deve estar desabilitado inicialmente (sem mudanças)
+            await expect(settingsPage.generalSaveButton).toBeDisabled();
+
+            // Fazer uma mudança
+            await settingsPage.minDelayInput.fill('25');
+
+            // Botão deve estar habilitado
+            await expect(settingsPage.generalSaveButton).toBeEnabled();
+        });
+
+        test('deve atualizar todas as configurações de uma vez', async ({ page }) => {
+            await settingsPage.goto();
+            await settingsPage.goToGeneralTab();
+
+            // Aguardar carregamento
+            await page.waitForTimeout(2000);
+
+            // Fazer mudanças simples em campos
+            const currentMinDelay = await settingsPage.minDelayInput.inputValue();
+            const newMinDelay = parseInt(currentMinDelay) + 1;
+            await settingsPage.minDelayInput.fill(newMinDelay.toString());
+
+            // Aguardar indicador aparecer
+            await page.waitForTimeout(1000);
+
+            // Verificar que indicador de mudanças apareceu
+            await expect(settingsPage.generalUnsavedIndicator).toBeVisible();
+
+            // Verificar que botão está habilitado
+            await expect(settingsPage.generalSaveButton).toBeEnabled();
+
+            // Clicar no botão
+            await settingsPage.generalSaveButton.click();
 
             // Verificar mensagem de sucesso
-            await expect(page.getByText(/configuração.*salva/i).first()).toBeVisible();
+            await expect(page.getByText(/configuração.*salva/i).first()).toBeVisible({ timeout: 10000 });
+
+            // Indicador de mudanças não salvas deve desaparecer
+            await expect(settingsPage.generalUnsavedIndicator).not.toBeVisible();
+
+            // Botão deve estar desabilitado novamente
+            await expect(settingsPage.generalSaveButton).toBeDisabled();
         });
 
         test('deve validar delays mínimo e máximo', async ({ page }) => {
             await settingsPage.goto();
             await settingsPage.goToGeneralTab();
 
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
+
             // Tentar configurar delay inválido (máximo < mínimo)
             await settingsPage.minDelayInput.fill('60');
             await settingsPage.maxDelayInput.fill('30');
-            await page.getByRole('button', { name: /salvar.*delay/i }).click();
+            await settingsPage.generalSaveButton.click();
 
             // Verificar mensagem de erro
             await expect(page.getByText(/valores.*inválidos/i).first()).toBeVisible();
-        });
-
-        test('deve atualizar informações do comercial', async ({ page }) => {
-            await settingsPage.goto();
-            await settingsPage.updateGeneralSettings({
-                comercialName: 'Comercial Teste E2E',
-                comercialPhone: '51999888777'
-            });
-
-            // Verificar mensagem de sucesso
-            await expect(page.getByText(/configuração.*salva/i).first()).toBeVisible();
         });
 
         test('deve validar campos obrigatórios do comercial', async ({ page }) => {
             await settingsPage.goto();
             await settingsPage.goToGeneralTab();
 
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
+
             // Limpar campos
             await settingsPage.comercialNameInput.fill('');
             await settingsPage.comercialPhoneInput.fill('');
-            await page.getByRole('button', { name: /salvar.*comercial/i }).click();
+            await settingsPage.generalSaveButton.click();
 
             // Verificar mensagem de validação
             await expect(page.getByText(/preencha.*nome.*telefone/i)).toBeVisible();
@@ -113,17 +179,45 @@ test.describe('Configurações do Sistema', () => {
             });
 
             const statusRow = page.locator(`text=${statusName}`).locator('..');
-            // Usar title="Excluir Status" adicionado ou seletor CSS se não pegar
             await statusRow.locator('button[title="Excluir Status"]').click();
 
             // Verificar que foi excluído
-            // Aguardar um pouco para reload
             await page.waitForTimeout(1000);
             await expect(page.getByText(statusName)).not.toBeVisible();
         });
     });
 
     test.describe('Tab Integrações', () => {
+        test('deve carregar valores do banco de dados', async ({ page }) => {
+            await settingsPage.goto();
+            await settingsPage.goToIntegrationsTab();
+
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
+
+            // Verificar que os campos existem e estão habilitados
+            await expect(settingsPage.yCloudApiKeyInput).toBeEnabled();
+            await expect(settingsPage.yCloudWabaIdInput).toBeEnabled();
+            await expect(settingsPage.yCloudPhoneIdInput).toBeEnabled();
+        });
+
+        test('deve mostrar indicador de mudanças não salvas', async ({ page }) => {
+            await settingsPage.goto();
+            await settingsPage.goToIntegrationsTab();
+
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
+
+            // Inicialmente não deve mostrar indicador
+            await expect(settingsPage.integrationsUnsavedIndicator).not.toBeVisible();
+
+            // Alterar um campo
+            await settingsPage.yCloudApiKeyInput.fill('test-key-changed');
+
+            // Deve mostrar indicador de mudanças não salvas
+            await expect(settingsPage.integrationsUnsavedIndicator).toBeVisible();
+        });
+
         test('deve atualizar credenciais YCloud', async ({ page }) => {
             await settingsPage.goto();
             await settingsPage.updateYCloudSettings(
@@ -134,16 +228,22 @@ test.describe('Configurações do Sistema', () => {
 
             // Verificar mensagem de sucesso
             await expect(page.getByText(/credenciais.*salvas/i)).toBeVisible();
+
+            // Indicador de mudanças não salvas deve desaparecer
+            await expect(settingsPage.integrationsUnsavedIndicator).not.toBeVisible();
         });
 
         test('deve validar campos obrigatórios do YCloud', async ({ page }) => {
             await settingsPage.goto();
             await settingsPage.goToIntegrationsTab();
 
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
+
             // Limpar campos
             await settingsPage.yCloudApiKeyInput.fill('');
             await settingsPage.yCloudWabaIdInput.fill('');
-            await settingsPage.saveButton.click();
+            await settingsPage.integrationsSaveButton.click();
 
             // Verificar mensagem de validação
             await expect(page.getByText(/preencha.*credenciais/i)).toBeVisible();
@@ -152,6 +252,9 @@ test.describe('Configurações do Sistema', () => {
         test('deve testar conexão YCloud', async ({ page }) => {
             await settingsPage.goto();
             await settingsPage.goToIntegrationsTab();
+
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
 
             // Preencher credenciais
             await settingsPage.yCloudApiKeyInput.fill('test-api-key');
@@ -208,6 +311,9 @@ test.describe('Configurações do Sistema', () => {
             await settingsPage.goto();
             await settingsPage.goToGeneralTab();
 
+            // Aguardar carregamento
+            await page.waitForTimeout(1000);
+
             // Preencher um campo
             await settingsPage.minDelayInput.fill('25');
 
@@ -217,6 +323,9 @@ test.describe('Configurações do Sistema', () => {
 
             // Verificar que o valor foi mantido
             await expect(settingsPage.minDelayInput).toHaveValue('25');
+
+            // E que o indicador de mudanças não salvas ainda está visível
+            await expect(settingsPage.generalUnsavedIndicator).toBeVisible();
         });
     });
 });

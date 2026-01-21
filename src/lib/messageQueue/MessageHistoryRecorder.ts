@@ -30,6 +30,14 @@ export class MessageHistoryRecorder implements IMessageHistoryRecorder {
                 VALUES ($1, $2, $3, $4, 'sent')
             `, [item.cpf, item.templateId || null, templateName, messageContent]);
 
+            // Update last_message and last_message_time in leads table
+            await pool.query(`
+                UPDATE leads 
+                SET last_message = $1, 
+                    last_message_time = NOW()
+                WHERE cpf = $2
+            `, [messageContent, item.cpf]);
+
             // Only update last_template_name if we have a real template name
             if (item.templateName) {
                 await pool.query(

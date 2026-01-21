@@ -19,6 +19,8 @@ export class SettingsPage {
     readonly metaMatriculasInput: Locator;
     readonly comercialNameInput: Locator;
     readonly comercialPhoneInput: Locator;
+    readonly generalSaveButton: Locator;
+    readonly generalUnsavedIndicator: Locator;
 
     // Tab Status
     readonly newStatusNameInput: Locator;
@@ -30,42 +32,45 @@ export class SettingsPage {
     readonly yCloudWabaIdInput: Locator;
     readonly yCloudPhoneIdInput: Locator;
     readonly testConnectionButton: Locator;
+    readonly integrationsSaveButton: Locator;
+    readonly integrationsUnsavedIndicator: Locator;
 
-    // Botões de ação
+    // Botões de ação genéricos
     readonly saveButton: Locator;
 
     constructor(page: Page) {
         this.page = page;
 
-        // Tabs - usar exact: true para evitar strict mode violation
+        // Tabs
         this.generalTab = page.getByRole('button', { name: 'Geral', exact: true });
         this.statusTab = page.getByRole('button', { name: 'Status', exact: true });
         this.integrationsTab = page.getByRole('button', { name: /integra/i });
         this.dataTab = page.getByRole('button', { name: /dados/i });
 
-        // Tab Geral - Agora com IDs ou Labels
-        this.apiKeyInput = page.locator('#openaiApiKey');
-        this.minDelayInput = page.locator('#minDelay');
-        this.maxDelayInput = page.locator('#maxDelay');
-        this.metaMatriculasInput = page.locator('#metaMatriculas');
-        this.comercialNameInput = page.locator('#comercialName');
-        this.comercialPhoneInput = page.locator('#comercialPhone');
+        // Tab Geral - Usando seletores por tipo e placeholder
+        this.apiKeyInput = page.locator('input[type="password"][placeholder*="sk-"]');
+        this.minDelayInput = page.locator('input[type="number"]').first();
+        this.maxDelayInput = page.locator('input[type="number"]').nth(1);
+        this.metaMatriculasInput = page.locator('input[type="number"]').nth(2);
+        this.comercialNameInput = page.locator('input[placeholder*="Nome do comercial"]');
+        this.comercialPhoneInput = page.locator('input[placeholder*="5511999999999"]');
+        this.generalSaveButton = page.getByRole('button', { name: /salvar configurações/i });
+        this.generalUnsavedIndicator = page.getByText(/alterações não salvas/i);
 
         // Tab Status
-        this.newStatusNameInput = page.locator('#newStatusName');
-        this.newStatusColorInput = page.locator('#newStatusColor');
+        this.newStatusNameInput = page.locator('input[placeholder*="novo status"]');
+        this.newStatusColorInput = page.locator('input[type="color"]').first();
         this.addStatusButton = page.getByRole('button', { name: /adicionar/i });
 
         // Tab Integrações
-        this.yCloudApiKeyInput = page.locator('#ycloudApiKey');
-        this.yCloudWabaIdInput = page.locator('#ycloudWabaId');
-        this.yCloudPhoneIdInput = page.locator('#ycloudPhoneId');
+        this.yCloudApiKeyInput = page.locator('input[type="password"][placeholder*="YCloud"]');
+        this.yCloudWabaIdInput = page.locator('input[placeholder*="123456789012345"]').first();
+        this.yCloudPhoneIdInput = page.locator('input[placeholder*="123456789012345"]').nth(1);
         this.testConnectionButton = page.getByRole('button', { name: /testar.*conexão/i });
+        this.integrationsSaveButton = page.getByRole('button', { name: /salvar credenciais/i });
+        this.integrationsUnsavedIndicator = page.getByText(/alterações não salvas/i);
 
-        // Botões - Cuidado com ambiguidade
-        // 'Salvar' pode pegar qualquer um. Melhor usar seletor contextual ou ids se existissem nos forms
-        // Como cada seção tem seu botão, e o teste clica no botão visível, getByRole pode funcionar se filtrado por visibilidade
-        // Mas o ideal é escopar. Como não mudei a estrutura de seções para ter IDs, vou manter o getByRole e clicar no first/last ou refinar no método de uso
+        // Botão genérico
         this.saveButton = page.getByRole('button', { name: /salvar/i });
     }
 
@@ -89,6 +94,9 @@ export class SettingsPage {
         await this.dataTab.click();
     }
 
+    /**
+     * Atualiza configurações gerais usando o botão único "Salvar Configurações"
+     */
     async updateGeneralSettings(data: {
         apiKey?: string;
         minDelay?: number;
@@ -99,27 +107,63 @@ export class SettingsPage {
     }) {
         await this.goToGeneralTab();
 
-        if (data.apiKey) {
+        // Aguardar carregamento inicial
+        await this.page.waitForTimeout(2000);
+
+        if (data.apiKey !== undefined) {
             await this.apiKeyInput.fill(data.apiKey);
-            await this.page.getByRole('button', { name: /salvar/i }).first().click();
         }
 
-        if (data.minDelay !== undefined || data.maxDelay !== undefined) {
-            if (data.minDelay !== undefined) await this.minDelayInput.fill(data.minDelay.toString());
-            if (data.maxDelay !== undefined) await this.maxDelayInput.fill(data.maxDelay.toString());
-            await this.page.getByRole('button', { name: /salvar.*delay/i }).click();
+        if (data.minDelay !== undefined) {
+            await this.minDelayInput.fill(data.minDelay.toString());
+        }
+
+        if (data.maxDelay !== undefined) {
+            await this.maxDelayInput.fill(data.maxDelay.toString());
         }
 
         if (data.metaMatriculas !== undefined) {
             await this.metaMatriculasInput.fill(data.metaMatriculas.toString());
-            await this.page.getByRole('button', { name: /salvar.*meta/i }).click();
         }
 
-        if (data.comercialName || data.comercialPhone) {
-            if (data.comercialName) await this.comercialNameInput.fill(data.comercialName);
-            if (data.comercialPhone) await this.comercialPhoneInput.fill(data.comercialPhone);
-            await this.page.getByRole('button', { name: /salvar.*comercial/i }).click();
+        // Campos obrigatórios - sempre preencher se fornecidos
+        // Se não fornecidos, verificar se já têm valor, senão preencher com valor padrão
+        if (data.comercialName !== undefined) {
+            await this.comercialNameInput.fill(data.comercialName);
+        } else {
+            // Verificar se campo está vazio e preencher com valor padrão
+            const currentValue = await this.comercialNameInput.inputValue();
+            if (!currentValue.trim()) {
+                await this.comercialNameInput.fill('Comercial Padrão');
+            }
         }
+
+        if (data.comercialPhone !== undefined) {
+            await this.comercialPhoneInput.fill(data.comercialPhone);
+        } else {
+            // Verificar se campo está vazio e preencher com valor padrão
+            const currentValue = await this.comercialPhoneInput.inputValue();
+            if (!currentValue.trim()) {
+                await this.comercialPhoneInput.fill('51999999999');
+            }
+        }
+
+        // Aguardar um pouco para o useEffect processar as mudanças
+        await this.page.waitForTimeout(1500);
+
+        // Aguardar que o botão esteja habilitado (não desabilitado)
+        await this.generalSaveButton.waitFor({ state: 'visible' });
+
+        // Verificar se o botão está habilitado antes de clicar
+        const isDisabled = await this.generalSaveButton.isDisabled();
+        if (isDisabled) {
+            // Se ainda estiver desabilitado, fazer uma pequena alteração para forçar detecção
+            await this.minDelayInput.fill((data.minDelay || 30).toString());
+            await this.page.waitForTimeout(1000);
+        }
+
+        // Clicar no botão
+        await this.generalSaveButton.click();
     }
 
     async addStatus(name: string, color: string) {
@@ -139,12 +183,15 @@ export class SettingsPage {
         await this.addStatusButton.click();
     }
 
+    /**
+     * Atualiza configurações YCloud usando o botão único "Salvar Credenciais"
+     */
     async updateYCloudSettings(apiKey: string, wabaId: string, phoneId: string) {
         await this.goToIntegrationsTab();
         await this.yCloudApiKeyInput.fill(apiKey);
         await this.yCloudWabaIdInput.fill(wabaId);
         await this.yCloudPhoneIdInput.fill(phoneId);
-        await this.saveButton.click();
+        await this.integrationsSaveButton.click();
     }
 
     async testYCloudConnection() {

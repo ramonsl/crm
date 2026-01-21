@@ -1,62 +1,84 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styles from './GeneralSettings.module.css';
 import { Save, RefreshCw, Image, MessageSquare } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import type { SyncResults } from '@/types/settings';
 
 export function GeneralSettings() {
-    const { settings, updateSetting, toast } = useSettings();
+    const { settings, loading, updateSetting, toast } = useSettings();
 
-    const [apiKey, setApiKey] = useState(settings.openaiApiKey || '');
-    const [minDelay, setMinDelay] = useState(settings.minDelay || 30);
-    const [maxDelay, setMaxDelay] = useState(settings.maxDelay || 60);
-    const [metaMatriculas, setMetaMatriculas] = useState(settings.metaMatriculas || 0);
-    const [comercialPhone, setComercialPhone] = useState(settings.comercialPhone || '');
-    const [comercialName, setComercialName] = useState(settings.comercialName || '');
+    // Estados locais inicializados vazios
+    const [apiKey, setApiKey] = useState('');
+    const [minDelay, setMinDelay] = useState(30);
+    const [maxDelay, setMaxDelay] = useState(60);
+    const [metaMatriculas, setMetaMatriculas] = useState(0);
+    const [comercialPhone, setComercialPhone] = useState('');
+    const [comercialName, setComercialName] = useState('');
 
-    const [savingKey, setSavingKey] = useState(false);
-    const [savingDelays, setSavingDelays] = useState(false);
-    const [savingMeta, setSavingMeta] = useState(false);
-    const [savingComercial, setSavingComercial] = useState(false);
+    // Controle de mudanças não salvas
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+    const [saving, setSaving] = useState(false);
     const [syncingPics, setSyncingPics] = useState(false);
     const [syncingHistory, setSyncingHistory] = useState(false);
     const [picsResults, setPicsResults] = useState<SyncResults | null>(null);
     const [historyResults, setHistoryResults] = useState<SyncResults | null>(null);
 
-    const handleSaveKey = async () => {
-        setSavingKey(true);
-        const success = await updateSetting('openaiApiKey', apiKey);
-        setSavingKey(false);
-    };
+    // Sincronizar estados quando dados do banco chegarem
+    useEffect(() => {
+        if (!loading && settings) {
+            setApiKey(settings.openaiApiKey || '');
+            setMinDelay(settings.minDelay || 30);
+            setMaxDelay(settings.maxDelay || 60);
+            setMetaMatriculas(settings.metaMatriculas || 0);
+            setComercialPhone(settings.comercialPhone || '');
+            setComercialName(settings.comercialName || '');
+            setHasUnsavedChanges(false);
+        }
+    }, [settings, loading]);
 
-    const handleSaveDelays = async () => {
+    // Detectar mudanças nos campos
+    useEffect(() => {
+        if (!loading && settings) {
+            const changed =
+                apiKey !== (settings.openaiApiKey || '') ||
+                minDelay !== (settings.minDelay || 30) ||
+                maxDelay !== (settings.maxDelay || 60) ||
+                metaMatriculas !== (settings.metaMatriculas || 0) ||
+                comercialPhone !== (settings.comercialPhone || '') ||
+                comercialName !== (settings.comercialName || '');
+            setHasUnsavedChanges(changed);
+        }
+    }, [apiKey, minDelay, maxDelay, metaMatriculas, comercialPhone, comercialName, settings, loading]);
+
+    // Salvar todas as configurações de uma vez
+    const handleSaveAll = async () => {
+        // Validações
         if (minDelay < 1 || maxDelay < minDelay) {
-            toast.warning('Valores inválidos. O mínimo deve ser >= 1 e o máximo >= mínimo.');
+            toast.warning('Valores de delay inválidos. O mínimo deve ser >= 1 e o máximo >= mínimo.');
             return;
         }
-        setSavingDelays(true);
-        await updateSetting('minDelay', minDelay);
-        await updateSetting('maxDelay', maxDelay);
-        setSavingDelays(false);
-    };
-
-    const handleSaveMeta = async () => {
-        setSavingMeta(true);
-        await updateSetting('metaMatriculas', metaMatriculas);
-        setSavingMeta(false);
-    };
-
-    const handleSaveComercial = async () => {
         if (!comercialName.trim() || !comercialPhone.trim()) {
             toast.warning('Preencha o nome e telefone do comercial.');
             return;
         }
-        setSavingComercial(true);
-        await updateSetting('comercialName', comercialName);
-        await updateSetting('comercialPhone', comercialPhone);
-        setSavingComercial(false);
+
+        setSaving(true);
+        try {
+            await Promise.all([
+                updateSetting('openaiApiKey', apiKey),
+                updateSetting('minDelay', minDelay),
+                updateSetting('maxDelay', maxDelay),
+                updateSetting('metaMatriculas', metaMatriculas),
+                updateSetting('comercialName', comercialName),
+                updateSetting('comercialPhone', comercialPhone),
+            ]);
+            setHasUnsavedChanges(false);
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleSyncProfilePics = async () => {
@@ -100,10 +122,6 @@ export function GeneralSettings() {
                         placeholder="sk-..."
                         className={styles.input}
                     />
-                    <button onClick={handleSaveKey} disabled={savingKey} className={styles.primaryButton}>
-                        <Save size={16} />
-                        {savingKey ? 'Salvando...' : 'Salvar'}
-                    </button>
                 </div>
             </section>
 
@@ -130,10 +148,6 @@ export function GeneralSettings() {
                         />
                     </div>
                 </div>
-                <button onClick={handleSaveDelays} disabled={savingDelays} className={styles.primaryButton}>
-                    <Save size={16} />
-                    {savingDelays ? 'Salvando...' : 'Salvar Delays'}
-                </button>
             </section>
 
             {/* Meta Matrículas */}
@@ -146,10 +160,6 @@ export function GeneralSettings() {
                         onChange={(e) => setMetaMatriculas(Number(e.target.value))}
                         className={styles.input}
                     />
-                    <button onClick={handleSaveMeta} disabled={savingMeta} className={styles.primaryButton}>
-                        <Save size={16} />
-                        {savingMeta ? 'Salvando...' : 'Salvar Meta'}
-                    </button>
                 </div>
             </section>
 
@@ -176,10 +186,6 @@ export function GeneralSettings() {
                         className={styles.input}
                     />
                 </div>
-                <button onClick={handleSaveComercial} disabled={savingComercial} className={styles.primaryButton}>
-                    <Save size={16} />
-                    {savingComercial ? 'Salvando...' : 'Salvar Comercial'}
-                </button>
             </section>
 
             {/* WhatsApp Sync */}
@@ -206,6 +212,23 @@ export function GeneralSettings() {
                     </div>
                 )}
             </section>
+
+            {/* Botão único de salvar no rodapé */}
+            <div className={styles.footer}>
+                <button
+                    onClick={handleSaveAll}
+                    disabled={saving || !hasUnsavedChanges}
+                    className={styles.saveButton}
+                >
+                    <Save size={16} />
+                    {saving ? 'Salvando...' : 'Salvar Configurações'}
+                </button>
+                {hasUnsavedChanges && (
+                    <span className={styles.unsavedIndicator}>
+                        • Alterações não salvas
+                    </span>
+                )}
+            </div>
         </div>
     );
 }

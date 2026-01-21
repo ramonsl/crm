@@ -26,16 +26,37 @@ export function YCloudSettings() {
     const [phoneId, setPhoneId] = useState('');
     const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
+    // Controle de mudanças não salvas
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [initialValues, setInitialValues] = useState({ apiKey: '', wabaId: '', phoneId: '' });
+
     useEffect(() => {
         fetch('/api/settings')
             .then(res => res.json())
             .then(data => {
-                if (data.yCloudApiKey) setApiKey(data.yCloudApiKey);
-                if (data.yCloudWabaId) setWabaId(data.yCloudWabaId);
-                if (data.yCloudPhoneId) setPhoneId(data.yCloudPhoneId);
+                const values = {
+                    apiKey: data.yCloudApiKey || '',
+                    wabaId: data.yCloudWabaId || '',
+                    phoneId: data.yCloudPhoneId || ''
+                };
+                setApiKey(values.apiKey);
+                setWabaId(values.wabaId);
+                setPhoneId(values.phoneId);
+                setInitialValues(values);
             })
             .finally(() => setLoading(false));
     }, []);
+
+    // Detectar mudanças nos campos
+    useEffect(() => {
+        if (!loading) {
+            const changed =
+                apiKey !== initialValues.apiKey ||
+                wabaId !== initialValues.wabaId ||
+                phoneId !== initialValues.phoneId;
+            setHasUnsavedChanges(changed);
+        }
+    }, [apiKey, wabaId, phoneId, initialValues, loading]);
 
     const handleSave = async () => {
         if (!apiKey || !wabaId || !phoneId) {
@@ -57,6 +78,8 @@ export function YCloudSettings() {
 
             if (res.ok) {
                 toastSuccess('Credenciais YCloud salvas!');
+                setInitialValues({ apiKey, wabaId, phoneId });
+                setHasUnsavedChanges(false);
             } else {
                 toastError('Erro ao salvar credenciais');
             }
@@ -197,16 +220,22 @@ export function YCloudSettings() {
                 </button>
             </div>
 
-            {/* Save Button */}
-            <button
-                onClick={handleSave}
-                disabled={saving}
-                className={styles.button}
-                style={{ width: '100%' }}
-            >
-                <Save size={16} />
-                {saving ? 'Salvando...' : 'Salvar Credenciais'}
-            </button>
+            {/* Botão único de salvar no rodapé */}
+            <div className={styles.footer}>
+                <button
+                    onClick={handleSave}
+                    disabled={saving || !hasUnsavedChanges}
+                    className={styles.saveButton}
+                >
+                    <Save size={16} />
+                    {saving ? 'Salvando...' : 'Salvar Credenciais'}
+                </button>
+                {hasUnsavedChanges && (
+                    <span className={styles.unsavedIndicator}>
+                        • Alterações não salvas
+                    </span>
+                )}
+            </div>
         </div>
     );
 }
