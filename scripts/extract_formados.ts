@@ -1,7 +1,6 @@
-
-const fs = require('fs');
-const path = require('path');
-const readline = require('readline');
+import fs from 'fs';
+import path from 'path';
+import readline from 'readline';
 
 async function processFile() {
     const inputFile = path.join(process.cwd(), 'alunos_completo.csv');
@@ -25,9 +24,6 @@ async function processFile() {
             continue;
         }
 
-        // Simple CSV parsing assuming quotes are handled or we just search the line
-        // logic: check if 'Formado' or 'Formando' exists in the line (simplest for this specific request)
-        // A more robust check would parse columns, but 'Situacao' is the main text blob here.
         const lowerLine = line.toLowerCase();
 
         // Check for specific keywords
@@ -40,4 +36,4 @@ async function processFile() {
     console.log(`Extraction complete. Found ${count} records.`);
 }
 
-processFile();
+processFile().catch(console.error);

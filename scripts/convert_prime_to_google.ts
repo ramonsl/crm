@@ -1,9 +1,20 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 // Ler o arquivo alunos_completo.csv
 const inputPath = path.join(__dirname, '..', 'alunos_completo.csv');
 const outputPath = path.join(__dirname, '..', 'data', 'exports', 'alunos_prime_google.csv');
+
+// Ensure exports directory exists
+const exportDir = path.dirname(outputPath);
+if (!fs.existsSync(exportDir)) {
+    fs.mkdirSync(exportDir, { recursive: true });
+}
+
+if (!fs.existsSync(inputPath)) {
+    console.error(`Input file not found: ${inputPath}`);
+    process.exit(1);
+}
 
 const content = fs.readFileSync(inputPath, 'utf-8');
 const lines = content.split('\n');
@@ -30,7 +41,7 @@ for (let i = 1; i < lines.length; i++) {
     if (!line) continue;
 
     // Parse CSV com aspas
-    const parts = [];
+    const parts: string[] = [];
     let current = '';
     let inQuotes = false;
 
@@ -101,7 +112,7 @@ for (let i = 1; i < lines.length; i++) {
     const notes = `Código Prime: ${codigo}`;
 
     // Escapar campos
-    const escapeField = (field) => {
+    const escapeField = (field: string) => {
         if (!field) return '';
         if (field.includes(',') || field.includes('"') || field.includes('\n')) {
             return '"' + field.replace(/"/g, '""') + '"';
@@ -110,7 +121,7 @@ for (let i = 1; i < lines.length; i++) {
     };
 
     const row = [
-        escapeField(nomeCompleto),           // Name
+        escapeField(nomeCompleto),            // Name
         escapeField(firstName),               // Given Name
         escapeField(lastName),                // Family Name
         'Work',                               // E-mail 1 - Type
