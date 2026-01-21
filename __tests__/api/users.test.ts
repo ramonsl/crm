@@ -2,7 +2,9 @@
 import { NextRequest } from 'next/server';
 
 describe('User Management API', () => {
-    let PUT: any, DELETE: any, POST_PASSWORD: any;
+    let PUT: (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => Promise<Response>;
+    let DELETE: (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => Promise<Response>;
+    let POST_PASSWORD: (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => Promise<Response>;
 
     // Define mock functions in the scope where they are accessible
     const mockUpdate = jest.fn();
@@ -37,10 +39,12 @@ describe('User Management API', () => {
         }));
 
         // Re-import routes
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const usersRoute = require('@/app/api/users/[id]/route');
         PUT = usersRoute.PUT;
         DELETE = usersRoute.DELETE;
 
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const passwordRoute = require('@/app/api/users/[id]/password/route');
         POST_PASSWORD = passwordRoute.POST;
     });

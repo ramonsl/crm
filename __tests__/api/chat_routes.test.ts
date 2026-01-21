@@ -2,6 +2,7 @@ import { GET as GET_CONTACTS } from '@/app/api/chat/contacts/route';
 import { POST as POST_SEND } from '@/app/api/chat/send/route';
 import { NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
+import { IWhatsAppProvider } from '@/lib/whatsapp/IWhatsAppProvider';
 
 
 // Mock DB
@@ -24,14 +25,38 @@ jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory', () => ({
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
 
 describe('Chat Routes API', () => {
-    let mockProvider: any;
+    let mockProvider: jest.Mocked<IWhatsAppProvider>;
 
     beforeEach(() => {
         jest.clearAllMocks();
 
         mockProvider = {
+            initialize: jest.fn(),
+            restart: jest.fn(),
+            logout: jest.fn(),
+            clearSession: jest.fn(),
+            getStatus: jest.fn().mockResolvedValue({ status: 'ready' }),
             isReady: jest.fn().mockResolvedValue(true),
-            sendMessage: jest.fn().mockResolvedValue({ success: true, messageId: 'msg_123' })
+            sendTextMessage: jest.fn(),
+            sendImage: jest.fn(),
+            sendVideo: jest.fn(),
+            sendAudio: jest.fn(),
+            sendDocument: jest.fn(),
+            sendMessage: jest.fn().mockResolvedValue({ success: true, messageId: 'msg_123' }),
+            getProfilePicture: jest.fn(),
+            getContactInfo: jest.fn(),
+            validateNumber: jest.fn(),
+            onMessage: jest.fn(),
+            onStatusChange: jest.fn(),
+            offMessage: jest.fn(),
+            offStatusChange: jest.fn(),
+            getProviderName: jest.fn().mockReturnValue('Mock'),
+            getProviderVersion: jest.fn().mockReturnValue('1.0.0'),
+            listGroups: jest.fn(),
+            getGroupParticipants: jest.fn(),
+            isNumberInGroup: jest.fn(),
+            onLog: jest.fn(),
+            offLog: jest.fn(),
         };
 
         (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);

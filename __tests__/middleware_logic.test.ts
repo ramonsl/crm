@@ -16,7 +16,7 @@ jest.mock('next/server', () => {
 });
 
 describe('Global Security Middleware (Issue #82)', () => {
-    let mockRequest: any;
+    let mockRequest: { nextUrl: { pathname: string; searchParams: URLSearchParams }; url: string; cookies: { get: jest.Mock } };
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -36,19 +36,19 @@ describe('Global Security Middleware (Issue #82)', () => {
 
     it('should allow public route /login', () => {
         mockRequest.nextUrl.pathname = '/login';
-        middleware(mockRequest as NextRequest);
+        middleware(mockRequest as unknown as NextRequest);
         expect(NextResponse.next).toHaveBeenCalled();
     });
 
     it('should allow public route /api/auth/login', () => {
         mockRequest.nextUrl.pathname = '/api/auth/login';
-        middleware(mockRequest as NextRequest);
+        middleware(mockRequest as unknown as NextRequest);
         expect(NextResponse.next).toHaveBeenCalled();
     });
 
     it('should allow public route /api/webhooks/stripe', () => {
         mockRequest.nextUrl.pathname = '/api/webhooks/stripe';
-        middleware(mockRequest as NextRequest);
+        middleware(mockRequest as unknown as NextRequest);
         expect(NextResponse.next).toHaveBeenCalled();
     });
 
@@ -57,7 +57,7 @@ describe('Global Security Middleware (Issue #82)', () => {
         mockRequest.nextUrl.pathname = '/api/users';
         mockRequest.cookies.get.mockReturnValue(undefined); // No session
 
-        const response: any = middleware(mockRequest as NextRequest);
+        const response = middleware(mockRequest as unknown as NextRequest) as NextResponse;
 
         expect(NextResponse.json).toHaveBeenCalledWith(
             { error: 'Authentication required' },
@@ -70,7 +70,7 @@ describe('Global Security Middleware (Issue #82)', () => {
         mockRequest.nextUrl.pathname = '/dashboard';
         mockRequest.cookies.get.mockReturnValue(undefined); // No session
 
-        const response: any = middleware(mockRequest as NextRequest);
+        middleware(mockRequest as unknown as NextRequest);
 
         expect(NextResponse.redirect).toHaveBeenCalled();
         const redirectUrl = (NextResponse.redirect as jest.Mock).mock.calls[0][0];
@@ -83,7 +83,7 @@ describe('Global Security Middleware (Issue #82)', () => {
         mockRequest.nextUrl.pathname = '/dashboard';
         mockRequest.cookies.get.mockReturnValue({ value: 'valid-session' });
 
-        middleware(mockRequest as NextRequest);
+        middleware(mockRequest as unknown as NextRequest);
         expect(NextResponse.next).toHaveBeenCalled();
     });
 
@@ -91,7 +91,7 @@ describe('Global Security Middleware (Issue #82)', () => {
         mockRequest.nextUrl.pathname = '/api/users';
         mockRequest.cookies.get.mockReturnValue({ value: 'valid-session' });
 
-        middleware(mockRequest as NextRequest);
+        middleware(mockRequest as unknown as NextRequest);
         expect(NextResponse.next).toHaveBeenCalled();
     });
 });

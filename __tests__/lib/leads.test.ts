@@ -45,14 +45,14 @@ describe('Leads API', () => {
                 status: 'Novo',
                 tipo_ingresso: '2025/1'
             })
-        } as any;
+        } as unknown as NextRequest;
 
-        const res = await POST(req);
+        await POST(req);
 
         // Verify pool.query was called
         expect(mockPoolQuery).toHaveBeenCalled();
         const calls = mockPoolQuery.mock.calls;
-        const hasInsert = calls.some((call: any[]) => call[0]?.includes('INSERT INTO leads'));
+        const hasInsert = calls.some((call: unknown[]) => (call[0] as string | undefined)?.includes('INSERT INTO leads'));
         expect(hasInsert).toBe(true);
         expect(NextResponse.json).toHaveBeenCalledWith({
             success: true,
@@ -83,9 +83,9 @@ describe('Leads API', () => {
                 status: 'Ativo',
                 tipo_ingresso: '2025/1'
             })
-        } as any;
+        } as unknown as NextRequest;
 
-        const res = await PUT(req);
+        await PUT(req);
 
         // Verify pool.query was called
         expect(mockPoolQuery).toHaveBeenCalled();
@@ -107,9 +107,9 @@ describe('Leads API', () => {
 
         const req = {
             url: 'http://localhost/api/leads?cpf=12345678900'
-        } as any;
+        } as unknown as NextRequest;
 
-        const res = await DELETE(req);
+        await DELETE(req);
 
         // Verify pool.query was called
         expect(mockPoolQuery).toHaveBeenCalled();

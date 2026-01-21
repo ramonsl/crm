@@ -72,7 +72,7 @@ describe('Auto-Reply API', () => {
 
             const req = new NextRequest('http://localhost/api/auto-replies?active=true');
             const res = await GET(req);
-            const data = await res.json();
+            await res.json();
 
             expect(res.status).toBe(200);
             expect(mockRepo.findActive).toHaveBeenCalled();
@@ -145,7 +145,7 @@ describe('Auto-Reply API', () => {
             mockRepo.findById.mockResolvedValue(mockReply);
 
             const req = new NextRequest('http://localhost/api/auto-replies/1');
-            const res = await getById(req, { params: { id: '1' } });
+            const res = await getById(req, { params: Promise.resolve({ id: '1' }) });
             const data = await res.json();
 
             expect(res.status).toBe(200);
@@ -156,7 +156,7 @@ describe('Auto-Reply API', () => {
             mockRepo.findById.mockResolvedValue(null);
 
             const req = new NextRequest('http://localhost/api/auto-replies/999');
-            const res = await getById(req, { params: { id: '999' } });
+            const res = await getById(req, { params: Promise.resolve({ id: '999' }) });
 
             expect(res.status).toBe(404);
         });
@@ -188,7 +188,7 @@ describe('Auto-Reply API', () => {
                 body: JSON.stringify(updatedData),
             });
 
-            const res = await PUT(req, { params: { id: '1' } });
+            const res = await PUT(req, { params: Promise.resolve({ id: '1' }) });
             const data = await res.json();
 
             expect(res.status).toBe(200);
@@ -202,7 +202,7 @@ describe('Auto-Reply API', () => {
             mockRepo.delete.mockResolvedValue(true);
 
             const req = new NextRequest('http://localhost/api/auto-replies/1');
-            const res = await DELETE(req, { params: { id: '1' } });
+            const res = await DELETE(req, { params: Promise.resolve({ id: '1' }) });
 
             expect(res.status).toBe(200);
             expect(mockRepo.delete).toHaveBeenCalledWith(1);
@@ -212,7 +212,7 @@ describe('Auto-Reply API', () => {
             mockRepo.delete.mockResolvedValue(false);
 
             const req = new NextRequest('http://localhost/api/auto-replies/999');
-            const res = await DELETE(req, { params: { id: '999' } });
+            const res = await DELETE(req, { params: Promise.resolve({ id: '999' }) });
 
             expect(res.status).toBe(404);
         });
@@ -239,7 +239,7 @@ describe('Auto-Reply API', () => {
                 method: 'POST',
             });
 
-            const res = await toggle(req, { params: { id: '1' } });
+            const res = await toggle(req, { params: Promise.resolve({ id: '1' }) });
             const data = await res.json();
 
             expect(res.status).toBe(200);
@@ -346,8 +346,7 @@ describe('Auto-Reply API', () => {
 
             mockRepo.getStats.mockResolvedValue(mockStats);
 
-            const req = new NextRequest('http://localhost/api/auto-replies/stats');
-            const res = await getStats(req);
+            const res = await getStats();
             const data = await res.json();
 
             expect(res.status).toBe(200);

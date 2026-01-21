@@ -6,7 +6,6 @@
 import { POST } from '@/app/api/template-history/route';
 import { GET } from '@/app/api/message-history/route';
 import { NextRequest } from 'next/server';
-import { SQLiteTemplateHistoryRepository } from '@/repositories/templateHistoryRepository';
 import { TemplateHistoryService } from '@/services/templateHistoryService';
 
 // Mock dependencies

@@ -4,7 +4,11 @@
  */
 
 import { QueueAutomationService } from '@/services/QueueAutomationService';
+import { messageQueue } from '@/lib/messageQueue';
 import type { QueueAutomationConfig } from '@/types/queueAutomation';
+import { IQueueAutomationRepository } from '@/repositories/QueueAutomationRepository';
+import { LeadRepository } from '@/lib/repositories/LeadRepository';
+import { TemplateRepository } from '@/lib/repositories/TemplateRepository';
 
 // Mock dependencies
 jest.mock('@/lib/db', () => ({
@@ -42,14 +46,16 @@ const mockTemplateRepo = {
 describe('QueueAutomationService', () => {
     let service: QueueAutomationService;
 
+
+
     beforeEach(() => {
         jest.clearAllMocks();
 
         // Create service with mocked dependencies
         service = new QueueAutomationService(
-            mockRepository as any,
-            mockLeadRepo as any,
-            mockTemplateRepo as any
+            mockRepository as unknown as jest.Mocked<IQueueAutomationRepository>,
+            mockLeadRepo as unknown as jest.Mocked<LeadRepository>,
+            mockTemplateRepo as unknown as jest.Mocked<TemplateRepository>
         );
     });
 
@@ -207,7 +213,8 @@ describe('QueueAutomationService', () => {
         });
 
         it('should send message when all conditions are met', async () => {
-            const { messageQueue } = require('@/lib/messageQueue');
+            // messageQueue is already mocked and imported properly via jest.mock
+
 
             mockRepository.getConfig.mockResolvedValue(mockConfig);
             jest.spyOn(service, 'isWithinOperatingHours').mockReturnValue(true);
@@ -235,7 +242,7 @@ describe('QueueAutomationService', () => {
         });
 
         it('should set isAi flag when messageType is ai', async () => {
-            const { messageQueue } = require('@/lib/messageQueue');
+            // messageQueue is already mocked and imported properly via jest.mock
 
             mockRepository.getConfig.mockResolvedValue({
                 ...mockConfig,

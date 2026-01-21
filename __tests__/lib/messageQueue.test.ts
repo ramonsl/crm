@@ -1,7 +1,5 @@
 import { messageQueue } from '@/lib/messageQueue';
-import * as whatsapp from '@/lib/whatsapp';
 import { pool } from '@/lib/db';
-import { TEST_TIMEOUTS } from '@/lib/constants';
 
 // Mock dependencies
 jest.mock('@/lib/whatsapp', () => ({

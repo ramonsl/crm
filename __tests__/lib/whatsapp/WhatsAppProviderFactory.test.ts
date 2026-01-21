@@ -2,7 +2,7 @@
  * WhatsAppProviderFactory Integration Tests
  */
 
-import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
+import { WhatsAppProviderFactory, ProviderType } from '@/lib/whatsapp/factory';
 import { BaileysAdapter } from '@/lib/whatsapp/adapters/BaileysAdapter';
 
 // Mock adapters
@@ -36,16 +36,15 @@ describe('WhatsAppProviderFactory', () => {
             const provider2 = await WhatsAppProviderFactory.getProvider('baileys');
             expect(provider1).toBe(provider2);
         });
-
         test('should throw error for unsupported provider', async () => {
             await expect(
-                WhatsAppProviderFactory.getProvider('twilio' as any)
+                WhatsAppProviderFactory.getProvider('twilio' as unknown as ProviderType)
             ).rejects.toThrow('Twilio provider not implemented yet');
         });
 
         test('should throw error for unknown provider', async () => {
             await expect(
-                WhatsAppProviderFactory.getProvider('unknown' as any)
+                WhatsAppProviderFactory.getProvider('unknown' as unknown as ProviderType)
             ).rejects.toThrow('Unknown provider');
         });
     });

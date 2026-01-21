@@ -2,7 +2,6 @@
 import { NextRequest } from 'next/server';
 
 describe('User Creation API (Security #80)', () => {
-    let POST: any;
 
     // Define mock functions
     const mockRegister = jest.fn();
@@ -57,6 +56,7 @@ describe('User Creation API (Security #80)', () => {
     // Note: Since requireAuth is internal and uses AuthService, we just need to mock AuthService response.
 
     it('should allow admin to create user', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { POST } = require('@/app/api/users/route');
 
         // Setup shared mock
@@ -95,6 +95,7 @@ describe('User Creation API (Security #80)', () => {
     });
 
     it('should deny non-admin user from creating user', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { POST } = require('@/app/api/users/route');
 
         // Setup shared mock

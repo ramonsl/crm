@@ -39,7 +39,6 @@ jest.mock('@/lib/whatsapp/provider', () => ({
     sendWhatsAppMessage: jest.fn().mockResolvedValue({ id: { id: 'mock_msg_id' } }),
 }));
 
-import { messageQueue } from '@/lib/messageQueue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 
 describe('Message Queue Reproduction', () => {
@@ -47,10 +46,12 @@ describe('Message Queue Reproduction', () => {
         jest.clearAllMocks();
         messageQueue.clear();
         // Mock client ready
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global as any).whatsappClient = {
             sendMessage: jest.fn().mockResolvedValue({ id: { id: 'mock_msg_id' }, ack: 1, to: 'mock_to' }),
             getNumberId: jest.fn().mockResolvedValue({ _serialized: 'mock_chat_id' }),
         };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (global as any).whatsappStatus = 'ready';
     });
 

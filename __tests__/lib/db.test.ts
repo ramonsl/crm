@@ -17,7 +17,7 @@ jest.mock('@/lib/neonDb', () => ({
     query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
     queryOne: jest.fn().mockResolvedValue(undefined),
     execute: jest.fn().mockResolvedValue({ rowCount: 0 }),
-    transaction: jest.fn().mockImplementation(async (callback: any) => callback({})),
+    transaction: jest.fn().mockImplementation(async (callback: (client: unknown) => Promise<unknown>) => callback({})),
     sql: jest.fn(),
 }));
 

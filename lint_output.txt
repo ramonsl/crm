@@ -1,0 +1,112 @@
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/auto_replies_api.test.ts
+  75:19  warning  'data' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/chat_routes.test.ts
+  27:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/dashboard.test.ts
+  44:15  warning  'req' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/forward.test.ts
+  32:60  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  89:34  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/leads.test.ts
+  20:60  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/leads_api.test.ts
+   56:49  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  105:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/profile_sync.test.ts
+  32:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  56:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/settings_masking.test.ts
+   3:10  warning  'NextResponse' is defined but never used  @typescript-eslint/no-unused-vars
+  29:41  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  44:41  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/template_history.test.ts
+  9:10  warning  'SQLiteTemplateHistoryRepository' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/users.test.ts
+   5:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   5:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   5:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  40:28  error  A `require()` style import is forbidden   @typescript-eslint/no-require-imports
+  44:31  error  A `require()` style import is forbidden   @typescript-eslint/no-require-imports
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/users_create.test.ts
+   5:9   warning  'POST' is defined but never used          @typescript-eslint/no-unused-vars
+   5:15  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  60:26  error    A `require()` style import is forbidden   @typescript-eslint/no-require-imports
+  98:26  error    A `require()` style import is forbidden   @typescript-eslint/no-require-imports
+
+/Users/ramonlummertz/projetos/crm/__tests__/api/whatsapp_api.test.ts
+  1:60  warning  'DELETE_SESSION' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/ramonlummertz/projetos/crm/__tests__/components/Dashboard.test.tsx
+   6:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   7:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   8:25  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  10:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/components/contacts/ContactsTable.test.tsx
+   1:37  warning  'waitFor' is defined but never used       @typescript-eslint/no-unused-vars
+  11:37  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  19:44  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  99:35  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/lib/db.test.ts
+  20:64  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/lib/import.test.ts
+   52:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   70:45  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   82:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  101:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  120:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  139:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  158:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/lib/leads.test.ts
+    2:10  warning  'NextRequest' is defined but never used   @typescript-eslint/no-unused-vars
+   48:14  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   50:15  warning  'res' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   55:45  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   86:14  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   88:15  warning  'res' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  110:14  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  112:15  warning  'res' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/ramonlummertz/projetos/crm/__tests__/lib/media_sending.test.ts
+  31:28  error  A `require()` style import is forbidden   @typescript-eslint/no-require-imports
+  32:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  33:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/lib/messageQueue.test.ts
+  2:13  warning  'whatsapp' is defined but never used       @typescript-eslint/no-unused-vars
+  4:10  warning  'TEST_TIMEOUTS' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/ramonlummertz/projetos/crm/__tests__/lib/queue_repro.test.ts
+  50:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  54:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/lib/socket/authMiddleware.test.ts
+   2:10  warning  'Socket' is defined but never used        @typescript-eslint/no-unused-vars
+  19:21  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/ramonlummertz/projetos/crm/__tests__/lib/socket/emitter.test.ts
+  12:86  error  The `{}` ("empty object") type allows any non-nullish value, including literals like `0` and `""`.
+- If that's what you want, disable this lint rule with an inline comment or configure the 'allowObjectTypes' rule option.
+- If you want a type meaning "any object", you probably want `object` instead.
+- If you want a type meaning "any value", you probably want `unknown` instead  @typescript-eslint/no-empty-object-type
+  19:14  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  58:37  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  99:37  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+
+✖ 62 problems (48 errors, 14 warnings)
+

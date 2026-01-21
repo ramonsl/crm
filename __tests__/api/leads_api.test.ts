@@ -53,7 +53,7 @@ describe('Leads API', () => {
             await GET(req);
 
             const calls = mockPoolQuery.mock.calls;
-            const queryCall = calls.find((call: any[]) => call[0]?.includes('ILIKE'));
+            const queryCall = calls.find((call: unknown[]) => (call[0] as string | undefined)?.includes('ILIKE'));
             expect(queryCall).toBeDefined();
         });
     });
@@ -102,7 +102,7 @@ describe('Leads API', () => {
 
         it('should handle duplicate CPF', async () => {
             mockPoolQuery.mockImplementation(() => {
-                const error: any = new Error('duplicate key value');
+                const error = new Error('duplicate key value') as Error & { code: string };
                 error.code = '23505';
                 return Promise.reject(error);
             });

@@ -6,6 +6,7 @@
 import { ContactSyncService } from '@/services/contactSyncService';
 import type { WhatsAppValidator } from '@/services/whatsappValidator';
 import type { IContactRepository } from '@/repositories/contactRepository';
+import { IWhatsAppProvider } from '@/lib/whatsapp/IWhatsAppProvider';
 
 // Mock the factory
 jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory', () => ({
@@ -13,33 +14,33 @@ jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory', () => ({
         getProvider: jest.fn()
     }
 }));
+import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
 jest.mock('@/lib/logger');
 
 describe('ContactSyncService', () => {
     let syncService: ContactSyncService;
     let mockValidator: jest.Mocked<WhatsAppValidator>;
     let mockRepository: jest.Mocked<IContactRepository>;
-    let mockProvider: any;
+    let mockProvider: jest.Mocked<IWhatsAppProvider>;
 
     beforeEach(() => {
         // Mock validator
         mockValidator = {
             validate: jest.fn()
-        } as any;
+        } as unknown as jest.Mocked<WhatsAppValidator>;
 
         // Mock repository
         mockRepository = {
             updateWhatsAppData: jest.fn().mockResolvedValue(undefined),
             findByPhone: jest.fn().mockResolvedValue({ nome: 'João Silva' })
-        };
+        } as unknown as jest.Mocked<IContactRepository>;
 
         // Mock provider instance
         mockProvider = {
             getProfilePicture: jest.fn().mockResolvedValue('https://example.com/pic.jpg')
-        };
+        } as unknown as jest.Mocked<IWhatsAppProvider>;
 
-        // Import and set up mock
-        const { WhatsAppProviderFactory } = require('@/lib/whatsapp/factory/WhatsAppProviderFactory');
+        // Initialize mocks - Provider Factory is already imported at top
         (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
 
         syncService = new ContactSyncService(mockValidator, mockRepository);

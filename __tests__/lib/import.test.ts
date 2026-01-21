@@ -1,5 +1,5 @@
 import { POST } from '@/app/api/upload/route';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import * as XLSX from 'xlsx';
 
@@ -49,7 +49,7 @@ describe('Import API', () => {
 
         const req = {
             formData: jest.fn().mockResolvedValue(formData)
-        } as any;
+        } as unknown as NextRequest;
 
         // Mock XLSX data
         // Row 0: Header
@@ -67,7 +67,7 @@ describe('Import API', () => {
         // Verify DB calls
         expect(mockPoolQuery).toHaveBeenCalled();
         const calls = mockPoolQuery.mock.calls;
-        const hasInsert = calls.some((call: any[]) => call[0]?.includes('INSERT INTO leads'));
+        const hasInsert = calls.some((call: unknown[]) => (call[0] as string | undefined)?.includes('INSERT INTO leads'));
         expect(hasInsert).toBe(true);
         expect(NextResponse.json).toHaveBeenCalledWith(
             expect.objectContaining({ message: 'Success', created: 1 })
@@ -79,7 +79,7 @@ describe('Import API', () => {
 
         const req = {
             formData: jest.fn().mockResolvedValue(formData)
-        } as any;
+        } as unknown as NextRequest;
 
         await POST(req);
 
@@ -98,7 +98,7 @@ describe('Import API', () => {
 
         const req = {
             formData: jest.fn().mockResolvedValue(formData)
-        } as any;
+        } as unknown as NextRequest;
 
         // Mock XLSX data - importing 'Inscrito Confirmado' (priority 4)
         (XLSX.utils.sheet_to_json as jest.Mock).mockReturnValue([
@@ -117,6 +117,7 @@ describe('Import API', () => {
         await POST(req);
 
         // Verify UPDATE was called but status was NOT downgraded
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updateCalls = mockPoolQuery.mock.calls.filter((call: any[]) =>
             call[0]?.includes('UPDATE leads SET status')
         );
@@ -136,7 +137,7 @@ describe('Import API', () => {
 
         const req = {
             formData: jest.fn().mockResolvedValue(formData)
-        } as any;
+        } as unknown as NextRequest;
 
         // Mock XLSX data - importing 'Matricula Confirmada' (priority 7)
         (XLSX.utils.sheet_to_json as jest.Mock).mockReturnValue([
@@ -155,8 +156,8 @@ describe('Import API', () => {
         await POST(req);
 
         // Verify UPDATE was called with the new higher priority status
-        const updateCalls = mockPoolQuery.mock.calls.filter((call: any[]) =>
-            call[0]?.includes('UPDATE leads SET status')
+        const updateCalls = mockPoolQuery.mock.calls.filter((call: unknown[]) =>
+            (call[0] as string | undefined)?.includes('UPDATE leads SET status')
         );
         expect(updateCalls.length).toBe(1);
 

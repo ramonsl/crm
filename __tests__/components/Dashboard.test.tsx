@@ -1,13 +1,14 @@
+import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import Dashboard from '@/app/page';
 
 // Mock Recharts to avoid sizing issues in JSDOM
 jest.mock('recharts', () => ({
-    ResponsiveContainer: ({ children }: any) => <div data-testid="responsive-container">{children}</div>,
-    PieChart: ({ children }: any) => <div data-testid="pie-chart">{children}</div>,
-    Pie: ({ children }: any) => <div data-testid="pie">{children}</div>,
+    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="responsive-container">{children}</div>,
+    PieChart: ({ children }: { children: React.ReactNode }) => <div data-testid="pie-chart">{children}</div>,
+    Pie: ({ children }: { children: React.ReactNode }) => <div data-testid="pie">{children}</div>,
     Cell: () => <div data-testid="cell" />,
-    BarChart: ({ children }: any) => <div data-testid="bar-chart">{children}</div>,
+    BarChart: ({ children }: { children: React.ReactNode }) => <div data-testid="bar-chart">{children}</div>,
     Bar: () => <div data-testid="bar" />,
     XAxis: () => <div data-testid="x-axis" />,
     YAxis: () => <div data-testid="y-axis" />,
