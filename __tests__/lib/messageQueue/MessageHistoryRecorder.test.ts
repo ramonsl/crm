@@ -41,7 +41,7 @@ describe('MessageHistoryRecorder', () => {
 
             await recorder.recordSuccess(item);
 
-            expect(mockPoolQuery).toHaveBeenCalledTimes(3);
+            expect(mockPoolQuery).toHaveBeenCalledTimes(4);
 
             // First call: insert into message_history
             expect(mockPoolQuery.mock.calls[0][0]).toContain('INSERT INTO message_history');
@@ -59,6 +59,14 @@ describe('MessageHistoryRecorder', () => {
             expect(mockPoolQuery.mock.calls[2][0]).toContain('UPDATE leads');
             expect(mockPoolQuery.mock.calls[2][0]).toContain('last_template_name');
             expect(mockPoolQuery.mock.calls[2][1]).toEqual(['Welcome', '12345678901']);
+
+            // Fourth call: insert into messages table for Timeline
+            expect(mockPoolQuery.mock.calls[3][0]).toContain('INSERT INTO messages');
+            expect(mockPoolQuery.mock.calls[3][0]).toContain('ON CONFLICT');
+            // Parameters: [messageId, phone, content, from_me, ...]
+            expect(mockPoolQuery.mock.calls[3][1][1]).toBe('5551999999999'); // phone (index 1)
+            expect(mockPoolQuery.mock.calls[3][1][2]).toBe('Test message'); // content (index 2)
+            expect(mockPoolQuery.mock.calls[3][1][3]).toBe(true); // from_me (index 3)
         });
 
         it('should not record if cpf is missing', async () => {
@@ -89,8 +97,8 @@ describe('MessageHistoryRecorder', () => {
             await recorder.recordSuccess(item);
 
             // Should record with fallback name "Mensagem Personalizada"
-            // Now expects 2 calls: INSERT into message_history + UPDATE last_message_time
-            expect(mockPoolQuery).toHaveBeenCalledTimes(2);
+            // Now expects 3 calls: INSERT into message_history + UPDATE last_message_time + INSERT into messages
+            expect(mockPoolQuery).toHaveBeenCalledTimes(3);
             expect(mockPoolQuery.mock.calls[0][0]).toContain('INSERT INTO message_history');
             expect(mockPoolQuery.mock.calls[0][1]).toEqual([
                 '12345678901', null, 'Mensagem Personalizada', 'Test message'
@@ -99,6 +107,8 @@ describe('MessageHistoryRecorder', () => {
             expect(mockPoolQuery.mock.calls[1][0]).toContain('UPDATE leads');
             expect(mockPoolQuery.mock.calls[1][0]).toContain('last_message');
             expect(mockPoolQuery.mock.calls[1][1]).toEqual(['Test message', '12345678901']);
+            // Third call: insert into messages table
+            expect(mockPoolQuery.mock.calls[2][0]).toContain('INSERT INTO messages');
         });
 
         it('should handle database errors gracefully', async () => {

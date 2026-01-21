@@ -46,7 +46,18 @@ export class MessageHistoryRecorder implements IMessageHistoryRecorder {
                 );
             }
 
+            // ALSO insert into messages table for Timeline visibility
+            // Generate a unique message ID
+            const messageId = `queue_${item.id}_${Date.now()}`;
+
+            await pool.query(`
+                INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type)
+                VALUES ($1, $2, $3, $4, NOW(), 'text')
+                ON CONFLICT (id) DO NOTHING
+            `, [messageId, item.phone, messageContent, true]);
+
             queueLogger.info(`Recorded send: ${item.phone} via ${item.provider || 'whatsappjs'}`);
+
         } catch (error) {
             queueLogger.error('Error recording success:', error);
         }
