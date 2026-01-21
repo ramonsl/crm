@@ -1,4 +1,7 @@
-async function test() {
+// Export to treat as module
+export { };
+
+async function runCrudTest() {
     const baseUrl = 'http://localhost:3000/api/leads';
 
     // 1. Create a lead
@@ -45,4 +48,4 @@ async function test() {
     if (!deleteRes.ok) console.log(await deleteRes.text());
 }
 
-test().catch(console.error);
+runCrudTest().catch(console.error);
