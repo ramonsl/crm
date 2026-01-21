@@ -22,6 +22,8 @@ interface LoggerConfig {
     prefix?: string;
     /** Whether to include timestamps */
     timestamps?: boolean;
+    /** Keys to redact from logs (for pino compatibility if extended later) */
+    redact?: string[];
 }
 
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -33,13 +35,14 @@ const isTest = process.env.NODE_ENV === 'test';
 const defaultConfig: LoggerConfig = {
     debugEnabled: isDevelopment && !isTest,
     timestamps: false,
+    redact: ['apiKey', 'password', 'token', 'secret', '*.apiKey', '*.password', '*.token', '*.secret'],
 };
 
 /**
  * Format a log message with optional prefix and timestamp
  */
-function formatMessage(level: LogLevel, prefix: string | undefined, args: any[]): any[] {
-    const parts: any[] = [];
+function formatMessage(level: LogLevel, prefix: string | undefined, args: unknown[]): unknown[] {
+    const parts: unknown[] = [];
 
     if (prefix) {
         parts.push(`[${prefix}]`);
@@ -59,8 +62,9 @@ function createLogger(config: Partial<LoggerConfig> = {}) {
          * Debug logs - Only shown in development
          * Use for detailed debugging information
          */
-        debug: (...args: any[]) => {
+        debug: (...args: unknown[]) => {
             if (finalConfig.debugEnabled) {
+                // eslint-disable-next-line no-console
                 console.log(...formatMessage('debug', finalConfig.prefix, args));
             }
         },
@@ -69,7 +73,8 @@ function createLogger(config: Partial<LoggerConfig> = {}) {
          * Info logs - Always shown
          * Use for important operational information
          */
-        info: (...args: any[]) => {
+        info: (...args: unknown[]) => {
+            // eslint-disable-next-line no-console
             console.log(...formatMessage('info', finalConfig.prefix, args));
         },
 
@@ -77,7 +82,8 @@ function createLogger(config: Partial<LoggerConfig> = {}) {
          * Warning logs - Always shown
          * Use for potential issues that don't break functionality
          */
-        warn: (...args: any[]) => {
+        warn: (...args: unknown[]) => {
+            // eslint-disable-next-line no-console
             console.warn(...formatMessage('warn', finalConfig.prefix, args));
         },
 
@@ -85,7 +91,8 @@ function createLogger(config: Partial<LoggerConfig> = {}) {
          * Error logs - Always shown
          * Use for errors and exceptions
          */
-        error: (...args: any[]) => {
+        error: (...args: unknown[]) => {
+            // eslint-disable-next-line no-console
             console.error(...formatMessage('error', finalConfig.prefix, args));
         },
 

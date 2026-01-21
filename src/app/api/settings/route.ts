@@ -8,7 +8,9 @@ export async function GET() {
 
         const settings: Record<string, string> = {};
         rows.forEach(row => {
-            if (row.key === 'openai_api_key') settings.openaiApiKey = row.value;
+            if (row.key === 'openai_api_key') {
+                settings.openaiApiKey = row.value ? `sk-...${row.value.slice(-4)}` : '';
+            }
             if (row.key === 'queue_min_delay') settings.minDelay = row.value;
             if (row.key === 'queue_max_delay') settings.maxDelay = row.value;
             if (row.key === 'meta_matriculas') settings.metaMatriculas = row.value;
@@ -16,7 +18,9 @@ export async function GET() {
             if (row.key === 'comercial_name') settings.comercialName = row.value;
             // YCloud settings
             if (row.key === 'bulk_send_provider') settings.bulkSendProvider = row.value;
-            if (row.key === 'ycloud_api_key') settings.yCloudApiKey = row.value;
+            if (row.key === 'ycloud_api_key') {
+                settings.yCloudApiKey = row.value ? `***${row.value.slice(-4)}` : '';
+            }
             if (row.key === 'ycloud_waba_id') settings.yCloudWabaId = row.value;
             if (row.key === 'ycloud_phone_id') settings.yCloudPhoneId = row.value;
         });
