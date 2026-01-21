@@ -1,6 +1,6 @@
 /**
  * ContactsTable - Main table component for displaying contacts
- * This is a simplified version that will be enhanced iteratively
+ * Refactored to use useContactsActions and ContactsTableHeader
  */
 
 'use client';
@@ -11,21 +11,26 @@ import { useContacts } from '@/hooks/useContacts';
 import { useContactsFilters } from '@/hooks/useContactsFilters';
 import { useContactsSelection } from '@/hooks/useContactsSelection';
 import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus';
-import { uiLogger } from '@/lib/logger';
+import { useContactsActions } from '@/hooks/useContactsActions';
+import { useVisibleColumns } from '@/hooks/useVisibleColumns';
+
 import { ContactsTabs } from './ContactsTabs';
 import { ContactsFilters } from './ContactsFilters';
+import { ContactsTableHeader } from './ContactsTableHeader';
+import { ContactsPagination } from './ContactsPagination';
+import { ContactsTableRow } from './ContactsTableRow';
+import { ColumnSelector } from './ColumnSelector';
+
 import { ContactEditModal } from './ContactEditModal';
 import { MessageModal } from './MessageModal';
 import { BulkMessageModal } from './BulkMessageModal';
 import { ActivityTimeline } from './ActivityTimeline';
+import { ContactsDeleteModal } from './ContactsDeleteModal';
+
 import type { ContactView, Contact } from '@/types/contacts';
 import type { Tag } from '@/types/tag';
 import styles from './ContactsTable.module.css';
-import { UserPlus, RefreshCw, MessageSquare, Download, X, ChevronUp, ChevronDown } from 'lucide-react';
-import { ColumnSelector } from './ColumnSelector';
-import { useVisibleColumns } from '@/hooks/useVisibleColumns';
-import { ContactsPagination } from './ContactsPagination';
-import { ContactsTableRow } from './ContactsTableRow';
+import { UserPlus, RefreshCw, MessageSquare, Download, X } from 'lucide-react';
 
 interface ContactsTableProps {
     view?: ContactView;
@@ -40,7 +45,18 @@ export function ContactsTable({
     const { filters, updateFilter, updateFilters, resetFilters } = useContactsFilters({ page: 1, limit: 25 });
     const { contacts, loading, error, totalPages, totalCount, currentPage, refresh } = useContacts(view, filters);
     const { selected, toggleSelect, toggleSelectAll, clearSelection, isSelected, isAllSelected, selectedCount } = useContactsSelection();
-    const { status: waStatus, isReady } = useWhatsAppStatus();
+
+    // Actions hook
+    const {
+        comercialPhone,
+        comercialName,
+        deleteConfirmContact,
+        handleExport,
+        handleForwardToComercial,
+        handleDelete,
+        cancelDelete,
+        confirmDelete
+    } = useContactsActions({ refresh });
 
     const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
     const [availableSemesters, setAvailableSemesters] = useState<string[]>([]);
@@ -56,14 +72,9 @@ export function ContactsTable({
     const [bulkMessageModalOpen, setBulkMessageModalOpen] = useState(false);
     const [timelineModalOpen, setTimelineModalOpen] = useState(false);
     const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-    const [deleteConfirmContact, setDeleteConfirmContact] = useState<Contact | null>(null);
 
     // Tags state - map of CPF to tags
     const [leadTags, setLeadTags] = useState<Map<string, Tag[]>>(new Map());
-
-    // Commercial team settings
-    const [comercialPhone, setComercialPhone] = useState('');
-    const [comercialName, setComercialName] = useState('');
 
     // Fetch available filter options from database
     useEffect(() => {
@@ -87,14 +98,6 @@ export function ContactsTable({
         };
 
         fetchFilters();
-
-        // Load commercial settings
-        fetch('/api/settings')
-            .then(res => res.json())
-            .then(data => {
-                if (data.comercialPhone) setComercialPhone(data.comercialPhone);
-                if (data.comercialName) setComercialName(data.comercialName);
-            });
     }, []);
 
     // Load tags for all contacts
@@ -125,27 +128,6 @@ export function ContactsTable({
         loadTagsForContacts();
     }, [contacts]);
 
-
-    const handleExport = () => {
-        if (selectedCount === 0) {
-            toastError('Selecione contatos para exportar');
-            return;
-        }
-
-        const cpfs = selected.join(',');
-        const url = `/api/export?cpfs=${encodeURIComponent(cpfs)}`;
-
-        // Force download with anchor tag
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `contatos-${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    };
-
-
-
     const handleSendMessage = (contact: Contact) => {
         setSelectedContact(contact);
         setMessageModalOpen(true);
@@ -159,113 +141,6 @@ export function ContactsTable({
     const handleViewTimeline = (contact: Contact) => {
         setSelectedContact(contact);
         setTimelineModalOpen(true);
-    };
-
-    const handleDelete = (contact: any, e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        e?.preventDefault();
-        setDeleteConfirmContact(contact);
-    };
-
-    const handleForwardToComercial = async (contact: Contact) => {
-        if (!comercialPhone) return;
-
-        try {
-            // API forward agora envia mensagem e registra na timeline
-            const res = await fetch('/api/forward', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    cpf: contact.cpf,
-                    comercialPhone: comercialPhone,
-                    comercialName: comercialName || 'Comercial'
-                })
-            });
-
-            if (res.ok) {
-                success('Lead encaminhado para o comercial!');
-            } else {
-                const errorData = await res.json();
-                if (errorData.needsConnection) {
-                    toastError(`⚠️ ${errorData.error}`);
-                } else {
-                    toastError(`Erro ao encaminhar: ${errorData.error || 'Erro desconhecido'}`);
-                }
-            }
-        } catch (error) {
-            console.error('Error forwarding to commercial:', error);
-            toastError('Erro ao encaminhar lead. Verifique sua conexão.');
-        }
-    };
-
-    const confirmDelete = async () => {
-        const contact = deleteConfirmContact;
-        if (!contact) return;
-
-        setDeleteConfirmContact(null);
-
-        try {
-            const identifier = contact.cpf && contact.cpf.trim() !== ''
-                ? `cpf=${encodeURIComponent(contact.cpf)}`
-                : `telefone=${encodeURIComponent(contact.telefone)}`;
-
-            const response = await fetch(`/api/leads?${identifier}`, {
-                method: 'DELETE'
-            });
-
-            if (response.ok) {
-                success('Contato deletado com sucesso!');
-                refresh();
-            } else {
-                const data = await response.json();
-                toastError(`Erro ao deletar: ${data.error || 'Erro desconhecido'}`);
-            }
-        } catch (err) {
-            console.error('Delete error:', err);
-            toastError('Erro ao deletar contato');
-        }
-    };
-
-    const cancelDelete = () => {
-        setDeleteConfirmContact(null);
-    };
-
-    // Handle column sorting
-    const handleSort = (column: string) => {
-        const currentSort = filters.sortBy;
-        const currentOrder = filters.sortOrder;
-
-        let newOrder: 'asc' | 'desc' | undefined;
-
-        if (currentSort === column) {
-            // Cycle through: asc -> desc -> none
-            if (currentOrder === 'asc') {
-                newOrder = 'desc';
-            } else if (currentOrder === 'desc') {
-                newOrder = undefined; // Remove sorting
-            } else {
-                newOrder = 'asc';
-            }
-        } else {
-            // New column, start with asc
-            newOrder = 'asc';
-        }
-
-        updateFilters({
-            sortBy: newOrder ? column : undefined,
-            sortOrder: newOrder
-        });
-    };
-
-    // Render sort indicator
-    const renderSortIndicator = (column: string) => {
-        if (filters.sortBy !== column) return null;
-
-        return filters.sortOrder === 'asc' ? (
-            <ChevronUp size={14} style={{ display: 'inline', marginLeft: '4px' }} />
-        ) : (
-            <ChevronDown size={14} style={{ display: 'inline', marginLeft: '4px' }} />
-        );
     };
 
     if (error) {
@@ -301,7 +176,7 @@ export function ContactsTable({
                         <>
                             <button
                                 className={styles.bulkActionButton}
-                                onClick={handleExport}
+                                onClick={() => handleExport(selected)}
                                 title="Exportar contatos selecionados para CSV"
                             >
                                 <Download size={18} />
@@ -352,63 +227,14 @@ export function ContactsTable({
             {/* Table */}
             <div className={styles.tableContainer}>
                 <table className={styles.table}>
-                    <thead>
-                        <tr>
-                            <th>
-                                <input
-                                    type="checkbox"
-                                    checked={isAllSelected(contacts.map(c => c.cpf))}
-                                    onChange={() => toggleSelectAll(contacts.map(c => c.cpf))}
-                                />
-                            </th>
-                            <th>Foto</th>
-                            <th
-                                onClick={() => handleSort('nome')}
-                                style={{ cursor: 'pointer', userSelect: 'none' }}
-                                title="Clique para ordenar"
-                            >
-                                Nome / Telefone {renderSortIndicator('nome')}
-                            </th>
-                            {visibleColumns.cpf && (
-                                <th
-                                    onClick={() => handleSort('cpf')}
-                                    style={{ cursor: 'pointer', userSelect: 'none' }}
-                                    title="Clique para ordenar"
-                                >
-                                    CPF {renderSortIndicator('cpf')}
-                                </th>
-                            )}
-                            {visibleColumns.status && (
-                                <th
-                                    onClick={() => handleSort('status')}
-                                    style={{ cursor: 'pointer', userSelect: 'none' }}
-                                    title="Clique para ordenar"
-                                >
-                                    Status {renderSortIndicator('status')}
-                                </th>
-                            )}
-                            {visibleColumns.semestre && (
-                                <th
-                                    onClick={() => handleSort('tipo_ingresso')}
-                                    style={{ cursor: 'pointer', userSelect: 'none' }}
-                                    title="Clique para ordenar"
-                                >
-                                    Semestre {renderSortIndicator('tipo_ingresso')}
-                                </th>
-                            )}
-                            {visibleColumns.ultima_mensagem && (
-                                <th
-                                    onClick={() => handleSort('last_message_time')}
-                                    style={{ cursor: 'pointer', userSelect: 'none' }}
-                                    title="Clique para ordenar"
-                                >
-                                    Última Mensagem {renderSortIndicator('last_message_time')}
-                                </th>
-                            )}
-                            <th style={{ width: '200px' }}>Tags</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
+                    <ContactsTableHeader
+                        contacts={contacts}
+                        visibleColumns={visibleColumns}
+                        filters={filters}
+                        updateFilters={updateFilters}
+                        isAllSelected={isAllSelected}
+                        toggleSelectAll={toggleSelectAll}
+                    />
                     <tbody>
                         {loading ? (
                             <tr>
@@ -472,7 +298,6 @@ export function ContactsTable({
                 }}
             />
 
-            {/* Create Modal - using same component but with null contact */}
             <ContactEditModal
                 contact={null}
                 isOpen={createModalOpen}
@@ -507,64 +332,11 @@ export function ContactsTable({
                 }}
             />
 
-            {/* Delete Confirmation Modal */}
-            {
-                deleteConfirmContact && (
-                    <div style={{
-                        position: 'fixed',
-                        inset: 0,
-                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 9999
-                    }}>
-                        <div style={{
-                            background: 'linear-gradient(145deg, #1a1a2e 0%, #16213e 100%)',
-                            borderRadius: '16px',
-                            padding: '2rem',
-                            maxWidth: '400px',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-                        }}>
-                            <h3 style={{ color: '#fff', marginBottom: '1rem' }}>Confirmar Exclusão</h3>
-                            <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>
-                                Tem certeza que deseja deletar <strong style={{ color: '#fff' }}>{deleteConfirmContact.nome}</strong>?
-                                <br /><br />
-                                Esta ação não pode ser desfeita.
-                            </p>
-                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                                <button
-                                    onClick={cancelDelete}
-                                    style={{
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: '8px',
-                                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                                        background: 'transparent',
-                                        color: '#fff',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={confirmDelete}
-                                    style={{
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: '8px',
-                                        border: 'none',
-                                        background: '#ef4444',
-                                        color: '#fff',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Deletar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
+            <ContactsDeleteModal
+                contact={deleteConfirmContact}
+                onCancel={cancelDelete}
+                onConfirm={confirmDelete}
+            />
         </div >
     );
 }
