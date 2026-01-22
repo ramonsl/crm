@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/services/AuthService';
+import { AppError } from '@/lib/errors/AppError';
+import { handleApiError } from '@/lib/api/handleApiError';
 
 const authService = new AuthService();
 
@@ -9,20 +11,14 @@ export async function GET(req: NextRequest) {
         const sessionId = req.cookies.get('session_id')?.value;
 
         if (!sessionId) {
-            return NextResponse.json(
-                { error: 'Não autenticado' },
-                { status: 401 }
-            );
+            throw new AppError('Não autenticado', 401);
         }
 
         // Validate session (async now)
         const result = await authService.validateSession(sessionId);
 
         if (!result.valid) {
-            return NextResponse.json(
-                { error: result.error || 'Sessão inválida' },
-                { status: 401 }
-            );
+            throw new AppError(result.error || 'Sessão inválida', 401);
         }
 
         return NextResponse.json({
@@ -30,10 +26,6 @@ export async function GET(req: NextRequest) {
             user: result.user
         });
     } catch (error) {
-        console.error('[API /api/auth/session] Error:', error);
-        return NextResponse.json(
-            { error: 'Erro interno do servidor' },
-            { status: 500 }
-        );
+        return handleApiError(error);
     }
 }

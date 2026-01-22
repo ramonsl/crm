@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserRepository } from '@/lib/repositories/UserRepository';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { AppError } from '@/lib/errors/AppError';
+import { handleApiError } from '@/lib/api/handleApiError';
 
 const userRepository = new UserRepository();
 
@@ -22,10 +24,7 @@ export async function PUT(
 
         // Validate if any updateable field is present
         if (!name && !email && !role && active === undefined) {
-            return NextResponse.json(
-                { error: 'Nenhum campo para atualizar' },
-                { status: 400 }
-            );
+            throw new AppError('Nenhum campo para atualizar', 400);
         }
 
         // Update user
@@ -35,10 +34,7 @@ export async function PUT(
         const updated = await userRepository.findById(userId);
 
         if (!updated) {
-            return NextResponse.json(
-                { error: 'Usuário não encontrado' },
-                { status: 404 }
-            );
+            throw new AppError('Usuário não encontrado', 404);
         }
 
         // Remove password hash before returning
@@ -47,17 +43,7 @@ export async function PUT(
         return NextResponse.json({ success: true, data: userWithoutPassword });
 
     } catch (error) {
-        console.error('[API /api/users/[id] PUT] Error:', error);
-
-        // Handle unauthorized error specifically if needed, but requireAuth throws it
-        if ((error as Error).name === 'UnauthorizedError') {
-            return NextResponse.json({ error: (error as Error).message }, { status: 401 });
-        }
-
-        return NextResponse.json(
-            { error: 'Erro interno do servidor' },
-            { status: 500 }
-        );
+        return handleApiError(error);
     }
 }
 
@@ -76,10 +62,7 @@ export async function DELETE(
 
         // Prevent self-deletion
         if (user.id === userId) {
-            return NextResponse.json(
-                { error: 'Você não pode deletar sua própria conta' },
-                { status: 400 }
-            );
+            throw new AppError('Você não pode deletar sua própria conta', 400);
         }
 
         await userRepository.delete(userId);
@@ -87,15 +70,6 @@ export async function DELETE(
         return NextResponse.json({ success: true });
 
     } catch (error) {
-        console.error('[API /api/users/[id] DELETE] Error:', error);
-
-        if ((error as Error).name === 'UnauthorizedError') {
-            return NextResponse.json({ error: (error as Error).message }, { status: 401 });
-        }
-
-        return NextResponse.json(
-            { error: 'Erro interno do servidor' },
-            { status: 500 }
-        );
+        return handleApiError(error);
     }
 }

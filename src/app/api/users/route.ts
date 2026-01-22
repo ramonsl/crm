@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/services/AuthService';
 import { UserRepository } from '@/lib/repositories/UserRepository';
+import { AppError } from '@/lib/errors/AppError';
+import { handleApiError } from '@/lib/api/handleApiError';
 
 const authService = new AuthService();
 const userRepository = new UserRepository();
@@ -32,10 +34,7 @@ export async function GET(req: NextRequest) {
         // Require authentication
         const auth = await requireAuth(req);
         if (!auth.authenticated) {
-            return NextResponse.json(
-                { error: auth.error },
-                { status: 401 }
-            );
+            throw new AppError(auth.error || 'Não autenticado', 401);
         }
 
         // Get all users
@@ -49,11 +48,7 @@ export async function GET(req: NextRequest) {
             data: usersWithoutPassword
         });
     } catch (error) {
-        console.error('[API /api/users GET] Error:', error);
-        return NextResponse.json(
-            { error: 'Erro interno do servidor' },
-            { status: 500 }
-        );
+        return handleApiError(error);
     }
 }
 
@@ -65,18 +60,12 @@ export async function POST(req: NextRequest) {
         // Require authentication
         const auth = await requireAuth(req);
         if (!auth.authenticated) {
-            return NextResponse.json(
-                { error: auth.error },
-                { status: 401 }
-            );
+            throw new AppError(auth.error || 'Não autenticado', 401);
         }
 
         // SECURITY FIX #80: Only admins can create users
         if (auth.user?.role !== 'admin') {
-            return NextResponse.json(
-                { error: 'Acesso negado. Apenas administradores podem criar usuários.' },
-                { status: 403 }
-            );
+            throw new AppError('Acesso negado. Apenas administradores podem criar usuários.', 403);
         }
 
         const body = await req.json();
@@ -84,37 +73,25 @@ export async function POST(req: NextRequest) {
 
         // Validate input
         if (!email || !password || !name) {
-            return NextResponse.json(
-                { error: 'Email, senha e nome são obrigatórios' },
-                { status: 400 }
-            );
+            throw new AppError('Email, senha e nome são obrigatórios', 400);
         }
 
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            return NextResponse.json(
-                { error: 'Email inválido' },
-                { status: 400 }
-            );
+            throw new AppError('Email inválido', 400);
         }
 
         // Validate password length
         if (password.length < 6) {
-            return NextResponse.json(
-                { error: 'A senha deve ter no mínimo 6 caracteres' },
-                { status: 400 }
-            );
+            throw new AppError('A senha deve ter no mínimo 6 caracteres', 400);
         }
 
         // Create user
         const result = await authService.register(email, password, name);
 
         if (!result.success) {
-            return NextResponse.json(
-                { error: result.error },
-                { status: 400 }
-            );
+            throw new AppError(result.error || 'Erro ao criar usuário', 400);
         }
 
         // Update role if provided
@@ -135,10 +112,6 @@ export async function POST(req: NextRequest) {
             data: result.user
         });
     } catch (error) {
-        console.error('[API /api/users POST] Error:', error);
-        return NextResponse.json(
-            { error: 'Erro interno do servidor' },
-            { status: 500 }
-        );
+        return handleApiError(error);
     }
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/services/AuthService';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { AppError } from '@/lib/errors/AppError';
+import { handleApiError } from '@/lib/api/handleApiError';
 
 const authService = new AuthService();
 
@@ -22,10 +24,7 @@ export async function POST(
 
         // Validate password
         if (!newPassword || newPassword.length < 6) {
-            return NextResponse.json(
-                { error: 'A senha deve ter no mínimo 6 caracteres' },
-                { status: 400 }
-            );
+            throw new AppError('A senha deve ter no mínimo 6 caracteres', 400);
         }
 
         // Only allow changing own password or if admin
@@ -34,10 +33,7 @@ export async function POST(
         const isOwnAccount = currentUser.id === targetUserId;
 
         if (!isOwnAccount && !isAdmin) {
-            return NextResponse.json(
-                { error: 'Permissão negada' },
-                { status: 403 }
-            );
+            throw new AppError('Permissão negada', 403);
         }
 
         // Change password
@@ -46,15 +42,6 @@ export async function POST(
         return NextResponse.json({ success: true });
 
     } catch (error) {
-        console.error('[API /api/users/[id]/password POST] Error:', error);
-
-        if ((error as Error).name === 'UnauthorizedError') {
-            return NextResponse.json({ error: (error as Error).message }, { status: 401 });
-        }
-
-        return NextResponse.json(
-            { error: 'Erro interno do servidor' },
-            { status: 500 }
-        );
+        return handleApiError(error);
     }
 }

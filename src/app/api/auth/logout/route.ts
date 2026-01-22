@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/services/AuthService';
+import { handleApiError } from '@/lib/api/handleApiError';
 
 const authService = new AuthService();
 
@@ -24,10 +25,6 @@ export async function POST(req: NextRequest) {
 
         return response;
     } catch (error) {
-        console.error('[API /api/auth/logout] Error:', error);
-        return NextResponse.json(
-            { error: 'Erro interno do servidor' },
-            { status: 500 }
-        );
+        return handleApiError(error);
     }
 }

@@ -6,6 +6,8 @@ import { ActivityRepository } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
 import { statusMessageService } from '@/services/StatusMessageService';
 import type { UploadRow } from '@/types/import';
+import { AppError } from '@/lib/errors/AppError';
+import { handleApiError } from '@/lib/api/handleApiError';
 
 // Initialize activity service for logging
 const activityRepository = new ActivityRepository();
@@ -36,7 +38,7 @@ export async function POST(req: NextRequest) {
         const file = formData.get('file') as File;
 
         if (!file) {
-            return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+            throw new AppError('No file uploaded', 400);
         }
 
         const buffer = await file.arrayBuffer();
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
         );
 
         if (headerIndex === -1) {
-            return NextResponse.json({ error: 'Could not find header row (CPF/Inscrição)' }, { status: 400 });
+            throw new AppError('Could not find header row (CPF/Inscrição)', 400);
         }
 
         const headers = rawRows[headerIndex].map(h => String(h).trim());
@@ -295,7 +297,6 @@ export async function POST(req: NextRequest) {
             }
         });
     } catch (error) {
-        console.error('Import error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return handleApiError(error);
     }
 }
