@@ -10,12 +10,10 @@
  * - Authentication middleware validates socket connections
  */
 
-// Load environment variables from .env.local
 import { config } from 'dotenv';
 import { resolve } from 'path';
-console.log('[Server] 🏁 Starting server script...');
+
 config({ path: resolve(process.cwd(), '.env.local') });
-console.log('[Server] 🌍 Environment variables loaded');
 
 import { createServer } from 'http';
 import { parse } from 'url';
@@ -39,9 +37,7 @@ const port = parseInt(process.env.PORT || '3000', 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-console.log('[Server] 🏗️ Preparing Next.js app...');
 app.prepare().then(() => {
-    console.log('[Server] ✅ Next.js app prepared');
     // Create HTTP server
     const httpServer = createServer(async (req, res) => {
         try {
@@ -139,8 +135,8 @@ app.prepare().then(() => {
     });
 
     httpServer.listen(port, () => {
-        console.log(`[Server] 🚀 Ready on http://${hostname}:${port}`);
-        console.log(`[Server] 📡 Socket.io server running on port ${port}`);
+        console.log(`> Ready on http://${hostname}:${port}`);
+        console.log(`> Socket.io server running on port ${port}`);
 
         // Initialize WhatsApp client using factory (load from DB persistence)
         WhatsAppProviderFactory.getProvider().then(async (provider) => {
