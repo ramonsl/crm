@@ -5,14 +5,14 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useToast } from '@/contexts/ToastContext';
 import { useContacts } from '@/hooks/useContacts';
 import { useContactsFilters } from '@/hooks/useContactsFilters';
 import { useContactsSelection } from '@/hooks/useContactsSelection';
-import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus';
 import { useContactsActions } from '@/hooks/useContactsActions';
 import { useVisibleColumns } from '@/hooks/useVisibleColumns';
+import { useContactsFiltersData } from '@/hooks/useContactsFiltersData';
+import { useContactsTags } from '@/hooks/useContactsTags';
+import { useContactModals } from '@/hooks/useContactModals';
 
 import { ContactsTabs } from './ContactsTabs';
 import { ContactsFilters } from './ContactsFilters';
@@ -41,131 +41,28 @@ export function ContactsTable({
     view = 'all',
     showTabs = true
 }: ContactsTableProps) {
-    const { success, error: toastError } = useToast();
     const { filters, updateFilter, updateFilters, resetFilters } = useContactsFilters({ page: 1, limit: 25 });
     const { contacts, loading, error, totalPages, totalCount, currentPage, refresh } = useContacts(view, filters);
     const { selected, toggleSelect, toggleSelectAll, clearSelection, isSelected, isAllSelected, selectedCount } = useContactsSelection();
 
-    // Actions hook
-    const {
-        comercialPhone,
-        comercialName,
-        deleteConfirmContact,
-        handleExport,
-        handleForwardToComercial,
-        handleDelete,
-        cancelDelete,
-        confirmDelete
-    } = useContactsActions({ refresh });
+    const { availableStatuses, availableSemesters, availableCourses } = useContactsFiltersData();
+    const { leadTags, updateLeadTags } = useContactsTags(contacts);
+    const { modals, selectedContact, closeModal, handleEdit, handleSendMessage, handleViewTimeline, handleCreate, handleBulkMessage } = useContactModals();
 
-    const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
-    const [availableSemesters, setAvailableSemesters] = useState<string[]>([]);
-    const [availableCourses, setAvailableCourses] = useState<string[]>([]);
-
-    // Visible columns management
     const { visibleColumns, toggleColumn, resetColumns } = useVisibleColumns();
+    const { comercialPhone, comercialName, deleteConfirmContact, handleExport, handleForwardToComercial, handleDelete, cancelDelete, confirmDelete } = useContactsActions({ refresh });
 
-    // Modal state
-    const [editModalOpen, setEditModalOpen] = useState(false);
-    const [createModalOpen, setCreateModalOpen] = useState(false);
-    const [messageModalOpen, setMessageModalOpen] = useState(false);
-    const [bulkMessageModalOpen, setBulkMessageModalOpen] = useState(false);
-    const [timelineModalOpen, setTimelineModalOpen] = useState(false);
-    const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-
-    // Tags state - map of CPF to tags
-    const [leadTags, setLeadTags] = useState<Map<string, Tag[]>>(new Map());
-
-    // Fetch available filter options from database
-    useEffect(() => {
-        const fetchFilters = async () => {
-            try {
-                const res = await fetch('/api/filters');
-                const data = await res.json();
-
-                if (data.statuses) {
-                    setAvailableStatuses(data.statuses);
-                }
-                if (data.semesters) {
-                    setAvailableSemesters(data.semesters);
-                }
-                if (data.courses) {
-                    setAvailableCourses(data.courses);
-                }
-            } catch (error) {
-                console.error('Error fetching filters:', error);
-            }
-        };
-
-        fetchFilters();
-    }, []);
-
-    // Load tags for all contacts
-    useEffect(() => {
-        const loadTagsForContacts = async () => {
-            if (contacts.length === 0) return;
-
-            const tagsMap = new Map<string, Tag[]>();
-
-            // Load tags for each contact
-            await Promise.all(
-                contacts.map(async (contact) => {
-                    try {
-                        const response = await fetch(`/api/leads/${contact.cpf}/tags`);
-                        if (response.ok) {
-                            const data = await response.json();
-                            tagsMap.set(contact.cpf, data.data || []);
-                        }
-                    } catch (error) {
-                        console.error(`Error loading tags for ${contact.cpf}:`, error);
-                    }
-                })
-            );
-
-            setLeadTags(tagsMap);
-        };
-
-        loadTagsForContacts();
-    }, [contacts]);
-
-    const handleSendMessage = (contact: Contact) => {
-        setSelectedContact(contact);
-        setMessageModalOpen(true);
-    };
-
-    const handleEdit = (contact: Contact) => {
-        setSelectedContact(contact);
-        setEditModalOpen(true);
-    };
-
-    const handleViewTimeline = (contact: Contact) => {
-        setSelectedContact(contact);
-        setTimelineModalOpen(true);
-    };
-
-    if (error) {
-        return (
-            <div className={styles.error}>
-                <p>Erro ao carregar contatos: {error}</p>
-                <button onClick={refresh}>Tentar novamente</button>
-            </div>
-        );
-    }
+    if (error) return <div className={styles.error}><p>Erro: {error}</p><button onClick={refresh}>Tentar</button></div>;
 
     return (
         <div className={styles.container}>
             {showTabs && <ContactsTabs activeView={view} />}
 
-            {/* Header */}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
                     <h2>Contatos</h2>
                     {selectedCount > 0 && (
-                        <div
-                            className={styles.selectionInfo}
-                            onClick={clearSelection}
-                            title="Clique para desselecionar todos"
-                        >
+                        <div className={styles.selectionInfo} onClick={clearSelection}>
                             <span>{selectedCount} selecionado(s)</span>
                             <X size={14} />
                         </div>
@@ -174,169 +71,39 @@ export function ContactsTable({
                 <div className={styles.headerActions}>
                     {selectedCount > 0 && (
                         <>
-                            <button
-                                className={styles.bulkActionButton}
-                                onClick={() => handleExport(selected)}
-                                title="Exportar contatos selecionados para CSV"
-                            >
-                                <Download size={18} />
-                                Exportar CSV ({selectedCount})
-                            </button>
-
-                            <button
-                                className={styles.bulkActionButton}
-                                onClick={() => setBulkMessageModalOpen(true)}
-                                title="Enviar mensagem para selecionados"
-                            >
-                                <MessageSquare size={18} />
-                                Enviar Mensagem ({selectedCount})
-                            </button>
+                            <button className={styles.bulkActionButton} onClick={() => handleExport(selected)}><Download size={18} /> Exportar CSV</button>
+                            <button className={styles.bulkActionButton} onClick={handleBulkMessage}><MessageSquare size={18} /> Enviar Mensagem</button>
                         </>
                     )}
-                    <button onClick={() => setCreateModalOpen(true)} className={styles.newContactButton}>
-                        <UserPlus size={18} />
-                        Novo Contato
-                    </button>
-                    <button onClick={refresh} className={styles.iconButton} title="Atualizar">
-                        <RefreshCw size={18} className={loading ? styles.spinning : ''} />
-                    </button>
-
-                    <ColumnSelector
-                        visibleColumns={visibleColumns}
-                        onToggle={toggleColumn}
-                        onReset={resetColumns}
-                    />
-                    {selectedCount > 0 && (
-                        <span className={styles.selectedCount}>
-                            {selectedCount} selecionado{selectedCount > 1 ? 's' : ''}
-                        </span>
-                    )}
+                    <button onClick={handleCreate} className={styles.newContactButton}><UserPlus size={18} /> Novo Contato</button>
+                    <button onClick={refresh} className={styles.iconButton}><RefreshCw size={18} className={loading ? styles.spinning : ''} /></button>
+                    <ColumnSelector visibleColumns={visibleColumns} onToggle={toggleColumn} onReset={resetColumns} />
                 </div>
             </div>
 
-            {/* Filters */}
-            <ContactsFilters
-                filters={filters}
-                onFilterChange={updateFilter}
-                onReset={resetFilters}
-                availableStatuses={availableStatuses}
-                availableSemesters={availableSemesters}
-                availableCourses={availableCourses}
-            />
+            <ContactsFilters filters={filters} onFilterChange={updateFilter} onReset={resetFilters} availableStatuses={availableStatuses} availableSemesters={availableSemesters} availableCourses={availableCourses} />
 
-            {/* Table */}
             <div className={styles.tableContainer}>
                 <table className={styles.table}>
-                    <ContactsTableHeader
-                        contacts={contacts}
-                        visibleColumns={visibleColumns}
-                        filters={filters}
-                        updateFilters={updateFilters}
-                        isAllSelected={isAllSelected}
-                        toggleSelectAll={toggleSelectAll}
-                    />
+                    <ContactsTableHeader contacts={contacts} visibleColumns={visibleColumns} filters={filters} updateFilters={updateFilters} isAllSelected={isAllSelected} toggleSelectAll={toggleSelectAll} />
                     <tbody>
-                        {loading ? (
-                            <tr>
-                                <td colSpan={9} className={styles.loading}>
-                                    Carregando...
-                                </td>
-                            </tr>
-                        ) : contacts.length === 0 ? (
-                            <tr>
-                                <td colSpan={9} className={styles.empty}>
-                                    Nenhum contato encontrado
-                                </td>
-                            </tr>
-                        ) : (
-                            contacts.map((contact) => (
-                                <ContactsTableRow
-                                    key={contact.cpf}
-                                    contact={contact}
-                                    isSelected={isSelected(contact.cpf)}
-                                    visibleColumns={visibleColumns}
-                                    tags={leadTags.get(contact.cpf) || []}
-                                    comercialPhone={comercialPhone}
-                                    comercialName={comercialName}
-                                    onSelect={toggleSelect}
-                                    onTagsChange={(newTags) => {
-                                        const updatedMap = new Map(leadTags);
-                                        updatedMap.set(contact.cpf, newTags);
-                                        setLeadTags(updatedMap);
-                                    }}
-                                    onSendMessage={handleSendMessage}
-                                    onEdit={handleEdit}
-                                    onViewTimeline={handleViewTimeline}
-                                    onDelete={handleDelete}
-                                    onForwardToComercial={handleForwardToComercial}
-                                    onSyncComplete={refresh}
-                                />
-                            ))
-                        )}
+                        {loading ? <tr><td colSpan={9} className={styles.loading}>Carregando...</td></tr> :
+                            contacts.length === 0 ? <tr><td colSpan={9} className={styles.empty}>Nenhum contato encontrado</td></tr> :
+                                contacts.map(c => (
+                                    <ContactsTableRow key={c.cpf} contact={c} isSelected={isSelected(c.cpf)} visibleColumns={visibleColumns} tags={leadTags.get(c.cpf) || []} comercialPhone={comercialPhone} comercialName={comercialName} onSelect={toggleSelect} onTagsChange={(tags) => updateLeadTags(c.cpf, tags)} onSendMessage={handleSendMessage} onEdit={handleEdit} onViewTimeline={handleViewTimeline} onDelete={handleDelete} onForwardToComercial={handleForwardToComercial} onSyncComplete={refresh} />
+                                ))}
                     </tbody>
                 </table>
             </div>
 
-            {/* Pagination */}
-            <ContactsPagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalCount={totalCount}
-                pageSize={filters.limit || 25}
-                onPageChange={(page) => updateFilter('page', page)}
-                onPageSizeChange={(size) => updateFilters({ limit: size, page: 1 })}
-            />
+            <ContactsPagination currentPage={currentPage} totalPages={totalPages} totalCount={totalCount} pageSize={filters.limit || 25} onPageChange={(p) => updateFilter('page', p)} onPageSizeChange={(s) => updateFilters({ limit: s, page: 1 })} />
 
-            {/* Modals */}
-            <ContactEditModal
-                contact={selectedContact}
-                isOpen={editModalOpen}
-                onClose={() => setEditModalOpen(false)}
-                onSave={(updatedContact) => {
-                    refresh();
-                    setEditModalOpen(false);
-                }}
-            />
-
-            <ContactEditModal
-                contact={null}
-                isOpen={createModalOpen}
-                onClose={() => setCreateModalOpen(false)}
-                onSave={(newContact) => {
-                    refresh();
-                    setCreateModalOpen(false);
-                }}
-            />
-
-            <MessageModal
-                contact={selectedContact}
-                isOpen={messageModalOpen}
-                onClose={() => setMessageModalOpen(false)}
-                onSent={() => {
-                    refresh();
-                }}
-            />
-
-            <ActivityTimeline
-                contact={selectedContact}
-                isOpen={timelineModalOpen}
-                onClose={() => setTimelineModalOpen(false)}
-            />
-
-            <BulkMessageModal
-                contacts={contacts.filter(c => isSelected(c.cpf))}
-                isOpen={bulkMessageModalOpen}
-                onClose={() => setBulkMessageModalOpen(false)}
-                onComplete={() => {
-                    refresh();
-                }}
-            />
-
-            <ContactsDeleteModal
-                contact={deleteConfirmContact}
-                onCancel={cancelDelete}
-                onConfirm={confirmDelete}
-            />
+            <ContactEditModal contact={selectedContact} isOpen={modals.edit} onClose={() => closeModal('edit')} onSave={() => { refresh(); closeModal('edit'); }} />
+            <ContactEditModal contact={null} isOpen={modals.create} onClose={() => closeModal('create')} onSave={() => { refresh(); closeModal('create'); }} />
+            <MessageModal contact={selectedContact} isOpen={modals.message} onClose={() => closeModal('message')} onSent={refresh} />
+            <ActivityTimeline contact={selectedContact} isOpen={modals.timeline} onClose={() => closeModal('timeline')} />
+            <BulkMessageModal contacts={contacts.filter(c => isSelected(c.cpf))} isOpen={modals.bulkMessage} onClose={() => closeModal('bulkMessage')} onComplete={refresh} />
+            <ContactsDeleteModal contact={deleteConfirmContact} onCancel={cancelDelete} onConfirm={confirmDelete} />
         </div >
     );
 }
