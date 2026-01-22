@@ -5,7 +5,8 @@
  * Migrado de index.ts para seguir padrão de abstração
  */
 
-import { Client, LocalAuth, Message as WWebMessage } from 'whatsapp-web.js';
+import { Client, RemoteAuth, Message as WWebMessage } from 'whatsapp-web.js';
+import { PostgresStore } from '../store/PostgresStore';
 import * as QRCode from 'qrcode';
 import { whatsappLogger } from '@/lib/logger';
 import { emitWhatsAppStatus } from '@/lib/socket/emitter';
@@ -113,7 +114,10 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
 
             console.log('[WWebJS] 🏗️ Creating new Client instance');
             const client = new Client({
-                authStrategy: new LocalAuth({
+                authStrategy: new RemoteAuth({
+                    clientId: 'main-production',
+                    store: new PostgresStore(),
+                    backupSyncIntervalMs: 600000,
                     dataPath: sessionPath
                 }),
                 puppeteer: {

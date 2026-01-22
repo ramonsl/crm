@@ -2,131 +2,71 @@
 trigger: always_on
 ---
 
-# Regras Específicas do Projeto CRM Educacional – Antigravity Rules
+# 🚀 Regras Específicas: CRM Educacional (ADS)
 
-
-## 🚀 Visão Rápida do Projeto
-- **Nome:** CRM Educacional (ADS)
-- **Objetivo:** Gerenciar leads e alunos via WhatsApp, controlar funil de vendas e agendamentos.
-- **Deploy:** Railway (ambiente efêmero/stateless – nada de gravação em disco fora de `/tmp`)
-- **Branch principal:** `main`
+## 📌 Visão Geral
+- **Projeto:** CRM Educacional para gestão de leads e alunos via WhatsApp.
+- **Ambiente:** Deploy no **Railway** (Ambiente Stateless).
+- **Diretriz Principal:** O sistema deve ser resiliente, seguro e seguir rigorosamente a arquitetura de camadas para facilitar a manutenção e escalabilidade.
 
 ---
 
-## 🛠️ Stack Obrigatória
-- Next.js 14+ com App Router
-- TypeScript (nada de JavaScript puro)
-- PostgreSQL no Neon
-- Queries com driver `pg` (SQL manual ou QueryBuilder customizado – NÃO use ORM completo como Prisma)
-- Tailwind CSS + Lucide Icons
-- whatsapp-web.js rodando no backend
-- Testes com Jest
+## 🛠️ Stack Técnica Obrigatória
+- **Framework:** Next.js 14+ (App Router).
+- **Linguagem:** TypeScript (Strict Mode).
+- **Banco de Dados:** PostgreSQL (Neon.tech).
+- **Acesso ao Banco:** Driver `pg` (SQL Manual / Prepared Statements). **Proibido ORMs pesados.**
+- **Estilização:** Tailwind CSS + Lucide Icons.
+- **WhatsApp:** Abstração de Provider (atualmente implementado com whatsapp-web.js).
+- **Validação:** Zod (Obrigatório para payloads e schemas).
+- **Testes:** Jest & Playwright.
 
 ---
 
-## 🏗️ Regras Específicas do Projeto (OBRIGATÓRIAS)
+## 🏗️ Arquitetura e Regras de Ouro
 
-### 1. Banco de Dados e Migrações
-- **Toda alteração no schema DEVE ser feita via migration.**
-- Use o comando: `npm run migrate:create -- nome-da-mudanca`
-- Crie arquivos em `/migrations/` com `up` e `down`.
-- Sempre torne as migrations idempotentes (`IF NOT EXISTS`, etc.).
-- Nunca altere o banco manualmente ou só no arquivo `src/lib/db.ts`.
-- Teste localmente com `npm run migrate:test` antes de mergear.
+### 1. Camadas do Sistema (Fluxo Obrigatório)
+NUNCA acesse o banco de dados diretamente de componentes ou rotas de API.
+1.  **`/app/api` (Handlers):** Validação de entrada (Zod) e resposta HTTP.
+2.  **`/services` (Business Logic):** Regras de negócio e orquestração.
+3.  **`/repositories` (Data Access):** Consultas SQL puras usando o driver `pg`.
+4.  **`/lib/db`:** Configuração da pool de conexão.
 
-### 2. Identificação de Leads
-- **CPF é a chave primária preferencial.**
-- Quando CPF não existir → use o telefone (celular limpo, sem máscara) como identificador único.
-- Sempre normalize o telefone antes de salvar (remova caracteres não numéricos).
+### 2. Banco de Dados e Migrations
+- **Imutabilidade:** Nunca altere o banco manualmente. Use `npm run migrate:create -- nome`.
+- **Segurança:** Use obrigatoriamente **Prepared Statements** ($1, $2) para evitar SQL Injection.
+- **Performance:** Proibido queries em loops. Use `JOINs` ou cláusulas `IN`.
 
-### 3. Arquitetura de Camadas (OBRIGATÓRIO)
-- **Nunca chame o banco direto de rotas ou componentes.**
-- Fluxo correto:
-  `/app/api` (rota magra)  
-  → chama `/services` (lógica de negócio)  
-  → chama `/repositories` (acesso ao banco)  
-  → `/lib/db` (conexão única)
-- Serviços devem ser puros e sem acoplamento com Next.js.
+### 3. Gestão de Leads e LGPD
+- **Identificador:** CPF é a PK preferencial. Na ausência, use o telefone (apenas números).
+- **Privacidade:** Aplique máscaras em dados sensíveis (CPF) em logs e interfaces públicas.
 
-## 4 🔌 WhatsApp Provider Interface
-### Regra Obrigatória: Abstração de Provider
-**NUNCA** importe diretamente de `baileys.ts` ou `index.ts` (wwebjs).
-**SEMPRE** use a interface `IWhatsAppProvider` através da factory:
-\`\`\`typescript
-// ❌ ERRADO
-import { sendBaileysMessage } from '@/lib/whatsapp/baileys';
-// ✅ CORRETO
-import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
-const provider = await WhatsAppProviderFactory.getProvider();
-await provider.sendTextMessage(phone, message);
-\`\`\`
-### Métodos Disponíveis
-- **Lifecycle:** `initialize()`, `restart()`, `logout()`, `clearSession()`
-- **Status:** `getStatus()`, `isReady()`
-- **Mensagens Texto:** `sendTextMessage()`
-- **Mensagens Mídia:** `sendImage()`, `sendVideo()`, `sendAudio()`, `sendDocument()`
-- **Mensagens Genérica:** `sendMessage()` (detecta tipo automaticamente)
-- **Contatos:** `getProfilePicture()`, `validateNumber()`, `getContactInfo()`
-- **Eventos:** `onMessage()`, `onStatusChange()`
-### Seleção de Provider
-Provider é selecionado ao **conectar** via UI (`/whatsapp`).
-**NÃO** usar variável de ambiente `WHATSAPP_PROVIDER` (deprecado).
+### 4. Integração WhatsApp (Obrigatório: Provider Interface)
+- **Proibição de Import Direto:** NUNCA importe `whatsapp-web.js` em serviços ou rotas.
+- **Factory Pattern:** Utilize sempre `WhatsAppProviderFactory.getProvider()`.
+- **Interface:** Toda comunicação deve respeitar o contrato da interface `IWhatsAppProvider`.
+- **Stateless Auth:** A persistência da sessão deve ser externa (Banco de Dados/Redis), pois o disco do Railway é efêmero.
 
-### 5. Segredos e Variáveis de Ambiente
-- **NUNCA comite valores reais.**
-- Tudo em `.env.local` (já está no .gitignore).
-- Mantenha `.env.example` sempre atualizado com placeholders claros:
-
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-NEXT_PUBLIC_WHATSAPP_NUMBER=5511999999999
-
-
-### 6. Testes
-- Toda nova rota, serviço ou repository deve ter testes Jest.
-- Rode `npm test` antes de qualquer commit final.
-- Não quebre testes existentes.
-
-### 7. Git e Fluxo de Entrega
-- Branches:
-- `feat/nome-da-feature`
-- `fix/nome-do-bug`
-- `chore/nome`
-- Commit messages em português, no imperativo.
-- Sempre adicione `Closes #número` no último commit se houver issue.
-- Nunca comite direto na `main`.
-- Crie Merge Request para `main` → após aprovação, merge → Railway faz deploy automático.
-
-### 8. README
-- Sempre atualize o README quando:
-- Adicionar nova variável de ambiente
-- Criar novo comando npm
-- Mudar fluxo de uso ou configuração
-- Adicionar nova funcionalidade importante
+### 5. Validação e Erros
+- **Zod:** Todo `request.json()` deve ser validado por um schema Zod.
+- **Erros:** Use a classe `AppError` para erros de negócio e retorne status codes semânticos.
 
 ---
 
-## ✅ Checklist Final de Toda Tarefa (o Antigravity vai cobrar isso)
-- [ ] Migração criada e idempotente (se mexeu no banco)
-- [ ] Código compatível com Railway (stateless, /tmp, process.env.PORT)
-- [ ] Camadas respeitadas (rota → service → repository)
-- [ ] README atualizado se necessário
-- [ ] `.env.example` sincronizado com placeholders
-- [ ] Nenhum segredo commitado
-- [ ] Todos os testes passando (`npm test`)
-- [ ] Issue referenciada (`Closes #123`)
-- [ ] Merge Request criado para `main`
+## ✅ Checklist de Definição de "Pronto" (DoD)
+- [ ] **Validação:** Payload validado com Zod?
+- [ ] **Arquitetura:** Fluxo Rota → Service → Repository respeitado?
+- [ ] **Segurança:** Query SQL usa parâmetros? Sem segredos no código?
+- [ ] **Migrations:** Criou arquivo de up/down? É idempotente?
+- [ ] **WhatsApp:** Usou a Factory? Existe algum import proibido da lib base?
+- [ ] **Stateless:** O código depende de arquivos locais permanentes?
+- [ ] **Testes:** `npm test` passou com 100% de cobertura no novo código?
 
 ---
 
-## 📢 Instruções para o Antigravity
-Você é um engenheiro full-stack sênior especialista neste CRM.
+## 📢 Instruções ao Agente Antigravity
+Você é um **Engenheiro de Software Sênior**. Seja rigoroso.
 
-- Seja extremamente rigoroso com as regras acima.
-- Sempre verifique o checklist antes de considerar uma tarefa finalizada.
-- Detecte proativamente violações (ex: query SQL em rota, falta de migration, segredo no código).
-- Toda mensagem, comentário, sugestão ou orientação ao usuário deve ser em **português brasileiro**, clara e objetiva.
-- Priorize qualidade, segurança e manutenibilidade acima de tudo.
-
-Essas são as regras específicas do projeto CRM Educacional. Respeite-as em todas as interações.
-
----
+1. **Barre acoplamento:** Se encontrar um import de `whatsapp-web.js` fora da pasta `/lib/whatsapp`, peça a correção imediata para usar a Factory.
+2. **Didática:** Explique por que a abstração é importante (troca de tecnologia sem downtime de desenvolvimento).
+3. **Idioma:** Responda sempre em **Português Brasileiro**.

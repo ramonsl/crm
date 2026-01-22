@@ -24,6 +24,7 @@ const isTest = process.env.NODE_ENV === 'test';
 const defaultConfig = {
     debugEnabled: isDevelopment && !isTest,
     timestamps: false,
+    redact: ['apiKey', 'password', 'token', 'secret', '*.apiKey', '*.password', '*.token', '*.secret'],
 };
 /**
  * Format a log message with optional prefix and timestamp
@@ -47,6 +48,7 @@ function createLogger(config = {}) {
          */
         debug: (...args) => {
             if (finalConfig.debugEnabled) {
+                // eslint-disable-next-line no-console
                 console.log(...formatMessage('debug', finalConfig.prefix, args));
             }
         },
@@ -55,6 +57,7 @@ function createLogger(config = {}) {
          * Use for important operational information
          */
         info: (...args) => {
+            // eslint-disable-next-line no-console
             console.log(...formatMessage('info', finalConfig.prefix, args));
         },
         /**
@@ -62,6 +65,7 @@ function createLogger(config = {}) {
          * Use for potential issues that don't break functionality
          */
         warn: (...args) => {
+            // eslint-disable-next-line no-console
             console.warn(...formatMessage('warn', finalConfig.prefix, args));
         },
         /**
@@ -69,6 +73,7 @@ function createLogger(config = {}) {
          * Use for errors and exceptions
          */
         error: (...args) => {
+            // eslint-disable-next-line no-console
             console.error(...formatMessage('error', finalConfig.prefix, args));
         },
         /**

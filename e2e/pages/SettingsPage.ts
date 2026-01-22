@@ -47,19 +47,19 @@ export class SettingsPage {
         this.integrationsTab = page.getByRole('button', { name: /integra/i });
         this.dataTab = page.getByRole('button', { name: /dados/i });
 
-        // Tab Geral - Usando seletores por tipo e placeholder
-        this.apiKeyInput = page.locator('input[type="password"][placeholder*="sk-"]');
-        this.minDelayInput = page.locator('input[type="number"]').first();
-        this.maxDelayInput = page.locator('input[type="number"]').nth(1);
-        this.metaMatriculasInput = page.locator('input[type="number"]').nth(2);
-        this.comercialNameInput = page.locator('input[placeholder*="Nome do comercial"]');
-        this.comercialPhoneInput = page.locator('input[placeholder*="5511999999999"]');
-        this.generalSaveButton = page.getByRole('button', { name: /salvar configurações/i });
+        // Tab Geral - Usando seletores por ID explícito
+        this.apiKeyInput = page.locator('#openaiApiKey');
+        this.minDelayInput = page.locator('#minDelay');
+        this.maxDelayInput = page.locator('#maxDelay');
+        this.metaMatriculasInput = page.locator('#metaMatriculas');
+        this.comercialNameInput = page.locator('#comercialName');
+        this.comercialPhoneInput = page.locator('#comercialPhone');
+        this.generalSaveButton = page.getByRole('button', { name: 'Salvar Configurações', exact: true });
         this.generalUnsavedIndicator = page.getByText(/alterações não salvas/i);
 
         // Tab Status
-        this.newStatusNameInput = page.locator('input[placeholder*="novo status"]');
-        this.newStatusColorInput = page.locator('input[type="color"]').first();
+        this.newStatusNameInput = page.locator('#newStatusName');
+        this.newStatusColorInput = page.locator('#newStatusColor');
         this.addStatusButton = page.getByRole('button', { name: /adicionar/i });
 
         // Tab Integrações
@@ -80,6 +80,7 @@ export class SettingsPage {
 
     async goToGeneralTab() {
         await this.generalTab.click();
+        await this.page.getByText(/carregando/i).waitFor({ state: 'hidden', timeout: 10000 }).catch(() => { });
     }
 
     async goToStatusTab() {

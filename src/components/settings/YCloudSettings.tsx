@@ -27,8 +27,14 @@ export function YCloudSettings() {
     const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
     // Controle de mudanças não salvas
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [initialValues, setInitialValues] = useState({ apiKey: '', wabaId: '', phoneId: '' });
+
+    // Cálculo de mudanças não salvas como estado derivado
+    const hasUnsavedChanges = !loading ? (
+        apiKey !== initialValues.apiKey ||
+        wabaId !== initialValues.wabaId ||
+        phoneId !== initialValues.phoneId
+    ) : false;
 
     useEffect(() => {
         fetch('/api/settings')
@@ -46,17 +52,6 @@ export function YCloudSettings() {
             })
             .finally(() => setLoading(false));
     }, []);
-
-    // Detectar mudanças nos campos
-    useEffect(() => {
-        if (!loading) {
-            const changed =
-                apiKey !== initialValues.apiKey ||
-                wabaId !== initialValues.wabaId ||
-                phoneId !== initialValues.phoneId;
-            setHasUnsavedChanges(changed);
-        }
-    }, [apiKey, wabaId, phoneId, initialValues, loading]);
 
     const handleSave = async () => {
         if (!apiKey || !wabaId || !phoneId) {
@@ -79,7 +74,6 @@ export function YCloudSettings() {
             if (res.ok) {
                 toastSuccess('Credenciais YCloud salvas!');
                 setInitialValues({ apiKey, wabaId, phoneId });
-                setHasUnsavedChanges(false);
             } else {
                 toastError('Erro ao salvar credenciais');
             }

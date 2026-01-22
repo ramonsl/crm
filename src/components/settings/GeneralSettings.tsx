@@ -17,8 +17,15 @@ export function GeneralSettings() {
     const [comercialPhone, setComercialPhone] = useState('');
     const [comercialName, setComercialName] = useState('');
 
-    // Controle de mudanças não salvas
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    // Cálculo de mudanças não salvas como estado derivado (mais robusto que useEffect)
+    const hasUnsavedChanges = !loading && settings ? (
+        apiKey !== (settings.openaiApiKey || '') ||
+        minDelay !== (settings.minDelay || 30) ||
+        maxDelay !== (settings.maxDelay || 60) ||
+        metaMatriculas !== (settings.metaMatriculas || 0) ||
+        comercialPhone !== (settings.comercialPhone || '') ||
+        comercialName !== (settings.comercialName || '')
+    ) : false;
 
     const [saving, setSaving] = useState(false);
     const [syncingPics, setSyncingPics] = useState(false);
@@ -26,32 +33,19 @@ export function GeneralSettings() {
     const [picsResults, setPicsResults] = useState<SyncResults | null>(null);
     const [historyResults, setHistoryResults] = useState<SyncResults | null>(null);
 
-    // Sincronizar estados quando dados do banco chegarem
+    // Sincronizar estados quando dados do banco chegarem (Apenas inicialização)
+    const [initialized, setInitialized] = useState(false);
     useEffect(() => {
-        if (!loading && settings) {
+        if (!loading && settings && !initialized) {
             setApiKey(settings.openaiApiKey || '');
             setMinDelay(settings.minDelay || 30);
             setMaxDelay(settings.maxDelay || 60);
             setMetaMatriculas(settings.metaMatriculas || 0);
             setComercialPhone(settings.comercialPhone || '');
             setComercialName(settings.comercialName || '');
-            setHasUnsavedChanges(false);
+            setInitialized(true);
         }
-    }, [settings, loading]);
-
-    // Detectar mudanças nos campos
-    useEffect(() => {
-        if (!loading && settings) {
-            const changed =
-                apiKey !== (settings.openaiApiKey || '') ||
-                minDelay !== (settings.minDelay || 30) ||
-                maxDelay !== (settings.maxDelay || 60) ||
-                metaMatriculas !== (settings.metaMatriculas || 0) ||
-                comercialPhone !== (settings.comercialPhone || '') ||
-                comercialName !== (settings.comercialName || '');
-            setHasUnsavedChanges(changed);
-        }
-    }, [apiKey, minDelay, maxDelay, metaMatriculas, comercialPhone, comercialName, settings, loading]);
+    }, [settings, loading, initialized]);
 
     // Salvar todas as configurações de uma vez
     const handleSaveAll = async () => {
@@ -75,7 +69,6 @@ export function GeneralSettings() {
                 updateSetting('comercialName', comercialName),
                 updateSetting('comercialPhone', comercialPhone),
             ]);
-            setHasUnsavedChanges(false);
         } finally {
             setSaving(false);
         }
@@ -109,6 +102,10 @@ export function GeneralSettings() {
         }
     };
 
+    if (loading) {
+        return <div className={styles.container}>Carregando configurações...</div>;
+    }
+
     return (
         <div className={styles.container}>
             {/* OpenAI API Key */}
@@ -116,6 +113,7 @@ export function GeneralSettings() {
                 <h3 className={styles.sectionTitle}>Chave API OpenAI</h3>
                 <div className={styles.inputGroup}>
                     <input
+                        id="openaiApiKey"
                         type="password"
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
@@ -132,6 +130,7 @@ export function GeneralSettings() {
                     <div className={styles.field}>
                         <label className={styles.label}>Mínimo</label>
                         <input
+                            id="minDelay"
                             type="number"
                             value={minDelay}
                             onChange={(e) => setMinDelay(Number(e.target.value))}
@@ -141,6 +140,7 @@ export function GeneralSettings() {
                     <div className={styles.field}>
                         <label className={styles.label}>Máximo</label>
                         <input
+                            id="maxDelay"
                             type="number"
                             value={maxDelay}
                             onChange={(e) => setMaxDelay(Number(e.target.value))}
@@ -155,6 +155,7 @@ export function GeneralSettings() {
                 <h3 className={styles.sectionTitle}>Meta de Matrículas</h3>
                 <div className={styles.inputGroup}>
                     <input
+                        id="metaMatriculas"
                         type="number"
                         value={metaMatriculas}
                         onChange={(e) => setMetaMatriculas(Number(e.target.value))}
@@ -169,6 +170,7 @@ export function GeneralSettings() {
                 <div className={styles.field}>
                     <label className={styles.label}>Nome</label>
                     <input
+                        id="comercialName"
                         type="text"
                         value={comercialName}
                         onChange={(e) => setComercialName(e.target.value)}
@@ -179,6 +181,7 @@ export function GeneralSettings() {
                 <div className={styles.field}>
                     <label className={styles.label}>Telefone</label>
                     <input
+                        id="comercialPhone"
                         type="text"
                         value={comercialPhone}
                         onChange={(e) => setComercialPhone(e.target.value)}

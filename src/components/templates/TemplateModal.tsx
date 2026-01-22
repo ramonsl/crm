@@ -141,7 +141,7 @@ export default function TemplateModal({ template, open, onClose, onSuccess }: Te
                         <button type="button" className={styles.secondaryButton} onClick={onClose} disabled={loading}>
                             Cancelar
                         </button>
-                        <button type="submit" className={styles.primaryButton} disabled={loading}>
+                        <button type="submit" className={styles.primaryButton} disabled={loading || !formData.name.trim() || !formData.message.trim()}>
                             {loading ? 'Salvando...' : 'Salvar'}
                         </button>
                     </div>
