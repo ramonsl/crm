@@ -51,6 +51,12 @@ NUNCA acesse o banco de dados diretamente de componentes ou rotas de API.
 - **Zod:** Todo `request.json()` deve ser validado por um schema Zod.
 - **Erros:** Use a classe `AppError` para erros de negócio e retorne status codes semânticos.
 
+### 6. Gestão de Branches e Deploy
+- **main:** Branch de produção. Apenas merge de `develop` após validação. Dispara deploy para Railway.
+- **develop:** Branch de integração. Recebe merges de features e correções.
+- **feat/fix/refactor/chore:** Branches temporárias, sempre criadas a partir de `develop`.
+- **Merge:** É proibido mergear diretamente na `main` sem passar pela `develop` e validação de testes.
+
 ---
 
 ## ✅ Checklist de Definição de "Pronto" (DoD)
