@@ -7,13 +7,13 @@
 
 import makeWASocket, {
     DisconnectReason,
-    useMultiFileAuthState,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
     WASocket,
     downloadMediaMessage,
     proto
 } from '@whiskeysockets/baileys';
+import { usePostgresAuthState } from '../store/BaileysPostgresAuth';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -145,12 +145,13 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
         try {
             whatsappLogger.info('Initializing Baileys WhatsApp Client...');
 
-            // Ensure session directory exists
+            // Ensure session directory exists (kept for compatibility or media cache if needed)
             if (!fs.existsSync(SESSION_PATH)) {
                 fs.mkdirSync(SESSION_PATH, { recursive: true });
             }
 
-            const { state: authState, saveCreds } = await useMultiFileAuthState(SESSION_PATH);
+            // Use Postgres Auth State
+            const { state: authState, saveCreds } = await usePostgresAuthState('main-production');
             const { version, isLatest } = await fetchLatestBaileysVersion();
 
             whatsappLogger.info(`Using Baileys version ${version.join('.')}, isLatest: ${isLatest}`);
