@@ -26,10 +26,25 @@ class MessageHistoryRecorder {
                 INSERT INTO message_history (contact_cpf, template_id, template_name, message_content, status)
                 VALUES ($1, $2, $3, $4, 'sent')
             `, [item.cpf, item.templateId || null, templateName, messageContent]);
+            // Update last_message and last_message_time in leads table
+            await db_1.pool.query(`
+                UPDATE leads 
+                SET last_message = $1, 
+                    last_message_time = NOW()
+                WHERE cpf = $2
+            `, [messageContent, item.cpf]);
             // Only update last_template_name if we have a real template name
             if (item.templateName) {
                 await db_1.pool.query('UPDATE leads SET last_template_name = $1 WHERE cpf = $2', [item.templateName, item.cpf]);
             }
+            // ALSO insert into messages table for Timeline visibility
+            // Generate a unique message ID
+            const messageId = `queue_${item.id}_${Date.now()}`;
+            await db_1.pool.query(`
+                INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type)
+                VALUES ($1, $2, $3, $4, NOW(), 'text')
+                ON CONFLICT (id) DO NOTHING
+            `, [messageId, item.phone, messageContent, true]);
             logger_1.queueLogger.info(`Recorded send: ${item.phone} via ${item.provider || 'whatsappjs'}`);
         }
         catch (error) {

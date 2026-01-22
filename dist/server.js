@@ -58,6 +58,7 @@ const socket_io_1 = require("socket.io");
 const emitter_1 = require("./src/lib/socket/emitter");
 const phoneUtils_1 = require("./src/lib/utils/phoneUtils");
 const factory_1 = require("./src/lib/whatsapp/factory");
+const authMiddleware_1 = require("./src/lib/socket/authMiddleware");
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = process.env.HOSTNAME || 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -89,25 +90,7 @@ app.prepare().then(() => {
     // Register Socket.io server globally for event emission
     (0, emitter_1.setSocketServer)(io);
     // Socket.io authentication middleware
-    io.use(async (socket, next) => {
-        try {
-            // Extract session from handshake (cookies are automatically sent)
-            const cookies = socket.handshake.headers.cookie;
-            if (!cookies) {
-                console.warn('[Socket] No cookies in handshake');
-                return next(new Error('Authentication required'));
-            }
-            // For now, we accept any connection with cookies
-            // In production, validate session token here
-            socket.data.sessionId = 'session-' + Date.now();
-            console.log(`[Socket] Client authenticated: ${socket.id}`);
-            next();
-        }
-        catch (error) {
-            console.error('[Socket] Authentication error:', error);
-            next(new Error('Authentication failed'));
-        }
-    });
+    io.use(authMiddleware_1.socketAuthMiddleware);
     // Socket.io connection handler
     io.on('connection', (socket) => {
         console.log(`[Socket] Client connected: ${socket.id}`);

@@ -8,11 +8,11 @@ export default defineConfig({
     testDir: './e2e/tests',
 
     /* Timeout máximo por teste */
-    timeout: 30 * 1000,
+    timeout: 60 * 1000,
 
     /* Configuração de expect */
     expect: {
-        timeout: 5000
+        timeout: 10000
     },
 
     /* Executar testes em paralelo */

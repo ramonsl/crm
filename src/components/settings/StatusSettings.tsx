@@ -13,6 +13,8 @@ export function StatusSettings() {
     const [editingStatus, setEditingStatus] = useState<StatusItem | null>(null);
     const [newStatusName, setNewStatusName] = useState('');
     const [newStatusColor, setNewStatusColor] = useState('#6b7280');
+    const [statusToDelete, setStatusToDelete] = useState<StatusItem | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         fetchStatuses();
@@ -59,10 +61,14 @@ export function StatusSettings() {
 
     const handleUpdateStatus = async (status: StatusItem) => {
         try {
-            const res = await fetch(`/api/statuses/${status.id}`, {
+            const res = await fetch('/api/statuses', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: status.name, color: status.color })
+                body: JSON.stringify({
+                    id: status.id,
+                    name: status.name,
+                    color: status.color
+                })
             });
 
             if (res.ok) {
@@ -77,19 +83,27 @@ export function StatusSettings() {
         }
     };
 
-    const handleDeleteStatus = async (id: number) => {
-        if (!confirm('Remover este status?')) return;
+    const handleDeleteClick = (status: StatusItem) => {
+        setStatusToDelete(status);
+    };
 
+    const confirmDeleteStatus = async () => {
+        if (!statusToDelete) return;
+
+        setDeleting(true);
         try {
-            const res = await fetch(`/api/statuses/${id}`, { method: 'DELETE' });
+            const res = await fetch(`/api/statuses?id=${statusToDelete.id}`, { method: 'DELETE' });
             if (res.ok) {
                 success('Status removido!');
+                setStatusToDelete(null);
                 fetchStatuses();
             } else {
                 error('Erro ao remover status');
             }
         } catch (err) {
             error('Erro ao remover status');
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -110,6 +124,7 @@ export function StatusSettings() {
             {/* Add New Status */}
             <div className={styles.addForm}>
                 <input
+                    id="newStatusName"
                     type="text"
                     placeholder="Nome do novo status"
                     value={newStatusName}
@@ -117,6 +132,7 @@ export function StatusSettings() {
                     className={styles.input}
                 />
                 <input
+                    id="newStatusColor"
                     type="color"
                     value={newStatusColor}
                     onChange={(e) => setNewStatusColor(e.target.value)}
@@ -136,7 +152,7 @@ export function StatusSettings() {
                     <p className={styles.emptyMessage}>Nenhum status cadastrado</p>
                 ) : (
                     statuses.map((status) => (
-                        <div key={status.id} className={styles.statusItem}>
+                        <div key={status.id} className={styles.statusItem} data-status-name={status.name}>
                             <GripVertical size={16} className={styles.dragHandle} />
 
                             {editingStatus?.id === status.id ? (
@@ -153,7 +169,11 @@ export function StatusSettings() {
                                         onChange={(e) => setEditingStatus({ ...editingStatus, color: e.target.value })}
                                         className={styles.colorPickerSmall}
                                     />
-                                    <button onClick={() => handleUpdateStatus(editingStatus)} className={styles.saveButton}>
+                                    <button
+                                        onClick={() => handleUpdateStatus(editingStatus)}
+                                        className={styles.saveButton}
+                                        aria-label="Salvar Alterações"
+                                    >
                                         <Save size={16} />
                                     </button>
                                     <button onClick={() => setEditingStatus(null)} className={styles.cancelButton}>
@@ -168,10 +188,18 @@ export function StatusSettings() {
                                     />
                                     <span className={styles.statusName}>{status.name}</span>
                                     <div className={styles.actions}>
-                                        <button onClick={() => setEditingStatus(status)} className={styles.editButton}>
+                                        <button
+                                            onClick={() => setEditingStatus(status)}
+                                            className={styles.editButton}
+                                            aria-label="Editar Status"
+                                        >
                                             Editar
                                         </button>
-                                        <button onClick={() => handleDeleteStatus(status.id)} className={styles.deleteButton}>
+                                        <button
+                                            onClick={() => handleDeleteClick(status)}
+                                            className={styles.deleteButton}
+                                            aria-label="Excluir Status"
+                                        >
                                             <Trash2 size={14} />
                                         </button>
                                     </div>
@@ -181,6 +209,36 @@ export function StatusSettings() {
                     ))
                 )}
             </div>
+
+            {/* Modal de Confirmação de Exclusão */}
+            {statusToDelete && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.modal}>
+                        <h3 className={styles.modalTitle}>Excluir Status</h3>
+                        <p className={styles.modalText}>
+                            Tem certeza que deseja excluir o status <strong>{statusToDelete.name}</strong>?
+                            <br />
+                            Esta ação não pode ser desfeita.
+                        </p>
+                        <div className={styles.modalActions}>
+                            <button
+                                onClick={() => setStatusToDelete(null)}
+                                className={styles.cancelButton}
+                                disabled={deleting}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmDeleteStatus}
+                                className={styles.confirmButton}
+                                disabled={deleting}
+                            >
+                                {deleting ? 'Excluindo...' : 'Excluir'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

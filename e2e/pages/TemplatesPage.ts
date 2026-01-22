@@ -23,9 +23,9 @@ export class TemplatesPage {
 
         // ModalSelectors baseados em TemplateModal.tsx IDs
         this.modal = page.locator('.modal, [class*="modal"]').first();
-        this.typeSelect = page.locator('#templateType');
-        this.nameInput = page.locator('#templateName');
-        this.messageInput = page.locator('#templateMessage');
+        this.typeSelect = page.locator('#type');
+        this.nameInput = page.locator('#name');
+        this.messageInput = page.locator('#message');
 
         this.saveButton = page.locator('button[type="submit"]');
         this.cancelButton = page.getByRole('button', { name: /cancelar/i });
@@ -38,7 +38,7 @@ export class TemplatesPage {
 
     async openCreateModal() {
         await this.createButton.click();
-        await this.page.waitForTimeout(500);
+        await this.modal.waitFor({ state: 'visible' });
         await this.nameInput.waitFor({ state: 'visible' });
     }
 

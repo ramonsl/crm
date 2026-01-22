@@ -25,6 +25,10 @@ exports.logoutBaileys = logoutBaileys;
 exports.clearSession = clearSession;
 exports.validateBaileysNumber = validateBaileysNumber;
 exports.getBaileysProfilePicture = getBaileysProfilePicture;
+exports.sendMessage = sendMessage;
+exports.getStatus = getStatus;
+exports.initialize = initialize;
+exports.isReady = isReady;
 const WhatsAppProviderFactory_1 = require("./factory/WhatsAppProviderFactory");
 const logger_1 = require("../../lib/logger");
 /**
@@ -124,3 +128,8 @@ async function logoutBaileys() { return logoutWhatsApp(); }
 async function clearSession() { return resetWhatsAppSession(); }
 async function validateBaileysNumber(p) { return validateWhatsAppNumber(p); }
 async function getBaileysProfilePicture(p) { return getContactProfilePicture(p); }
+// Legacy aliases expected by some tests
+async function sendMessage(p, m, u, t) { return sendWhatsAppMessage(p, m, u, t); }
+async function getStatus() { return getWhatsAppStatus(); }
+async function initialize(o) { return initializeWhatsApp(o); }
+async function isReady() { return isWhatsAppReady(); }
