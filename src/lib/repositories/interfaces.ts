@@ -28,7 +28,10 @@ export interface ILeadRepository {
     /**
      * Find all leads with optional filters
      */
-    findAll(filters?: LeadFilters): Promise<LeadRow[]>;
+    /**
+     * Find all leads with optional filters
+     */
+    findAll(filters?: LeadFilters & Record<string, any>): Promise<{ data: LeadRow[], total: number }>;
 
     /**
      * Find lead by ID
@@ -58,10 +61,20 @@ export interface ILeadRepository {
     update(cpf: string, data: UpdateLeadDto): Promise<void>;
 
     /**
+     * Update lead CPF transactionally
+     */
+    updateCpf(oldCpf: string, newCpf: string, data: LeadRow): Promise<void>;
+
+    /**
      * Delete a lead by CPF
      * @param cpf - CPF of the lead to delete
      */
     delete(cpf: string): Promise<void>;
+
+    /**
+     * Delete all leads
+     */
+    deleteAll(): Promise<void>;
 
     /**
      * Update last message info
@@ -79,9 +92,19 @@ export interface ILeadRepository {
     resetUnreadCount(cpf: string): Promise<void>;
 
     /**
-     * Count total leads with optional filters
+     * Find existing lead by phone excluding a specific CPF
      */
-    count(filters?: LeadFilters): Promise<number>;
+    findConflictingPhone(phone: string, excludeCpf: string): Promise<LeadRow | null>;
+
+    /**
+     * Update optimized for import process
+     */
+    importUpdate(cpf: string, data: UpdateLeadDto): Promise<void>;
+
+    /**
+     * Merge update for import process
+     */
+    importMerge(targetCpf: string, mergedData: UpdateLeadDto): Promise<void>;
 }
 
 // ============================================================================

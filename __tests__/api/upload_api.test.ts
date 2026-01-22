@@ -53,8 +53,21 @@ describe('Upload API', () => {
             ['Test User', '5511999999999', 'ADS', '12345678900'] // Data
         ]);
 
-        // Mock pool.query - return null for existing lead check
-        mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+        // Mock pool.query implementation
+        mockPoolQuery.mockImplementation((query, params) => {
+            // INSERT returns the created row
+            if (query.includes('INSERT')) {
+                return Promise.resolve({
+                    rows: [{ cpf: '12345678900', nome: 'Test User' }],
+                    rowCount: 1
+                });
+            }
+            // SELECT returns empty (no duplicate, no existing)
+            if (query.includes('SELECT')) {
+                return Promise.resolve({ rows: [], rowCount: 0 });
+            }
+            return Promise.resolve({ rows: [], rowCount: 0 });
+        });
 
         const res = await POST(req);
         const data = await res.json();

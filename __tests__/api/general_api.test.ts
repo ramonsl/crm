@@ -105,7 +105,9 @@ describe('General APIs', () => {
         });
 
         it('PUT should update template', async () => {
-            mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 1 });
+            mockPoolQuery
+                .mockResolvedValueOnce({ rows: [{ id: 1, name: 'T1' }], rowCount: 1 }) // findById
+                .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // update
 
             const req = new NextRequest('http://localhost/api/templates', {
                 method: 'PUT',
@@ -119,7 +121,9 @@ describe('General APIs', () => {
         });
 
         it('DELETE should delete template', async () => {
-            mockPoolQuery.mockResolvedValue({ rows: [], rowCount: 1 });
+            mockPoolQuery
+                .mockResolvedValueOnce({ rows: [{ id: 1, name: 'T1' }], rowCount: 1 }) // findById
+                .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // delete
 
             const req = new NextRequest('http://localhost/api/templates?id=1');
             const res = await DELETE_TEMPLATES(req);

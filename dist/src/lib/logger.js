@@ -48,7 +48,7 @@ function createLogger(config = {}) {
          */
         debug: (...args) => {
             if (finalConfig.debugEnabled) {
-                // eslint-disable-next-line no-console
+                 
                 console.log(...formatMessage('debug', finalConfig.prefix, args));
             }
         },
@@ -57,7 +57,7 @@ function createLogger(config = {}) {
          * Use for important operational information
          */
         info: (...args) => {
-            // eslint-disable-next-line no-console
+             
             console.log(...formatMessage('info', finalConfig.prefix, args));
         },
         /**
@@ -65,7 +65,7 @@ function createLogger(config = {}) {
          * Use for potential issues that don't break functionality
          */
         warn: (...args) => {
-            // eslint-disable-next-line no-console
+             
             console.warn(...formatMessage('warn', finalConfig.prefix, args));
         },
         /**
@@ -73,7 +73,7 @@ function createLogger(config = {}) {
          * Use for errors and exceptions
          */
         error: (...args) => {
-            // eslint-disable-next-line no-console
+             
             console.error(...formatMessage('error', finalConfig.prefix, args));
         },
         /**

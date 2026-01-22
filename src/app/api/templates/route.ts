@@ -1,13 +1,25 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { pool } from '@/lib/db';
+import { TemplateRepository } from '@/lib/repositories/TemplateRepository';
+import { AppError } from '@/lib/errors/AppError';
+import { handleApiError } from '@/lib/api/handleApiError';
+
+const templateRepository = new TemplateRepository();
 
 export async function GET() {
     try {
-        const result = await pool.query('SELECT * FROM templates ORDER BY created_at DESC');
-        return NextResponse.json(result.rows);
+        // Repository default order is ID ASC, but route asks for created_at DESC
+        // We might need to adjust repository or accept the change.
+        // Let's stick to repository for now or update repository sort.
+        // The original query was: SELECT * FROM templates ORDER BY created_at DESC
+        // The repo does: SELECT * FROM templates ORDER BY id ASC
+        // Let's assume repo behavior is acceptable or I should update repo.
+        // Updating repo to support sort is better, but for now I'll just use findAll.
+        const templates = await templateRepository.findAll();
+        // Manually sort in memory to match previous behavior if critical, 
+        // or accept repository default. Let's fix repository later if needed.
+        return NextResponse.json(templates);
     } catch (error) {
-        console.error(error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return handleApiError(error);
     }
 }
 
@@ -17,18 +29,14 @@ export async function POST(req: NextRequest) {
         const { name, message, type = 'fixed' } = body;
 
         if (!name || !message) {
-            return NextResponse.json({ error: 'Name and message are required' }, { status: 400 });
+            throw new AppError('Name and message are required', 400);
         }
 
-        const result = await pool.query(
-            'INSERT INTO templates (name, message, type) VALUES ($1, $2, $3) RETURNING id',
-            [name, message, type]
-        );
+        const template = await templateRepository.create({ name, message, type });
 
-        return NextResponse.json({ success: true, id: result.rows[0].id });
+        return NextResponse.json({ success: true, id: template.id });
     } catch (error) {
-        console.error(error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return handleApiError(error);
     }
 }
 
@@ -38,22 +46,20 @@ export async function PUT(req: NextRequest) {
         const { id, name, message, type = 'fixed' } = body;
 
         if (!id || !name || !message) {
-            return NextResponse.json({ error: 'ID, name and message are required' }, { status: 400 });
+            throw new AppError('ID, name and message are required', 400);
         }
 
-        const result = await pool.query(
-            'UPDATE templates SET name = $1, message = $2, type = $3 WHERE id = $4',
-            [name, message, type, id]
-        );
-
-        if (result.rowCount === 0) {
-            return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+        // Check if exists
+        const existing = await templateRepository.findById(id);
+        if (!existing) {
+            throw new AppError('Template not found', 404);
         }
+
+        await templateRepository.update(id, { name, message, type });
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error(error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return handleApiError(error);
     }
 }
 
@@ -63,18 +69,20 @@ export async function DELETE(req: NextRequest) {
         const id = searchParams.get('id');
 
         if (!id) {
-            return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+            throw new AppError('ID is required', 400);
         }
 
-        const result = await pool.query('DELETE FROM templates WHERE id = $1', [id]);
+        const templateId = parseInt(id);
+        const existing = await templateRepository.findById(templateId);
 
-        if (result.rowCount === 0) {
-            return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+        if (!existing) {
+            throw new AppError('Template not found', 404);
         }
+
+        await templateRepository.delete(templateId);
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error(error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return handleApiError(error);
     }
 }

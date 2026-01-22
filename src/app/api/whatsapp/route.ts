@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@/lib/types';
 import { NextResponse, NextRequest } from 'next/server';
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
-import { pool } from '@/lib/db';
+import { LeadRepository, WhatsAppRepository } from '@/lib/repositories';
 import { v4 as uuidv4 } from 'uuid';
 import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
 import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
@@ -105,13 +105,11 @@ export async function POST(req: NextRequest) {
             }
 
             try {
-                // Fetch lead name and CPF for substitution
-                const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
-                const result = await pool.query(
-                    'SELECT cpf, nome FROM leads WHERE telefone = $1 OR telefone = $2',
-                    [phone, phoneWithoutCountry]
-                );
-                const lead = result.rows[0];
+                // Fetch lead name and CPF
+                const leadRepository = new LeadRepository();
+                const whatsAppRepository = new WhatsAppRepository();
+
+                const lead = await leadRepository.findByPhone(phone);
 
                 if (lead && lead.nome) {
                     const firstName = lead.nome.trim().split(' ')[0];
@@ -137,20 +135,16 @@ export async function POST(req: NextRequest) {
                     try {
                         const messageId = sendResult.messageId || uuidv4();
 
-                        await pool.query(`
-                            INSERT INTO messages (id, contact_phone, content, from_me, type, timestamp)
-                            VALUES ($1, $2, $3, true, 'text', NOW())
-                            ON CONFLICT (id) DO NOTHING
-                        `, [messageId, lead.cpf, message]);
+                        await whatsAppRepository.saveMessage({
+                            id: messageId,
+                            contact_phone: lead.cpf,
+                            content: message,
+                            from_me: true,
+                            type: 'text'
+                        });
                         console.log(`[API] Message saved to DB for CPF ${lead.cpf}`);
 
-                        await pool.query(`
-                            UPDATE leads 
-                            SET last_message = $1, 
-                                last_message_time = NOW(),
-                                updated_at = NOW()
-                            WHERE cpf = $2
-                        `, [message, lead.cpf]);
+                        await leadRepository.updateLastMessage(lead.cpf, message, new Date().toISOString());
                         console.log(`[API] Lead updated with last message for CPF ${lead.cpf}`);
 
                     } catch (dbError) {

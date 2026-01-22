@@ -53,15 +53,19 @@ describe('/api/upload', () => {
         ];
         mockSheetToJson.mockReturnValue(mockRows);
 
-        // Mock DB:
-        // 1. Check existing by CPF (empty)
-        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-        // 2. Check existing by phone (empty)
-        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-        // 3. Insert lead
-        mockPoolQuery.mockResolvedValueOnce({ rowCount: 1 });
-        // 4. Log creation activity (insert)
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
+        // Mock DB implementation
+        mockPoolQuery.mockImplementation((query, params) => {
+            if (query.includes('SELECT')) {
+                return Promise.resolve({ rows: [], rowCount: 0 });
+            }
+            if (query.includes('INSERT INTO leads')) {
+                return Promise.resolve({ rows: [{ cpf: '12345678900' }], rowCount: 1 });
+            }
+            if (query.includes('INSERT INTO activities')) {
+                return Promise.resolve({ rows: [{ id: 1 }], rowCount: 1 });
+            }
+            return Promise.resolve({ rows: [], rowCount: 0 });
+        });
 
         const req = createRequestWithFile('dummy content');
         const res = await POST(req);
@@ -78,18 +82,25 @@ describe('/api/upload', () => {
         ];
         mockSheetToJson.mockReturnValue(mockRows);
 
-        // Mock DB:
-        // 1. Check existing by CPF (Found, status=NOVO)
-        mockPoolQuery.mockResolvedValueOnce({
-            rows: [{ cpf: '12345678900', status: 'NOVO', notes: '' }],
-            rowCount: 1
+        // Mock DB implementation
+        mockPoolQuery.mockImplementation((query, params) => {
+            if (query.includes('SELECT')) {
+                return Promise.resolve({
+                    rows: [{ cpf: '12345678900', status: 'NOVO', notes: '' }],
+                    rowCount: 1
+                });
+            }
+            if (query.includes('UPDATE')) {
+                return Promise.resolve({ rowCount: 1 });
+            }
+            if (query.includes('INSERT INTO status_message_logs')) {
+                return Promise.resolve({ rowCount: 1 });
+            }
+            if (query.includes('INSERT INTO activities')) {
+                return Promise.resolve({ rows: [{ id: 1 }], rowCount: 1 });
+            }
+            return Promise.resolve({ rows: [], rowCount: 0 });
         });
-
-        // 2. Update lead (MATRICULADO > NOVO)
-        mockPoolQuery.mockResolvedValueOnce({ rowCount: 1 });
-
-        // 3. Log status change activity
-        mockPoolQuery.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
 
         const req = createRequestWithFile('dummy content');
         const res = await POST(req);
@@ -106,15 +117,19 @@ describe('/api/upload', () => {
         ];
         mockSheetToJson.mockReturnValue(mockRows);
 
-        // Mock DB:
-        // 1. Check existing by CPF (Found, status=MATRICULADO)
-        // MATRICULADO(7) > NOVO(1)
-        mockPoolQuery.mockResolvedValueOnce({
-            rows: [{ cpf: '12345678900', status: 'MATRICULADO', notes: '' }],
-            rowCount: 1
+        // Mock DB implementation
+        mockPoolQuery.mockImplementation((query, params) => {
+            if (query.includes('SELECT')) {
+                return Promise.resolve({
+                    rows: [{ cpf: '12345678900', status: 'MATRICULADO', notes: '' }],
+                    rowCount: 1
+                });
+            }
+            if (query.includes('UPDATE')) {
+                return Promise.resolve({ rowCount: 1 });
+            }
+            return Promise.resolve({ rows: [], rowCount: 0 });
         });
-
-        // No update query expected because logic skips it
 
         const req = createRequestWithFile('dummy content');
         const res = await POST(req);
@@ -126,8 +141,10 @@ describe('/api/upload', () => {
         // Verify that update was called but status remained MATRICULADO
         const updateCall = mockPoolQuery.mock.calls.find(call => call[0].includes('UPDATE leads SET'));
         expect(updateCall).toBeDefined();
-        // check that 1st param (status) passed to query matches EXISTING status (MATRICULADO), not new one (NOVO)
-        expect(updateCall[1][0]).toBe('MATRICULADO');
+        // check that status param passed to query matches EXISTING status (MATRICULADO), not new one (NOVO)
+        // In the refactored version, status is passed in the params.
+        const statusParam = updateCall[1].find((p: any) => p === 'MATRICULADO');
+        expect(statusParam).toBe('MATRICULADO');
     });
 
     it('should merge lead if phone matches but CPF differs', async () => {
@@ -137,20 +154,24 @@ describe('/api/upload', () => {
         ];
         mockSheetToJson.mockReturnValue(mockRows);
 
-        // Mock DB:
-        // 1. Check existing by CPF (Empty - new CPF)
-        mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-
-        // 2. Check existing by Phone (Found old CPF)
-        mockPoolQuery.mockResolvedValueOnce({
-            rows: [{ cpf: '12345678900', status: 'NOVO', notes: '' }],
-            rowCount: 1
+        // Mock DB implementation
+        mockPoolQuery.mockImplementation((query, params) => {
+            // findByCpf (looking for the row's CPF)
+            if (query.includes('SELECT') && query.includes('cpf = $1') && !query.includes('telefone')) {
+                return Promise.resolve({ rows: [], rowCount: 0 });
+            }
+            // findConflictingPhone (looking for the phone)
+            if (query.includes('SELECT') && query.includes('telefone = $1')) {
+                return Promise.resolve({
+                    rows: [{ cpf: '12345678900', status: 'NOVO', notes: '' }],
+                    rowCount: 1
+                });
+            }
+            if (query.includes('UPDATE')) {
+                return Promise.resolve({ rowCount: 1 });
+            }
+            return Promise.resolve({ rows: [], rowCount: 0 });
         });
-
-        // 3. Update existing lead (merge)
-        mockPoolQuery.mockResolvedValueOnce({ rowCount: 1 });
-
-        // (No log status change because status is same, logic checks change)
 
         const req = createRequestWithFile('dummy content');
         const res = await POST(req);

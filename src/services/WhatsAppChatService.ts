@@ -8,8 +8,8 @@
  */
 
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
-import { pool } from '@/lib/db';
 import { chatLogger } from '@/lib/logger';
+import { WhatsAppRepository, LeadRepository } from '@/lib/repositories';
 
 // ============================================================================
 // INTERFACES
@@ -47,6 +47,14 @@ export interface ChatMessage {
 // ============================================================================
 
 export class WhatsAppChatService {
+    private whatsAppRepository: WhatsAppRepository;
+    private leadRepository: LeadRepository;
+
+    constructor() {
+        this.whatsAppRepository = new WhatsAppRepository();
+        this.leadRepository = new LeadRepository();
+    }
+
     /**
      * Verifica se o provider está pronto para operações
      */
@@ -63,49 +71,13 @@ export class WhatsAppChatService {
      * Busca todas as conversas do banco de dados
      * Independente do provider usado, a fonte de dados é o DB
      */
-    async getAllChats(_includeGroups: boolean = false): Promise<ChatInfo[]> {
+    async getAllChats(): Promise<ChatInfo[]> {
         chatLogger.debug('Buscando conversas do banco de dados...');
 
         try {
-            const result = await pool.query(`
-                SELECT 
-                    l.cpf, 
-                    l.nome, 
-                    l.telefone, 
-                    l.profile_image, 
-                    l.last_message, 
-                    l.last_message_time, 
-                    l.unread_count,
-                    l.status
-                FROM leads l
-                WHERE (l.last_message IS NOT NULL 
-                   OR l.updated_at > NOW() - INTERVAL '30 days')
-                   AND l.telefone IS NOT NULL 
-                   AND l.telefone != ''
-                   AND LENGTH(l.telefone) <= 15
-                   AND l.telefone ~ '^[0-9]+$'
-                ORDER BY l.last_message_time DESC NULLS LAST
-                LIMIT 100
-            `);
-
-            chatLogger.debug(`Encontradas ${result.rows.length} conversas`);
-
-            return result.rows.map(row => ({
-                id: this.buildChatId(row.telefone),
-                name: row.nome || row.telefone,
-                leadName: row.nome,
-                cpf: row.cpf,
-                profilePicUrl: row.profile_image,
-                lastMessage: row.last_message,
-                lastMessageTime: row.last_message_time
-                    ? new Date(row.last_message_time).getTime() / 1000
-                    : null,
-                unreadCount: row.unread_count || 0,
-                isGroup: false,
-                phone: row.telefone,
-                status: row.status,
-                isRegistered: true
-            }));
+            const chats = await this.whatsAppRepository.findAllChats();
+            chatLogger.debug(`Encontradas ${chats.length} conversas`);
+            return chats;
         } catch (error) {
             chatLogger.error('Erro ao buscar conversas:', error);
             throw error;
@@ -122,49 +94,19 @@ export class WhatsAppChatService {
 
         try {
             // Primeiro, encontra o CPF do lead pelo telefone
-            const leadResult = await pool.query(
-                'SELECT cpf FROM leads WHERE telefone LIKE $1 LIMIT 1',
-                [`%${phone.slice(-8)}`]
-            );
+            const lead = await this.leadRepository.findByPhone(phone);
 
-            const leadCpf = leadResult.rows[0]?.cpf;
-
-            if (!leadCpf) {
+            if (!lead || !lead.cpf) {
                 chatLogger.warn(`Lead não encontrado para chat ${chatId}`);
                 return [];
             }
 
             // Busca mensagens usando o CPF (padrão legado da tabela messages)
-            const result = await pool.query(`
-                SELECT 
-                    id, 
-                    content, 
-                    from_me, 
-                    timestamp, 
-                    type, 
-                    read,
-                    media_url,
-                    media_type
-                FROM messages
-                WHERE contact_phone = $1
-                ORDER BY timestamp DESC
-                LIMIT $2
-            `, [leadCpf, limit]);
+            const messages = await this.whatsAppRepository.findMessagesByCpf(lead.cpf, limit);
 
-            chatLogger.debug(`Encontradas ${result.rows.length} mensagens`);
+            chatLogger.debug(`Encontradas ${messages.length} mensagens`);
 
-            // Retorna em ordem cronológica (mais antiga primeiro)
-            return result.rows.map(row => ({
-                id: String(row.id),
-                body: row.content || '',
-                fromMe: row.from_me,
-                timestamp: new Date(row.timestamp).getTime() / 1000,
-                hasMedia: row.type !== 'text' && row.type !== null,
-                mediaUrl: row.media_url || null,
-                mediaType: this.normalizeMediaType(row.media_type),
-                status: this.mapReadStatus(row.read),
-                ack: row.read ? 3 : 1
-            })).reverse();
+            return messages;
         } catch (error) {
             chatLogger.error('Erro ao buscar mensagens:', error);
             throw error;
@@ -185,25 +127,8 @@ export class WhatsAppChatService {
     // HELPERS PRIVADOS
     // ========================================================================
 
-    private buildChatId(phone: string): string {
-        const normalized = phone.replace(/\D/g, '');
-        return `${normalized}@s.whatsapp.net`;
-    }
-
     private extractPhoneFromChatId(chatId: string): string {
         return chatId.replace(/\D/g, '');
-    }
-
-    private normalizeMediaType(type: string | null): 'image' | 'video' | 'audio' | 'document' | null {
-        if (!type || type === 'text') return null;
-        if (['image', 'video', 'audio', 'document'].includes(type)) {
-            return type as 'image' | 'video' | 'audio' | 'document';
-        }
-        return 'document'; // fallback para tipos desconhecidos
-    }
-
-    private mapReadStatus(read: boolean | null): 'sent' | 'delivered' | 'read' | 'failed' {
-        return read ? 'read' : 'sent';
     }
 }
 

@@ -6,10 +6,10 @@
  */
 
 import { NextResponse, NextRequest } from 'next/server';
-import { pool } from '@/lib/db';
-import { ActivityRepository } from '@/lib/repositories';
+import { ActivityRepository, LeadRepository, WhatsAppRepository } from '@/lib/repositories';
 import { ActivityService } from '@/services/activityService';
 import { getErrorMessage } from '@/lib/types';
+import type { ChatMessage } from '@/services/WhatsAppChatService';
 
 // Initialize repository and service
 const activityRepository = new ActivityRepository();
@@ -33,11 +33,13 @@ export async function GET(req: NextRequest) {
         const activities = await activityRepository.findByContact(cpf, limit);
 
         // Fetch messages from messages table (if requested)
-        let messages: any[] = [];
+        const messageActivities: any[] = [];
+
         if (includeMessages) {
-            // First, get the lead's phone number to find messages
-            const leadResult = await pool.query('SELECT telefone FROM leads WHERE cpf = $1', [cpf]);
-            const lead = leadResult.rows[0] as { telefone: string } | undefined;
+            const leadRepository = new LeadRepository();
+            const whatsAppRepository = new WhatsAppRepository();
+
+            const lead = await leadRepository.findByCpf(cpf);
 
             // Build list of possible identifiers for messages lookup
             const identifiers: string[] = [cpf];
@@ -60,31 +62,23 @@ export async function GET(req: NextRequest) {
             }
 
             // Query messages with all possible identifiers
-            const placeholders = identifiers.map((_, i) => `$${i + 1}`).join(',');
-            const messagesResult = await pool.query(`
-                SELECT id, contact_phone, from_me, content as body, timestamp, type as media_type
-                FROM messages 
-                WHERE contact_phone IN (${placeholders})
-                ORDER BY timestamp DESC 
-                LIMIT $${identifiers.length + 1}
-            `, [...identifiers, limit]);
-            messages = messagesResult.rows;
+            const chatMessages = await whatsAppRepository.findMessagesByPhones(identifiers, limit);
 
-            console.log(`[Activities API] Found ${messages.length} messages for identifiers:`, identifiers);
+            // Map ChatMessage DTO to Activity format
+            chatMessages.forEach((msg: ChatMessage) => {
+                messageActivities.push({
+                    id: `msg_${msg.id}`,
+                    contact_cpf: cpf,
+                    type: 'whatsapp' as const,
+                    subtype: msg.fromMe ? 'sent' : 'received',
+                    title: msg.fromMe ? 'WhatsApp enviado' : 'WhatsApp recebido',
+                    description: msg.body || (msg.mediaType ? `[${msg.mediaType}]` : null),
+                    metadata: null,
+                    created_at: new Date(msg.timestamp * 1000).toISOString(),
+                    source: 'messages' as const,
+                });
+            });
         }
-
-        // Convert messages to activity-like format
-        const messageActivities = messages.map(msg => ({
-            id: `msg_${msg.id}`,
-            contact_cpf: msg.contact_phone,
-            type: 'whatsapp' as const,
-            subtype: msg.from_me ? 'sent' : 'received',
-            title: msg.from_me ? 'WhatsApp enviado' : 'WhatsApp recebido',
-            description: msg.body || (msg.media_type ? `[${msg.media_type}]` : null),
-            metadata: null,
-            created_at: msg.timestamp,
-            source: 'messages' as const,
-        }));
 
         // Merge and sort by date (most recent first)
         const allActivities = [...activities, ...messageActivities].sort((a, b) => {

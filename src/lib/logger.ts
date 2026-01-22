@@ -64,7 +64,7 @@ function createLogger(config: Partial<LoggerConfig> = {}) {
          */
         debug: (...args: unknown[]) => {
             if (finalConfig.debugEnabled) {
-                // eslint-disable-next-line no-console
+                 
                 console.log(...formatMessage('debug', finalConfig.prefix, args));
             }
         },
@@ -74,7 +74,7 @@ function createLogger(config: Partial<LoggerConfig> = {}) {
          * Use for important operational information
          */
         info: (...args: unknown[]) => {
-            // eslint-disable-next-line no-console
+             
             console.log(...formatMessage('info', finalConfig.prefix, args));
         },
 
@@ -83,7 +83,7 @@ function createLogger(config: Partial<LoggerConfig> = {}) {
          * Use for potential issues that don't break functionality
          */
         warn: (...args: unknown[]) => {
-            // eslint-disable-next-line no-console
+             
             console.warn(...formatMessage('warn', finalConfig.prefix, args));
         },
 
@@ -92,7 +92,7 @@ function createLogger(config: Partial<LoggerConfig> = {}) {
          * Use for errors and exceptions
          */
         error: (...args: unknown[]) => {
-            // eslint-disable-next-line no-console
+             
             console.error(...formatMessage('error', finalConfig.prefix, args));
         },
 

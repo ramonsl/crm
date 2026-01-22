@@ -66,7 +66,7 @@ const SESSION_PATH = process.env.NODE_ENV === 'production'
     ? '/tmp/baileys-session'
     : './.baileys_auth';
 // Pino logger for Baileys (silent most logs)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const baileysLogger = pino_1.default({ level: 'silent' });
 // Reconnection control
 const RECONNECT_CONFIG = {

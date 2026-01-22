@@ -34,6 +34,13 @@ export interface UpdateLeadDto {
     unread_count?: number;
     profile_image?: string;
     last_template_name?: string;
+
+    // Import/System fields
+    is_new?: number;
+    status_changed?: number;
+    status_changed_at?: string;
+    data_inscricao?: string | null;
+    last_import_date?: boolean;
 }
 
 export interface LeadFilters {
@@ -130,5 +137,20 @@ export interface UpdateUserDto {
     name?: string;
     role?: string;
     active?: number;
+}
+
+export interface CreateMessageDto {
+    id: string;
+    contact_phone: string;
+    content: string;
+    from_me: boolean;
+    type: string;
+    media_url?: string;
+    media_type?: string;
+}
+
+export interface ChatFilters {
+    limit?: number;
+    offset?: number;
 }
 

@@ -12,7 +12,7 @@ import type { ITemplateRepository } from './interfaces';
 export class TemplateRepository implements ITemplateRepository {
 
     async findAll(): Promise<TemplateRow[]> {
-        const result = await pool.query('SELECT * FROM templates ORDER BY id ASC');
+        const result = await pool.query('SELECT * FROM templates ORDER BY created_at DESC');
         return result.rows as TemplateRow[];
     }
 
