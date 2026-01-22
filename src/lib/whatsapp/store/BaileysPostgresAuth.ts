@@ -58,33 +58,31 @@ export const usePostgresAuthState = async (sessionId: string): Promise<{ state: 
             keys: {
                 get: async (type, ids) => {
                     const data: { [key: string]: any } = {};
-                    await Promise.all(
-                        ids.map(async (id) => {
-                            let value = await readData(`${type}-${id}.json`);
-                            if (type === 'app-state-sync-key' && value) {
-                                value = proto.Message.AppStateSyncKeyData.fromObject(value);
-                            }
-                            if (value) {
-                                data[id] = value;
-                            }
-                        })
-                    );
+                    // Process sequentially to avoid overwhelming the connection pool
+                    for (const id of ids) {
+                        let value = await readData(`${type}-${id}.json`);
+                        if (type === 'app-state-sync-key' && value) {
+                            value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                        }
+                        if (value) {
+                            data[id] = value;
+                        }
+                    }
                     return data;
                 },
                 set: async (data) => {
-                    const tasks: Promise<void>[] = [];
+                    // Process sequentially to avoid overwhelming the connection pool
                     for (const category in data) {
                         for (const id in (data as any)[category]) {
                             const value = (data as any)[category][id];
                             const fileName = `${category}-${id}.json`;
                             if (value) {
-                                tasks.push(writeData(fileName, value));
+                                await writeData(fileName, value);
                             } else {
-                                tasks.push(deleteData(fileName));
+                                await deleteData(fileName);
                             }
                         }
                     }
-                    await Promise.all(tasks);
                 }
             }
         },
