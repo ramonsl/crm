@@ -20,9 +20,30 @@ import type {
     WhatsAppStatus,
     MediaType,
     GroupMetadata,
-    GroupParticipant
+    GroupParticipant,
+    HistorySyncCallback
 } from '../IWhatsAppProvider';
 import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
+
+interface WPPMessage {
+    id: string;
+    body?: string;
+    caption?: string;
+    type: string;
+    timestamp: number;
+    from: string;
+    to: string;
+    isGroupMsg: boolean;
+    fromMe: boolean;
+    sender?: {
+        id?: string;
+        name?: string;
+        shortName?: string;
+        pushname?: string;
+        formattedName?: string;
+    };
+}
+
 
 const SESSION_PATH = './.wppconnect_auth';
 
@@ -40,7 +61,9 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
     private messageCallback: MessageCallback | null = null;
     private statusCallback: StatusCallback | null = null;
     private logCallback: LogCallback | null = null;
+    private historySyncCallback: HistorySyncCallback | null = null;
     private isInitializing: boolean = false;
+
 
     // ========================================================================
     // LIFECYCLE
@@ -189,7 +212,7 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
     private setupListeners() {
         if (!this.client) return;
 
-        this.client.onMessage(async (message: any) => {
+        this.client.onMessage(async (message: WPPMessage) => {
             if (!this.messageCallback) return;
 
             // Resolve LID to real phone number (ensure consistency with Baileys)
@@ -299,6 +322,10 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
 
     async sendDocument(phone: string, documentUrl: string, filename?: string): Promise<SendMessageResult> {
         return this.sendMessage(phone, filename || '', documentUrl, 'document');
+    }
+
+    async syncChatHistory(_phone: string): Promise<void> {
+        this.log('Sincronização de histórico não suportada para WPPConnect no momento', 'info');
     }
 
     /**
@@ -413,7 +440,7 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
 
         try {
             const groups = await this.client.getAllGroups();
-            return groups.map((g: any) => ({
+            return groups.map((g: { id: { _serialized: string }; name?: string; contact?: { name?: string }; desc?: string; creation: number; owner?: { _serialized: string } }) => ({
                 id: g.id._serialized,
                 subject: g.name || g.contact?.name || 'Sem nome',
                 description: g.desc,
@@ -432,7 +459,7 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
 
         try {
             const members = await this.client.getGroupMembers(groupId);
-            return members.map((m: any) => ({
+            return members.map((m: { id: { _serialized: string }; isAdmin: boolean; isSuperAdmin: boolean }) => ({
                 id: m.id._serialized,
                 admin: m.isAdmin,
                 superAdmin: m.isSuperAdmin
@@ -482,6 +509,14 @@ export class WPPConnectAdapter extends BaseWhatsAppAdapter implements IWhatsAppP
 
     offLog(): void {
         this.logCallback = null;
+    }
+
+    onHistorySync(callback: HistorySyncCallback): void {
+        this.historySyncCallback = callback;
+    }
+
+    offHistorySync(): void {
+        this.historySyncCallback = null;
     }
 
     private log(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
