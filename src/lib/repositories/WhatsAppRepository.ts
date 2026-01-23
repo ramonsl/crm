@@ -134,9 +134,10 @@ export class WhatsAppRepository {
 
     async saveMessage(data: CreateMessageDto): Promise<void> {
         try {
+            const timestamp = data.timestamp || new Date();
             await pool.query(`
                 INSERT INTO messages (id, contact_phone, content, from_me, type, media_url, media_type, timestamp)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 ON CONFLICT (id) DO NOTHING
             `, [
                 data.id,
@@ -145,10 +146,43 @@ export class WhatsAppRepository {
                 data.from_me,
                 data.type,
                 data.media_url || null,
-                data.media_type || null
+                data.media_type || null,
+                timestamp
             ]);
         } catch (error) {
             dbLogger.error('Error saving message', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Persists multiple messages in a single batch (Bulk Insert)
+     * Optimized for history synchronization
+     */
+    async saveMessagesBulk(messages: CreateMessageDto[]): Promise<void> {
+        if (messages.length === 0) return;
+
+        try {
+            // Using a simple unnest technique for Postgres bulk insert performance
+            // id, contact_phone, content, from_me, type, media_url, media_type, timestamp
+            const ids = messages.map(m => m.id);
+            const phones = messages.map(m => m.contact_phone);
+            const contents = messages.map(m => m.content);
+            const fromMes = messages.map(m => m.from_me);
+            const types = messages.map(m => m.type);
+            const mediaUrls = messages.map(m => m.media_url || null);
+            const mediaTypes = messages.map(m => m.media_type || null);
+            const timestamps = messages.map(m => m.timestamp || new Date());
+
+            await pool.query(`
+                INSERT INTO messages (id, contact_phone, content, from_me, type, media_url, media_type, timestamp)
+                SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[], $4::boolean[], $5::text[], $6::text[], $7::text[], $8::timestamp[])
+                ON CONFLICT (id) DO NOTHING
+            `, [ids, phones, contents, fromMes, types, mediaUrls, mediaTypes, timestamps]);
+
+            dbLogger.debug(`Bulk saved ${messages.length} messages`);
+        } catch (error) {
+            dbLogger.error('Error in bulk saving messages', error);
             throw error;
         }
     }

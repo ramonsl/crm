@@ -120,6 +120,18 @@ export default function WhatsAppChatPage() {
     const handleChatSelect = (chat: ChatInfo) => {
         console.log('[WhatsAppChat] Chat selected:', chat.name, chat.id);
 
+        // Trigger on-demand history sync
+        if (chat.phone && !chat.isGroup) {
+            fetch('/api/whatsapp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'sync-history',
+                    phone: chat.phone
+                })
+            }).catch(err => console.error('[WhatsAppChat] Error triggering sync-history:', err));
+        }
+
         // Clear unread count for this chat
         if (chat.unreadCount > 0) {
             setChats(prevChats =>

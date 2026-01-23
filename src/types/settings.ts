@@ -25,6 +25,7 @@ export interface SettingsData {
     metaMatriculas?: number;
     comercialPhone?: string;
     comercialName?: string;
+    whatsappProvider?: string;
 }
 
 export interface SyncResults {

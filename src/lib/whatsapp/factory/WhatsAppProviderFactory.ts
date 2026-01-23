@@ -7,12 +7,13 @@
 import type { IWhatsAppProvider } from '../IWhatsAppProvider';
 import { BaileysAdapter } from '../adapters/BaileysAdapter';
 import { WWebJSAdapter } from '../adapters/WWebJSAdapter';
+import { YCloudAdapter } from '../adapters/YCloudAdapter';
 import { whatsappLogger } from '@/lib/logger';
 
 import { WPPConnectAdapter } from '../adapters/WPPConnectAdapter';
 import { execute, queryOne } from '@/lib/db';
 
-export type ProviderType = 'baileys' | 'wwebjs' | 'wppconnect' | 'twilio';
+export type ProviderType = 'baileys' | 'wwebjs' | 'wppconnect' | 'ycloud' | 'twilio';
 
 // Extend global type to support singleton persistence in dev mode
 declare global {
@@ -43,22 +44,17 @@ export class WhatsAppProviderFactory {
      * If type is not provided, returns current active provider or defaults to 'baileys'
      */
     static async getProvider(type?: ProviderType): Promise<IWhatsAppProvider> {
-        // If query/polling sends specific provider, use it.
-        // If session is active (this.currentType), use it.
-        // If neither, try to load from database (server restart).
-        // Fallback to 'baileys'.
-
-        let requestedType = type || this.currentType;
+        // Prioridade: Tipo Explícito > Persistência no Banco > Tipo Carregado Atualmente > 'baileys'
+        let requestedType = type;
 
         if (!requestedType) {
             const persisted = await this.loadPersistedProvider();
             if (persisted) {
-                whatsappLogger.info(`[Factory] Loaded persisted provider from DB: ${persisted}`);
                 requestedType = persisted;
+            } else {
+                requestedType = this.currentType || 'baileys';
             }
         }
-
-        requestedType = requestedType || 'baileys';
 
         // If requesting different provider, reset current instance
         if (this.currentType && this.currentType !== requestedType) {
@@ -90,11 +86,22 @@ export class WhatsAppProviderFactory {
             case 'twilio':
                 throw new Error('Twilio provider not implemented yet');
 
+            case 'ycloud':
+                const adapter = new YCloudAdapter();
+                try {
+                    await adapter.initialize();
+                } catch (error) {
+                    whatsappLogger.error('[Factory] Error auto-initializing YCloud:', error);
+                }
+                this.instance = adapter;
+                break;
+
             default:
                 throw new Error(`Unknown provider type: ${requestedType}`);
         }
 
         this.currentType = requestedType;
+        if (!this.instance) throw new Error('Falha ao criar instância do provider');
         return this.instance;
     }
 
@@ -149,7 +156,7 @@ export class WhatsAppProviderFactory {
                 ['whatsapp_provider']
             );
 
-            if (setting?.value && ['baileys', 'wwebjs', 'wppconnect'].includes(setting.value)) {
+            if (setting?.value && ['baileys', 'wwebjs', 'wppconnect', 'ycloud'].includes(setting.value)) {
                 return setting.value as ProviderType;
             }
             return null;

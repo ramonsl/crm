@@ -48,7 +48,6 @@ function createLogger(config = {}) {
          */
         debug: (...args) => {
             if (finalConfig.debugEnabled) {
-                 
                 console.log(...formatMessage('debug', finalConfig.prefix, args));
             }
         },
@@ -57,7 +56,6 @@ function createLogger(config = {}) {
          * Use for important operational information
          */
         info: (...args) => {
-             
             console.log(...formatMessage('info', finalConfig.prefix, args));
         },
         /**
@@ -65,7 +63,6 @@ function createLogger(config = {}) {
          * Use for potential issues that don't break functionality
          */
         warn: (...args) => {
-             
             console.warn(...formatMessage('warn', finalConfig.prefix, args));
         },
         /**
@@ -73,7 +70,6 @@ function createLogger(config = {}) {
          * Use for errors and exceptions
          */
         error: (...args) => {
-             
             console.error(...formatMessage('error', finalConfig.prefix, args));
         },
         /**

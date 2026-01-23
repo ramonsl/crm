@@ -46,10 +46,10 @@ exports.sql = connectionString
  */
 exports.pool = new serverless_1.Pool({
     connectionString: connectionString, // Pool allows undefined connectionString in config, but will fail on connect
-    max: 10, // Maximum number of connections in the pool
+    max: 20, // Maximum number of connections in the pool
     min: 0, // No idle connections in serverless (reduces Neon compute costs)
-    idleTimeoutMillis: 20000, // Close idle connections after 20 seconds
-    connectionTimeoutMillis: 5000, // Timeout acquiring connection from pool (5s)
+    idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+    connectionTimeoutMillis: 30000, // Timeout acquiring connection from pool (30s)
     allowExitOnIdle: true, // Allow process to exit if all connections are idle
 });
 // ============================================================================

@@ -147,6 +147,7 @@ export interface CreateMessageDto {
     type: string;
     media_url?: string;
     media_type?: string;
+    timestamp?: Date;
 }
 
 export interface ChatFilters {

@@ -38,6 +38,11 @@ export interface ServerToClientEvents {
      * Emitted when queue state changes (logs, stats, items)
      */
     'queue:update': (data: any) => void;
+
+    /**
+     * Emitted when WhatsApp history synchronization is in progress
+     */
+    'whatsapp:history': (data: WhatsAppHistoryEvent) => void;
 }
 
 /**
@@ -137,4 +142,10 @@ export interface SendMessageResponse {
     success: boolean;
     error?: string;
     messageId?: number;
+}
+
+export interface WhatsAppHistoryEvent {
+    progress: number;
+    total?: number;
+    status: string;
 }

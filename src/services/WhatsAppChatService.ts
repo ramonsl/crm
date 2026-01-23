@@ -71,7 +71,7 @@ export class WhatsAppChatService {
      * Busca todas as conversas do banco de dados
      * Independente do provider usado, a fonte de dados é o DB
      */
-    async getAllChats(): Promise<ChatInfo[]> {
+    async getAllChats(includeGroups: boolean = false): Promise<ChatInfo[]> {
         chatLogger.debug('Buscando conversas do banco de dados...');
 
         try {

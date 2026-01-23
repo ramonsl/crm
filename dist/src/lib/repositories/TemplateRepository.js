@@ -8,7 +8,7 @@ exports.TemplateRepository = void 0;
 const db_1 = require("../db");
 class TemplateRepository {
     async findAll() {
-        const result = await db_1.pool.query('SELECT * FROM templates ORDER BY id ASC');
+        const result = await db_1.pool.query('SELECT * FROM templates ORDER BY created_at DESC');
         return result.rows;
     }
     async findById(id) {

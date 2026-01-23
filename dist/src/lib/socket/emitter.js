@@ -13,6 +13,7 @@ exports.emitNewMessageToPhone = emitNewMessageToPhone;
 exports.emitSentMessage = emitSentMessage;
 exports.emitContactUpdated = emitContactUpdated;
 exports.emitWhatsAppStatus = emitWhatsAppStatus;
+exports.emitWhatsAppHistorySync = emitWhatsAppHistorySync;
 exports.emitQueueUpdate = emitQueueUpdate;
 exports.isSocketServerReady = isSocketServerReady;
 const logger_1 = require("../../lib/logger");
@@ -142,6 +143,18 @@ function emitWhatsAppStatus(data) {
     }
     io.emit('whatsapp:status', data);
     logger_1.socketLogger.debug(`Emitted whatsapp:status: ${data.status}`);
+}
+/**
+ * Emit WhatsApp history sync progress to all connected clients
+ */
+function emitWhatsAppHistorySync(data) {
+    const io = getIo();
+    if (!io) {
+        logger_1.socketLogger.warn('Server not initialized, cannot emit whatsapp:history');
+        return;
+    }
+    io.emit('whatsapp:history', data);
+    logger_1.socketLogger.debug(`Emitted whatsapp:history progress: ${data.progress}% - ${data.status}`);
 }
 /**
  * Emit Queue update to all connected clients

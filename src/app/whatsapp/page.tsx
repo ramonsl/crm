@@ -14,7 +14,8 @@ export default function WhatsAppPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [queueState, setQueueState] = useState<any>(null);
     const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
-    const [selectedProvider, setSelectedProvider] = useState<'baileys' | 'wwebjs' | 'wppconnect'>('baileys');
+    const [whatsappError, setWhatsappError] = useState<string | null>(null);
+    const [selectedProvider, setSelectedProvider] = useState<'baileys' | 'wwebjs' | 'wppconnect' | 'ycloud'>('baileys');
 
 
     const [currentProvider, setCurrentProvider] = useState<string | null>(null);
@@ -32,8 +33,10 @@ export default function WhatsAppPage() {
             setStatus(data.status);
             setQrCode(data.qrCode || '');
             setPhoneNumber(data.phoneNumber || null);
+            setWhatsappError(data.error || null);
             if (data.provider) {
                 setCurrentProvider(data.provider);
+                setSelectedProvider(data.provider); // Sync selected with current
             }
         } catch (error) {
             console.error(error);
@@ -76,6 +79,7 @@ export default function WhatsAppPage() {
             status: 'connecting' | 'ready' | 'qr' | 'disconnected';
             qr?: string;
             phoneNumber?: string;
+            error?: string;
         }) => {
             console.log('[WhatsApp Page] Received whatsapp:status event:', data);
             console.log('[WhatsApp Page] Current qrCode state:', qrCode);
@@ -94,6 +98,7 @@ export default function WhatsAppPage() {
             }
 
             setPhoneNumber(data.phoneNumber || null);
+            setWhatsappError(data.error || null);
             console.log('[WhatsApp Page] State updated - status:', data.status, 'hasQR:', !!data.qr);
         };
 
@@ -360,8 +365,9 @@ export default function WhatsAppPage() {
                 <div className={styles.statusBadge}>
                     <div className={`${styles.statusDot} ${styles[status]}`} />
                     <span>
-                        {status === 'ready' ? 'Conectado' :
-                            status === 'connecting' || status === 'qr' ? 'Inicializando...' : 'Desconectado'}
+                        {status === 'ready' ? (
+                            currentProvider === 'ycloud' ? 'Conectado (API Oficial)' : 'Conectado'
+                        ) : (status === 'connecting' || status === 'qr' ? 'Inicializando...' : 'Desconectado')}
                     </span>
                 </div>
             </header>
@@ -378,7 +384,7 @@ export default function WhatsAppPage() {
                                 <div className={styles.iconCircle}>
                                     <CheckCircle size={48} color="#10b981" />
                                 </div>
-                                <h3>WhatsApp Conectado</h3>
+                                <h3>{currentProvider === 'ycloud' ? 'Conectado via API Oficial' : 'WhatsApp Conectado'}</h3>
                                 {phoneNumber && (
                                     <p style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
                                         📱 +{phoneNumber}
@@ -394,7 +400,9 @@ export default function WhatsAppPage() {
                                         marginBottom: '0.5rem',
                                         display: 'inline-block'
                                     }}>
-                                        {currentProvider === 'baileys' ? '🚀 Baileys' : '🌐 whatsapp-web.js'}
+                                        {currentProvider === 'baileys' ? '🚀 Baileys' :
+                                            currentProvider === 'ycloud' ? '☁️ YCloud API' :
+                                                currentProvider === 'wppconnect' ? '📱 WPPConnect' : '🌐 whatsapp-web.js'}
                                     </p>
                                 )}
                                 <p>O sistema está pronto para enviar mensagens.</p>
@@ -440,7 +448,7 @@ export default function WhatsAppPage() {
                             </div>
                         ) : (
                             <div className={styles.disconnectedState}>
-                                {qrCode ? (
+                                {qrCode && selectedProvider !== 'ycloud' ? (
                                     <div className={styles.qrContainer}>
                                         <div style={{ background: 'white', padding: '16px' }}>
                                             {/* If qrCode is a data URL (from Baileys), render as img */}
@@ -455,8 +463,34 @@ export default function WhatsAppPage() {
                                     </div>
                                 ) : (
                                     <div className={styles.placeholderState}>
-                                        <Smartphone size={48} className={styles.placeholderIcon} />
-                                        <p>Selecione o provider e clique em conectar</p>
+                                        {whatsappError && (
+                                            <div className={styles.errorBanner} style={{
+                                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                                border: '1px solid #ef4444',
+                                                color: '#ef4444',
+                                                padding: '12px',
+                                                borderRadius: '8px',
+                                                marginBottom: '16px',
+                                                fontSize: '0.875rem'
+                                            }}>
+                                                <AlertCircle size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }} />
+                                                {whatsappError}
+                                            </div>
+                                        )}
+                                        {selectedProvider === 'ycloud' ? (
+                                            <>
+                                                <Cloud size={48} className={styles.placeholderIcon} color="#0ea5e9" />
+                                                <p>Conexão via API Oficial (YCloud)</p>
+                                                <p style={{ fontSize: '0.875rem', maxWidth: '300px' }}>
+                                                    Certifique-se de configurar a API Key e Phone ID nas configurações.
+                                                </p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Smartphone size={48} className={styles.placeholderIcon} />
+                                                <p>Selecione o provider e clique em conectar</p>
+                                            </>
+                                        )}
                                     </div>
                                 )}
 
@@ -483,6 +517,7 @@ export default function WhatsAppPage() {
                                             }}
                                         >
                                             <option value="baileys">🚀 Baileys (Recomendado)</option>
+                                            <option value="ycloud">☁️ YCloud (API Oficial)</option>
                                             <option value="wwebjs">🌐 WhatsApp Web.js</option>
                                             <option value="wppconnect">📱 WPPConnect (Puppeteer V2)</option>
                                         </select>
@@ -493,9 +528,11 @@ export default function WhatsAppPage() {
                                         }}>
                                             {selectedProvider === 'baileys'
                                                 ? 'Mais leve e rápido. Sem Puppeteer.'
-                                                : selectedProvider === 'wppconnect'
-                                                    ? 'Usa Puppeteer (Chrome). Mais estável que WWebJS.'
-                                                    : 'Usa navegador Chromium. Mais pesado.'}
+                                                : selectedProvider === 'ycloud'
+                                                    ? 'API Oficial do WhatsApp. Requer conta YCloud.'
+                                                    : selectedProvider === 'wppconnect'
+                                                        ? 'Usa Puppeteer (Chrome). Mais estável que WWebJS.'
+                                                        : 'Usa navegador Chromium. Mais pesado.'}
                                         </p>
                                     </div>
                                 )}
@@ -515,7 +552,8 @@ export default function WhatsAppPage() {
                                             className={styles.connectButton}
                                             disabled={isLoading}
                                         >
-                                            {isLoading ? 'Iniciando...' : 'Conectar WhatsApp'}
+                                            {isLoading ? 'Conectando...' :
+                                                selectedProvider === 'ycloud' ? 'Ativar API Oficial' : 'Conectar WhatsApp'}
                                         </button>
                                     )}
                                 </div>

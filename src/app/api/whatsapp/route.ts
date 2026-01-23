@@ -170,6 +170,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ message: 'Session reset', status: 'disconnected' });
         }
 
+        if (action === 'sync-history') {
+            const { phone } = body;
+            if (!phone) return NextResponse.json({ error: 'Telefone obrigatório' }, { status: 400 });
+
+            // Trigger sync in background or await if small
+            await provider.syncChatHistory(phone);
+            return NextResponse.json({ success: true, message: 'Sincronização iniciada' });
+        }
+
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     } catch (error) {
         if (error instanceof UnauthorizedError) {

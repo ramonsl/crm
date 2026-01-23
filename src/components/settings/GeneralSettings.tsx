@@ -16,6 +16,7 @@ export function GeneralSettings() {
     const [metaMatriculas, setMetaMatriculas] = useState(0);
     const [comercialPhone, setComercialPhone] = useState('');
     const [comercialName, setComercialName] = useState('');
+    const [whatsappProvider, setWhatsappProvider] = useState('baileys');
 
     // Cálculo de mudanças não salvas como estado derivado (mais robusto que useEffect)
     const hasUnsavedChanges = !loading && settings ? (
@@ -24,7 +25,8 @@ export function GeneralSettings() {
         maxDelay !== (settings.maxDelay || 60) ||
         metaMatriculas !== (settings.metaMatriculas || 0) ||
         comercialPhone !== (settings.comercialPhone || '') ||
-        comercialName !== (settings.comercialName || '')
+        comercialName !== (settings.comercialName || '') ||
+        whatsappProvider !== (settings.whatsappProvider || 'baileys')
     ) : false;
 
     const [saving, setSaving] = useState(false);
@@ -43,6 +45,7 @@ export function GeneralSettings() {
             setMetaMatriculas(settings.metaMatriculas || 0);
             setComercialPhone(settings.comercialPhone || '');
             setComercialName(settings.comercialName || '');
+            setWhatsappProvider(settings.whatsappProvider || 'baileys');
             setInitialized(true);
         }
     }, [settings, loading, initialized]);
@@ -68,6 +71,7 @@ export function GeneralSettings() {
                 updateSetting('metaMatriculas', metaMatriculas),
                 updateSetting('comercialName', comercialName),
                 updateSetting('comercialPhone', comercialPhone),
+                updateSetting('whatsappProvider', whatsappProvider),
             ]);
         } finally {
             setSaving(false);
@@ -101,10 +105,6 @@ export function GeneralSettings() {
             setSyncingHistory(false);
         }
     };
-
-    if (loading) {
-        return <div className={styles.container}>Carregando configurações...</div>;
-    }
 
     return (
         <div className={styles.container}>
@@ -188,6 +188,26 @@ export function GeneralSettings() {
                         placeholder="5511999999999"
                         className={styles.input}
                     />
+                </div>
+            </section>
+
+            {/* Provedor WhatsApp */}
+            <section className={styles.section}>
+                <h3 className={styles.sectionTitle}>Provedor WhatsApp Principal</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>
+                    Escolha qual tecnologia será usada para o chat e automações.
+                </p>
+                <div className={styles.field}>
+                    <select
+                        value={whatsappProvider}
+                        onChange={(e) => setWhatsappProvider(e.target.value)}
+                        className={styles.input}
+                    >
+                        <option value="baileys">Baileys (QR Code - Estável)</option>
+                        <option value="wwebjs">WhatsApp Web JS (QR Code)</option>
+                        <option value="ycloud">YCloud (API Oficial - Business)</option>
+                        <option value="wppconnect">WPPConnect (QR Code)</option>
+                    </select>
                 </div>
             </section>
 

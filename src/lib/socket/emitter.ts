@@ -13,7 +13,8 @@ import type {
     NewMessageEvent,
     SentMessageEvent,
     ContactUpdatedEvent,
-    WhatsAppStatusEvent
+    WhatsAppStatusEvent,
+    WhatsAppHistoryEvent
 } from './types';
 import { socketLogger } from '@/lib/logger';
 import { normalizePhoneForSocket } from '@/lib/utils/phoneUtils';
@@ -177,6 +178,20 @@ export function emitWhatsAppStatus(data: WhatsAppStatusEvent): void {
 
     io.emit('whatsapp:status', data);
     socketLogger.debug(`Emitted whatsapp:status: ${data.status}`);
+}
+
+/**
+ * Emit WhatsApp history sync progress to all connected clients
+ */
+export function emitWhatsAppHistorySync(data: WhatsAppHistoryEvent): void {
+    const io = getIo();
+    if (!io) {
+        socketLogger.warn('Server not initialized, cannot emit whatsapp:history');
+        return;
+    }
+
+    io.emit('whatsapp:history', data);
+    socketLogger.debug(`Emitted whatsapp:history progress: ${data.progress}% - ${data.status}`);
 }
 
 /**

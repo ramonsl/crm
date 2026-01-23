@@ -36,6 +36,7 @@ export interface WhatsAppStatusResponse {
     status: WhatsAppStatus;
     qrCode?: string;           // QR Code em base64 (se status = 'qr')
     phoneNumber?: string;      // Número conectado (se status = 'ready')
+    error?: string;            // Mensagem de erro (se status = 'disconnected')
 }
 
 export interface SendMessageResult {
@@ -68,6 +69,7 @@ export interface GroupMetadata {
 export type MessageCallback = (message: WhatsAppMessage) => void;
 export type StatusCallback = (status: WhatsAppStatusResponse) => void;
 export type LogCallback = (message: string, type: 'info' | 'success' | 'error') => void;
+export type HistorySyncCallback = (progress: { progress: number; total?: number; status: string }) => void;
 
 // ============================================================================
 // INTERFACE
@@ -177,6 +179,12 @@ export interface IWhatsAppProvider {
         mediaType?: MediaType
     ): Promise<SendMessageResult>;
 
+    /**
+     * Sincroniza o histórico de mensagens de uma conversa específica sob demanda
+     * @param phone Telefone/JID da conversa
+     */
+    syncChatHistory(phone: string): Promise<void>;
+
     // ========================================================================
     // CONTACTS & PROFILE
     // ========================================================================
@@ -259,6 +267,16 @@ export interface IWhatsAppProvider {
      * Remove callback de logs
      */
     offLog(): void;
+
+    /**
+     * Registra callback para sincronização de histórico
+     */
+    onHistorySync(callback: HistorySyncCallback): void;
+
+    /**
+     * Remove callback de sincronização de histórico
+     */
+    offHistorySync(): void;
 
     // ========================================================================
     // UTILITIES
