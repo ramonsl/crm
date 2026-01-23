@@ -151,7 +151,11 @@ export default function MessageArea({ selectedChat, comercialPhone, comercialNam
                 setMessages(prev => [...prev, newMsg]);
                 return true;
             } else {
-                alert(`Erro ao enviar: ${data.error}`);
+                if (data.error === 'outside_window') {
+                    alert(data.message || 'Janela de 24h fechada. É necessário usar um Template.');
+                } else {
+                    alert(`Erro ao enviar: ${data.error}`);
+                }
                 return false;
             }
         } catch (error) {
@@ -467,43 +471,47 @@ export default function MessageArea({ selectedChat, comercialPhone, comercialNam
             </div>
 
             {/* Emoji Picker */}
-            {showEmojiPicker && (
-                <div className={styles.emojiPickerContainer}>
-                    <EmojiPicker
-                        onEmojiClick={handleEmojiClick}
-                        theme={Theme.DARK}
-                        width="100%"
-                        height={350}
-                        searchPlaceHolder="Buscar emoji..."
-                    />
-                </div>
-            )}
+            {
+                showEmojiPicker && (
+                    <div className={styles.emojiPickerContainer}>
+                        <EmojiPicker
+                            onEmojiClick={handleEmojiClick}
+                            theme={Theme.DARK}
+                            width="100%"
+                            height={350}
+                            searchPlaceHolder="Buscar emoji..."
+                        />
+                    </div>
+                )
+            }
 
             {/* Attach Menu */}
-            {showAttachMenu && (
-                <div className={styles.attachMenu}>
-                    <button
-                        className={styles.attachOption}
-                        onClick={() => {
-                            fileInputRef.current?.click();
-                            fileInputRef.current?.setAttribute('accept', 'image/*,video/*');
-                        }}
-                    >
-                        <Image size={24} />
-                        <span>Imagem/Vídeo</span>
-                    </button>
-                    <button
-                        className={styles.attachOption}
-                        onClick={() => {
-                            fileInputRef.current?.click();
-                            fileInputRef.current?.setAttribute('accept', '.pdf,.doc,.docx,.xls,.xlsx,.txt');
-                        }}
-                    >
-                        <FileText size={24} />
-                        <span>Documento</span>
-                    </button>
-                </div>
-            )}
+            {
+                showAttachMenu && (
+                    <div className={styles.attachMenu}>
+                        <button
+                            className={styles.attachOption}
+                            onClick={() => {
+                                fileInputRef.current?.click();
+                                fileInputRef.current?.setAttribute('accept', 'image/*,video/*');
+                            }}
+                        >
+                            <Image size={24} />
+                            <span>Imagem/Vídeo</span>
+                        </button>
+                        <button
+                            className={styles.attachOption}
+                            onClick={() => {
+                                fileInputRef.current?.click();
+                                fileInputRef.current?.setAttribute('accept', '.pdf,.doc,.docx,.xls,.xlsx,.txt');
+                            }}
+                        >
+                            <FileText size={24} />
+                            <span>Documento</span>
+                        </button>
+                    </div>
+                )
+            }
 
             {/* Hidden File Input */}
             <input

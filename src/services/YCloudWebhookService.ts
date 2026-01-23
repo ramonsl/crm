@@ -19,6 +19,8 @@ import type {
     YCloudMessageStatus,
     YCloudMessageType
 } from '@/types/ycloud';
+import { emitNewMessage, emitNewMessageToPhone, emitContactUpdated } from '@/lib/socket/emitter';
+
 
 // Initialize activity service for logging timeline events
 const activityRepository = new ActivityRepository();
@@ -78,6 +80,17 @@ export class YCloudWebhookService {
         const mediaType = this.getMediaType(message.type);
         const messageTime = new Date(message.sendTime).toISOString();
 
+        // Push to active YCloudAdapter if it exists
+        try {
+            const { WhatsAppProviderFactory } = await import('@/lib/whatsapp/factory/WhatsAppProviderFactory');
+            const provider = await WhatsAppProviderFactory.getProvider();
+            if (provider.getProviderName() === 'ycloud') {
+                (provider as any).pushInboundMessage(message);
+            }
+        } catch (e) {
+            yCloudLogger.error('Error pushing message to YCloudAdapter:', e);
+        }
+
         yCloudLogger.info('Processing inbound message via YCloud', {
             from: phone,
             type: message.type,
@@ -99,11 +112,54 @@ export class YCloudWebhookService {
         // Update lead's last message info
         await this.updateLeadLastMessage(contact.cpf, messageBody, messageTime, mediaType);
 
+
         // Log activity for incoming message
         await activityService.logWhatsAppReceived(
             contact.cpf,
             messageBody
         );
+
+        // Emit Socket Events for Real-time Update
+        const socketMessage = {
+            id: 0,
+            message_id: message.id,
+            direction: 'incoming',
+            body: messageBody,
+            media_url: null as string | null, // We need to extract media URL from message if possible, or use placeholder
+            media_type: mediaType,
+            timestamp: messageTime,
+            status: 'received'
+        };
+
+        // Extract media URL if present
+        if (message.image) socketMessage.media_url = message.image.link || null;
+        else if (message.video) socketMessage.media_url = message.video.link || null;
+        else if (message.audio) socketMessage.media_url = message.audio.link || null;
+        else if (message.document) socketMessage.media_url = message.document.link || null;
+
+        // Emit to CPF room
+        emitNewMessage({
+            contactCpf: contact.cpf,
+            contactName: contact.nome,
+            message: socketMessage as any
+        });
+
+        // Emit to Phone room
+        emitNewMessageToPhone(phone, {
+            contactName: contact.nome,
+            message: socketMessage as any
+        });
+
+        // Emit Contact Update
+        emitContactUpdated({
+            cpf: contact.cpf,
+            updates: {
+                last_message: messageBody,
+                last_message_time: messageTime,
+                last_message_direction: 'incoming',
+                unread_count: -1 // increment
+            }
+        });
 
         yCloudLogger.info('Inbound YCloud message processed', {
             contactCpf: contact.cpf,

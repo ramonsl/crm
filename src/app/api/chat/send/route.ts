@@ -48,6 +48,42 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // YCLOUD 24h Window Check
+        // If sending via YCloud (Official API), we must respect the 24h custome service window.
+        if (provider.getProviderName() === 'ycloud') {
+            // Normalize phone for DB lookup (ensure only digits and 55 prefix)
+            let searchPhone = phone.replace(/\D/g, '');
+            if (!searchPhone.startsWith('55')) {
+                searchPhone = '55' + searchPhone;
+            }
+
+            const lastMsgResult = await pool.query(
+                'SELECT timestamp FROM messages WHERE contact_phone = $1 AND from_me = false ORDER BY timestamp DESC LIMIT 1',
+                [searchPhone]
+            );
+
+            const lastMsg = lastMsgResult.rows[0];
+
+            if (!lastMsg) {
+                // No previous inbound message found -> Window closed
+                return NextResponse.json({
+                    error: 'outside_window',
+                    message: 'Janela de 24h fechada. Para contatar este usuário, utilize um Modelo de Mensagem (Template).'
+                }, { status: 400 });
+            }
+
+            const lastMsgTime = new Date(lastMsg.timestamp).getTime();
+            const now = Date.now();
+            const hoursDiff = (now - lastMsgTime) / (1000 * 60 * 60);
+
+            if (hoursDiff > 24) {
+                return NextResponse.json({
+                    error: 'outside_window',
+                    message: 'Janela de 24h fechada. Para contatar este usuário, utilize um Modelo de Mensagem (Template).'
+                }, { status: 400 });
+            }
+        }
+
         // Send via WhatsApp using provider
         const result = await provider.sendMessage(phone, message, mediaUrl, mediaType);
 
