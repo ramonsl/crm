@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
         console.log('[API /whatsapp-chats] Fetching all chats...');
 
-        const chats = await whatsAppChatService.getAllChats(includeGroups);
+        const chats = await whatsAppChatService.getAllChats();
 
         return NextResponse.json({
             chats,

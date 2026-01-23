@@ -5,11 +5,13 @@
  * Migrado de index.ts para seguir padrão de abstração
  */
 
-import { Client, RemoteAuth, Message as WWebMessage } from 'whatsapp-web.js';
+import { Client, RemoteAuth, Message as WWebMessage, GroupChat } from 'whatsapp-web.js';
 import { PostgresStore } from '../store/PostgresStore';
 import * as QRCode from 'qrcode';
 import { whatsappLogger } from '@/lib/logger';
 import { emitWhatsAppStatus } from '@/lib/socket/emitter';
+import * as fs from 'fs';
+import { execSync } from 'child_process';
 import type {
     IWhatsAppProvider,
     WhatsAppMessage,
@@ -22,7 +24,8 @@ import type {
     WhatsAppStatus,
     MediaType,
     GroupMetadata,
-    GroupParticipant
+    GroupParticipant,
+    HistorySyncCallback
 } from '../IWhatsAppProvider';
 import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
 
@@ -46,6 +49,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
     private messageCallback: MessageCallback | null = null;
     private statusCallback: StatusCallback | null = null;
     private logCallback: LogCallback | null = null;
+    private historySyncCallback: HistorySyncCallback | null = null;
 
     // ========================================================================
     // LIFECYCLE
@@ -88,7 +92,8 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
             // Kill any existing Chrome processes for this session
             console.log('[WWebJS] 🔫 Killing old Chrome processes');
             try {
-                const { execSync } = require('child_process');
+
+                // Using imported execSync
                 execSync('pkill -f "chrome.*wwebjs"', { stdio: 'ignore' });
                 whatsappLogger.info('Cleaned up old Chrome processes');
             } catch (cleanupError) {
@@ -99,7 +104,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
             const sessionPath = './.wwebjs_auth';
             console.log('[WWebJS] 🔓 Removing lock files from:', sessionPath);
             try {
-                const fs = require('fs');
+                // Using imported fs
                 const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
                 lockFiles.forEach((lockFile: string) => {
                     const lockPath = `${sessionPath}/session/${lockFile}`;
@@ -524,6 +529,10 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
         return null;
     }
 
+    async syncChatHistory(_phone: string): Promise<void> {
+        this.log('Sincronização de histórico não suportada para WWebJS no momento', 'info');
+    }
+
     async sendMessage(
         phone: string,
         message: string,
@@ -651,7 +660,7 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
             const chat = await this.state.client.getChatById(groupId);
             if (!chat.isGroup) return [];
 
-            return (chat as any).participants.map((p: any) => ({
+            return (chat as GroupChat).participants.map((p) => ({
                 id: p.id._serialized,
                 admin: p.isAdmin,
                 superAdmin: p.isSuperAdmin
@@ -702,6 +711,14 @@ export class WWebJSAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
 
     offLog(): void {
         this.logCallback = null;
+    }
+
+    onHistorySync(callback: HistorySyncCallback): void {
+        this.historySyncCallback = callback;
+    }
+
+    offHistorySync(): void {
+        this.historySyncCallback = null;
     }
 
     private log(message: string, type: 'info' | 'success' | 'error' = 'info'): void {

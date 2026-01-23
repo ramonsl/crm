@@ -19,7 +19,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import pino from 'pino';
 import { whatsappLogger } from '@/lib/logger';
-import { emitWhatsAppStatus } from '@/lib/socket/emitter';
+import { emitWhatsAppStatus, emitWhatsAppHistorySync } from '@/lib/socket/emitter';
 import * as QRCode from 'qrcode';
 import type {
     IWhatsAppProvider,
@@ -33,7 +33,8 @@ import type {
     WhatsAppStatus,
     MediaType,
     GroupMetadata,
-    GroupParticipant
+    GroupParticipant,
+    HistorySyncCallback
 } from '../IWhatsAppProvider';
 import { BaseWhatsAppAdapter } from './BaseWhatsAppAdapter';
 
@@ -43,7 +44,7 @@ const SESSION_PATH = process.env.NODE_ENV === 'production'
     : path.resolve(process.cwd(), '.baileys_auth');
 
 // Pino logger for Baileys (silent most logs)
-const baileysLogger = pino({ level: 'silent' }) as any;
+const baileysLogger = pino({ level: 'silent' });
 
 // Reconnection control
 const RECONNECT_CONFIG = {
@@ -76,6 +77,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
     private messageCallback: MessageCallback | null = null;
     private statusCallback: StatusCallback | null = null;
     private logCallback: LogCallback | null = null;
+    private historySyncCallback: HistorySyncCallback | null = null;
 
     // LID to Phone mapping cache (LIDs are temporary WhatsApp identifiers)
     private lidToPhoneMap: Map<string, string> = new Map();
@@ -87,10 +89,10 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
     /**
      * Download media from a Baileys message
      */
-    private async downloadMedia(msg: any, sock: WASocket): Promise<Buffer | null> {
+    private async downloadMedia(msg: proto.IWebMessageInfo, sock: WASocket): Promise<Buffer | null> {
         try {
             const buffer = await downloadMediaMessage(
-                msg,
+                msg as import('@whiskeysockets/baileys').WAMessage,
                 'buffer',
                 {},
                 {
@@ -321,7 +323,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                     // Check if this is a Link ID (LID)
                     if (rawJid.includes('@lid')) {
                         // Try alternative JID fields provided by Baileys
-                        const altJid = (msg.key as any).remoteJidAlt;
+                        const altJid = (msg.key as { remoteJidAlt?: string }).remoteJidAlt;
                         if (altJid && altJid.includes('@s.whatsapp.net')) {
                             from = altJid;
                             whatsappLogger.debug(`Resolved LID via remoteJidAlt: ${rawJid} -> ${altJid}`);
@@ -440,6 +442,65 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                         });
                     }
                 }
+            });
+
+            // Handle history synchronization (initial dump of contacts and chat metadata)
+            sock.ev.on('messaging-history.set', async ({ chats, contacts, isLatest }) => {
+                whatsappLogger.info(`📜 History metadata received: ${chats.length} chats, ${contacts.length} contacts (isLatest: ${isLatest})`);
+
+                emitWhatsAppHistorySync({ progress: 50, status: 'Sincronizando lista de conversas...' });
+
+                const { LeadRepository } = await import('@/lib/repositories');
+                const leadRepo = new LeadRepository();
+
+                // Process contacts to ensure leads exist
+                for (const contact of contacts) {
+                    const phone = contact.id.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
+                    // Skip groups and invalid phones
+                    if (phone && !phone.includes('-') && !phone.includes('@g.us')) {
+                        try {
+                            const existing = await leadRepo.findByPhone(phone);
+                            if (!existing) {
+                                await leadRepo.create({
+                                    cpf: phone,
+                                    nome: contact.notify || contact.name || phone,
+                                    telefone: phone,
+                                    status: 'Novo Lead'
+                                });
+                            }
+                        } catch (e) {
+                            whatsappLogger.error(`Error syncing contact ${phone}:`, e);
+                        }
+                    }
+                }
+
+                // Process chats to update last message/unread count
+                // Process chats to update last message/unread count
+                for (const chat of chats) {
+                    if (!chat.id) continue;
+                    const phone = chat.id.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
+                    if (phone && !chat.id.endsWith('@g.us')) {
+                        try {
+                            const lastMsgInfo = chat.messages?.[0] as proto.IWebMessageInfo | undefined;
+                            const msgContent = lastMsgInfo?.message;
+
+                            const lastMsg = msgContent?.conversation ||
+                                msgContent?.extendedTextMessage?.text ||
+                                '[Mensagem]';
+
+                            const timestamp = lastMsgInfo?.messageTimestamp
+                                ? new Date((Number(lastMsgInfo?.messageTimestamp)) * 1000).toISOString()
+                                : new Date().toISOString();
+
+                            await leadRepo.updateLastMessage(phone, lastMsg, timestamp);
+                        } catch (e) {
+                            whatsappLogger.error(`Error updating chat metadata for ${phone}:`, e);
+                        }
+                    }
+                }
+
+                whatsappLogger.info('✅ History metadata sync completed');
+                emitWhatsAppHistorySync({ progress: 100, status: 'Lista de conversas atualizada!' });
             });
 
         } catch (error) {
@@ -633,6 +694,54 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
         }
     }
 
+    async syncChatHistory(phone: string): Promise<void> {
+        if (!this.state.socket || this.state.status !== 'ready') return;
+
+        const jid = this.formatToDefaultJid(phone);
+        whatsappLogger.info(`🔄 Requesting history sync for ${phone}...`);
+
+        try {
+            // Fetch the last 50 messages from WhatsApp servers
+            // Fetch the last 50 messages from WhatsApp servers
+            // Casting to unknown first to safely access extended custom methods not in base WASocket type
+            const sock = this.state.socket as unknown as {
+                fetchMessagesFromWA(jid: string, count: number, cursor: undefined): Promise<proto.IWebMessageInfo[]>
+            };
+            const result = await sock.fetchMessagesFromWA(jid, 50, undefined);
+
+            if (result && result.length > 0) {
+                const { WhatsAppRepository } = await import('@/lib/repositories');
+                const repo = new WhatsAppRepository();
+
+                const messagesToSave = result.map((m) => {
+                    let content = '';
+                    const msg = m.message;
+                    if (msg) {
+                        if (msg.conversation) content = msg.conversation;
+                        else if (msg.extendedTextMessage?.text) content = msg.extendedTextMessage.text;
+                        else if (msg.imageMessage) content = '[Imagem]';
+                        else if (msg.videoMessage) content = '[Vídeo]';
+                        else content = '[Mídia/Outro]';
+                    }
+
+                    return {
+                        id: m.key?.id || `sync_${Date.now()}_${Math.random()}`,
+                        contact_phone: phone,
+                        content: content || '[Histórico]',
+                        from_me: m.key?.fromMe || false,
+                        type: 'text',
+                        timestamp: new Date((m.messageTimestamp as number) * 1000)
+                    };
+                });
+
+                await repo.saveMessagesBulk(messagesToSave);
+                whatsappLogger.info(`✅ Successfully synced ${result.length} messages for ${phone}`);
+            }
+        } catch (error) {
+            whatsappLogger.error(`Error syncing history for ${phone}:`, error);
+        }
+    }
+
     // ========================================================================
     // CONTACTS & PROFILE
     // ========================================================================
@@ -776,6 +885,14 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
 
     offLog(): void {
         this.logCallback = null;
+    }
+
+    onHistorySync(callback: HistorySyncCallback): void {
+        this.historySyncCallback = callback;
+    }
+
+    offHistorySync(): void {
+        this.historySyncCallback = null;
     }
 
     private log(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
