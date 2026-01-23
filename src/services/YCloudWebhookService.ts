@@ -20,6 +20,8 @@ import type {
     YCloudMessageType
 } from '@/types/ycloud';
 import { emitNewMessage, emitNewMessageToPhone, emitContactUpdated } from '@/lib/socket/emitter';
+import type { NewMessageEvent } from '@/lib/socket/types';
+import { YCloudAdapter } from '@/lib/whatsapp/adapters/YCloudAdapter';
 
 
 // Initialize activity service for logging timeline events
@@ -84,8 +86,10 @@ export class YCloudWebhookService {
         try {
             const { WhatsAppProviderFactory } = await import('@/lib/whatsapp/factory/WhatsAppProviderFactory');
             const provider = await WhatsAppProviderFactory.getProvider();
-            if (provider.getProviderName() === 'ycloud') {
-                (provider as any).pushInboundMessage(message);
+
+            // Type Guard: Check if provider is YCloudAdapter
+            if (provider instanceof YCloudAdapter) {
+                provider.pushInboundMessage(message);
             }
         } catch (e) {
             yCloudLogger.error('Error pushing message to YCloudAdapter:', e);
@@ -120,12 +124,12 @@ export class YCloudWebhookService {
         );
 
         // Emit Socket Events for Real-time Update
-        const socketMessage = {
+        const socketMessage: NewMessageEvent['message'] = {
             id: 0,
             message_id: message.id,
             direction: 'incoming',
             body: messageBody,
-            media_url: null as string | null, // We need to extract media URL from message if possible, or use placeholder
+            media_url: null, // We need to extract media URL from message if possible, or use placeholder
             media_type: mediaType,
             timestamp: messageTime,
             status: 'received'
@@ -141,13 +145,13 @@ export class YCloudWebhookService {
         emitNewMessage({
             contactCpf: contact.cpf,
             contactName: contact.nome,
-            message: socketMessage as any
+            message: socketMessage
         });
 
         // Emit to Phone room
         emitNewMessageToPhone(phone, {
             contactName: contact.nome,
-            message: socketMessage as any
+            message: socketMessage
         });
 
         // Emit Contact Update

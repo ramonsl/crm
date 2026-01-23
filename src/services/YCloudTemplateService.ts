@@ -18,6 +18,7 @@ import {
 } from '@/lib/repositories/YCloudTemplateRepository';
 import { SettingRepository } from '@/lib/repositories/SettingRepository';
 import { yCloudLogger } from '@/lib/logger';
+import type { YCloudTemplateComponent } from '@/types/ycloud';
 
 const YCLOUD_API_BASE = 'https://api.ycloud.com/v2';
 
@@ -29,13 +30,7 @@ interface YCloudTemplateResponse {
     wabaId: string;
     name: string;
     language: string;
-    components: Array<{
-        type: string;
-        text?: string;
-        format?: string;
-        example?: any;
-        buttons?: any[];
-    }>;
+    components: YCloudTemplateComponent[];
     category: string;
     status: string;
     reason?: string;
@@ -397,16 +392,21 @@ export class YCloudTemplateService {
     /**
      * Parse YCloud template response into our local format
      */
-    private parseYCloudTemplate(yCloudTemplate: any): Omit<CreateYCloudTemplateDto, 'template_name'> {
+    private parseYCloudTemplate(yCloudTemplate: {
+        name: string;
+        category: string;
+        language: string;
+        components: YCloudTemplateComponent[];
+    }): Omit<CreateYCloudTemplateDto, 'template_name'> {
         const components = yCloudTemplate.components || [];
 
         // Extract header
-        const headerComponent = components.find((c: any) => c.type === 'HEADER');
+        const headerComponent = components.find(c => c.type === 'HEADER');
         const header_type = headerComponent ? headerComponent.format?.toLowerCase() : null;
         const header_content = headerComponent?.text || headerComponent?.example?.header_handle?.[0] || null;
 
         // Extract body
-        const bodyComponent = components.find((c: any) => c.type === 'BODY');
+        const bodyComponent = components.find(c => c.type === 'BODY');
         const body_text = bodyComponent?.text || '';
 
         // Extract variables from body
@@ -430,24 +430,35 @@ export class YCloudTemplateService {
         });
 
         // Extract footer
-        const footerComponent = components.find((c: any) => c.type === 'FOOTER');
+        const footerComponent = components.find(c => c.type === 'FOOTER');
         const footer_text = footerComponent?.text || null;
 
         // Extract buttons
-        const buttonsComponent = components.find((c: any) => c.type === 'BUTTONS');
+        const buttonsComponent = components.find(c => c.type === 'BUTTONS');
         const buttons = buttonsComponent?.buttons || null;
 
         return {
             friendly_name: yCloudTemplate.name.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-            category: yCloudTemplate.category || 'UTILITY',
+            category: this.mapCategory(yCloudTemplate.category),
             language: yCloudTemplate.language || 'pt_BR',
-            header_type,
-            header_content,
+            header_type: header_type || undefined,
+            header_content: header_content || undefined,
             body_text,
-            footer_text,
-            buttons,
+            footer_text: footer_text || undefined,
+            buttons: buttons ? buttons : undefined, // Removed 'as any' as it matches object type or implicit any from DTO being broad
             variables: variables.length > 0 ? variables : undefined
         };
+    }
+
+    /**
+     * Map string category to strict type
+     */
+    private mapCategory(category: string): 'MARKETING' | 'UTILITY' | 'AUTHENTICATION' {
+        const upper = category?.toUpperCase();
+        if (upper === 'MARKETING' || upper === 'UTILITY' || upper === 'AUTHENTICATION') {
+            return upper;
+        }
+        return 'UTILITY'; // Default fallback
     }
 
     /**

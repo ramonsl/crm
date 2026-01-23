@@ -131,3 +131,25 @@ export type YCloudDeliveryStatus =
     | 'delivered'
     | 'read'
     | 'failed';
+
+// ============ Template Types ============
+
+export interface YCloudTemplateComponent {
+    type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
+    text?: string;
+    format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+    example?: {
+        header_text?: string[];
+        header_handle?: string[];
+        body_text?: string[][];
+    };
+    buttons?: YCloudTemplateButton[];
+}
+
+export interface YCloudTemplateButton {
+    type: 'QUICK_REPLY' | 'PHONE_NUMBER' | 'URL';
+    text: string;
+    phone_number?: string;
+    url?: string;
+    example?: string[];
+}
