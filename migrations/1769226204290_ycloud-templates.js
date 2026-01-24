@@ -9,6 +9,10 @@ export const shorthands = undefined;
  * @returns {Promise<void> | void}
  */
 export const up = (pgm) => {
+    // 0. RESET: Drop existing table and columns to ensure clean schema (Feature is new)
+    pgm.dropTable('ycloud_templates', { ifExists: true, cascade: true });
+    pgm.dropColumns('messages', ['provider', 'template_id'], { ifExists: true });
+
     // 1. Create ycloud_templates table
     pgm.createTable('ycloud_templates', {
         id: { type: 'text', primaryKey: true },
