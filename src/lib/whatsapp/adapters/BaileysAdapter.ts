@@ -133,6 +133,9 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
     // ========================================================================
 
     async initialize(): Promise<void> {
+        // Reset explicit logout flag on initialization
+        this.state.isExplicitLogout = false;
+
         if (this.state.isInitializing) {
             whatsappLogger.warn('Baileys already initializing...');
             return;
@@ -536,6 +539,9 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
 
     async logout(): Promise<void> {
         whatsappLogger.info('Logging out from Baileys...');
+
+        // Flag logout as explicit to prevent auto-reconnect
+        this.state.isExplicitLogout = true;
 
         if (this.state.socket) {
             try {
