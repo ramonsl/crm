@@ -60,6 +60,7 @@ interface BaileysState {
     phoneNumber: string | null;
     isReconnecting: boolean;
     isInitializing: boolean;
+    isExplicitLogout: boolean;
 }
 
 export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvider {
@@ -70,6 +71,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
         phoneNumber: null,
         isReconnecting: false,
         isInitializing: false,
+        isExplicitLogout: false,
     };
 
     private reconnectAttempts = 0;
@@ -244,10 +246,11 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                         440, // Session conflict
                     ];
 
+                    // If explicit logout or session reset required, do not reconnect
                     const shouldResetSession = REQUIRE_SESSION_RESET.includes(statusCode || 0);
-                    const shouldReconnect = !shouldResetSession && statusCode !== DisconnectReason.loggedOut;
+                    const shouldReconnect = !this.state.isExplicitLogout && !shouldResetSession && statusCode !== DisconnectReason.loggedOut;
 
-                    whatsappLogger.warn(`Connection closed. Code: ${statusCode}, shouldReconnect: ${shouldReconnect}`);
+                    whatsappLogger.warn(`Connection closed. Code: ${statusCode}, shouldReconnect: ${shouldReconnect}, explicitLogout: ${this.state.isExplicitLogout}`);
 
                     this.state.status = 'disconnected';
                     this.state.qrCode = null;
