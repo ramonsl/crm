@@ -13,7 +13,7 @@ import makeWASocket, {
     downloadMediaMessage,
     proto
 } from '@whiskeysockets/baileys';
-import { usePostgresAuthState } from '../store/BaileysPostgresAuth';
+import { createPostgresAuthState, clearPostgresSession } from '../store/BaileysPostgresAuth';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -153,7 +153,7 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
             }
 
             // Use Postgres Auth State
-            const { state: authState, saveCreds } = await usePostgresAuthState('main-production');
+            const { state: authState, saveCreds } = await createPostgresAuthState('main-production');
             const { version, isLatest } = await fetchLatestBaileysVersion();
 
             whatsappLogger.info(`Using Baileys version ${version.join('.')}, isLatest: ${isLatest}`);
@@ -535,9 +535,18 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
         whatsappLogger.info('Logging out from Baileys...');
 
         if (this.state.socket) {
-            await this.state.socket.logout();
+            try {
+                await this.state.socket.logout();
+            } catch (e) {
+                whatsappLogger.warn('Error during socket logout:', e);
+            }
+            // Force end connection
+            this.state.socket.end(undefined);
             this.state.socket = null;
         }
+
+        // Small delay to ensure events settle
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         await this.clearSession(false);
 

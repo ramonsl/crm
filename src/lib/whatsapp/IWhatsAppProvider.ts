@@ -37,6 +37,7 @@ export interface WhatsAppStatusResponse {
     qrCode?: string;           // QR Code em base64 (se status = 'qr')
     phoneNumber?: string;      // Número conectado (se status = 'ready')
     error?: string;            // Mensagem de erro (se status = 'disconnected')
+    configured?: boolean;      // Se o provedor está configurado (Específico para YCloud)
 }
 
 export interface SendMessageResult {

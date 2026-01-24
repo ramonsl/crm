@@ -145,9 +145,11 @@ export interface CreateMessageDto {
     content: string;
     from_me: boolean;
     type: string;
-    media_url?: string;
-    media_type?: string;
+    media_url?: string | null;
+    media_type?: string | null;
     timestamp?: Date;
+    provider?: string; // 'ycloud' | 'baileys' | 'wwebjs'
+    template_id?: string | null;
 }
 
 export interface ChatFilters {

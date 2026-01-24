@@ -5,6 +5,7 @@ import TemplateModal from '@/components/templates/TemplateModal';
 import { Plus, Edit2, Trash2, FileText, Loader2 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import styles from '@/components/templates/Templates.module.css';
+import YCloudTemplatesTable from '@/components/templates/YCloudTemplatesTable';
 
 interface Template {
     id: number;
@@ -84,6 +85,11 @@ export default function TemplatesPage() {
         }
     };
 
+    // Tab state
+    const [activeTab, setActiveTab] = useState<'local' | 'ycloud'>('local');
+
+    // ... (keep fetchTemplates, useEffect, handlers) ...
+
     return (
         <div className={styles.container}>
             <div className={styles.header}>
@@ -93,50 +99,95 @@ export default function TemplatesPage() {
                         Gerencie os textos padrões para envio rápido.
                     </p>
                 </div>
-                <button className={styles.primaryButton} onClick={() => handleOpenModal()}>
-                    <Plus size={18} /> Novo Modelo
+                {activeTab === 'local' && (
+                    <button className={styles.primaryButton} onClick={() => handleOpenModal()}>
+                        <Plus size={18} /> Novo Modelo
+                    </button>
+                )}
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #e2e8f0', marginBottom: '2rem' }}>
+                <button
+                    onClick={() => setActiveTab('local')}
+                    style={{
+                        padding: '0.75rem 1rem',
+                        color: activeTab === 'local' ? '#2563eb' : '#64748b',
+                        fontWeight: activeTab === 'local' ? 600 : 500,
+                        background: 'none',
+                        border: 'none',
+                        borderBottomWidth: '2px',
+                        borderBottomStyle: 'solid',
+                        borderBottomColor: activeTab === 'local' ? '#2563eb' : 'transparent',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Modelos Locais
+                </button>
+                <button
+                    onClick={() => setActiveTab('ycloud')}
+                    style={{
+                        padding: '0.75rem 1rem',
+                        color: activeTab === 'ycloud' ? '#0ea5e9' : '#64748b',
+                        fontWeight: activeTab === 'ycloud' ? 600 : 500,
+                        background: 'none',
+                        border: 'none',
+                        borderBottomWidth: '2px',
+                        borderBottomStyle: 'solid',
+                        borderBottomColor: activeTab === 'ycloud' ? '#0ea5e9' : 'transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                    }}
+                >
+                    Modelos YCloud (Oficial)
                 </button>
             </div>
 
-            {loading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-                    <Loader2 className={styles.spin} size={32} />
-                </div>
-            ) : (
-                <div className={styles.grid}>
-                    {templates.map((template) => (
-                        <div key={template.id} className={styles.card}>
-                            <div className={styles.cardHeader}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <FileText size={18} color={template.type === 'ai' ? '#8b5cf6' : '#64748b'} />
-                                    <h3 className={styles.cardTitle}>{template.name}</h3>
-                                    {template.type === 'ai' && (
-                                        <span className={styles.badge}>IA</span>
-                                    )}
+            {activeTab === 'local' ? (
+                loading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+                        <Loader2 className={styles.spin} size={32} />
+                    </div>
+                ) : (
+                    <div className={styles.grid}>
+                        {templates.map((template) => (
+                            <div key={template.id} className={styles.card}>
+                                <div className={styles.cardHeader}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <FileText size={18} color={template.type === 'ai' ? '#8b5cf6' : '#64748b'} />
+                                        <h3 className={styles.cardTitle}>{template.name}</h3>
+                                        {template.type === 'ai' && (
+                                            <span className={styles.badge}>IA</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className={styles.cardContent}>
+                                    {template.message}
+                                </div>
+                                <div className={styles.cardActions}>
+                                    <button
+                                        className={styles.iconButton}
+                                        onClick={() => handleOpenModal(template)}
+                                        title="Editar"
+                                    >
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button
+                                        className={`${styles.iconButton} ${styles.deleteButton}`}
+                                        onClick={() => handleDelete(template.id)}
+                                        title="Excluir"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
                             </div>
-                            <div className={styles.cardContent}>
-                                {template.message}
-                            </div>
-                            <div className={styles.cardActions}>
-                                <button
-                                    className={styles.iconButton}
-                                    onClick={() => handleOpenModal(template)}
-                                    title="Editar"
-                                >
-                                    <Edit2 size={16} />
-                                </button>
-                                <button
-                                    className={`${styles.iconButton} ${styles.deleteButton}`}
-                                    onClick={() => handleDelete(template.id)}
-                                    title="Excluir"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )
+            ) : (
+                <YCloudTemplatesTable />
             )}
 
             <TemplateModal

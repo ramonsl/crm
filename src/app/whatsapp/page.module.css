@@ -634,3 +634,54 @@
     padding: 1rem 1.5rem;
     border-top: 1px solid var(--border-color);
 }
+
+/* YCloud Compact */
+.ycloudCompact {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px dashed var(--border-color);
+}
+
+.ycloudHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.ycloudActions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(14, 165, 233, 0.05);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(14, 165, 233, 0.2);
+}
+
+.miniButton {
+    background: transparent;
+    border: 1px solid #0ea5e9;
+    color: #0ea5e9;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.miniButton:hover {
+    background: rgba(14, 165, 233, 0.1);
+}
+
+.tagOfficial {
+    display: inline-flex;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background-color: rgba(14, 165, 233, 0.1);
+    color: #0ea5e9;
+    border: 1px solid rgba(14, 165, 233, 0.2);
+}

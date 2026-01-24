@@ -49,7 +49,8 @@ export function BulkMessageModal({ contacts, isOpen, onClose, onComplete }: Bulk
     useEffect(() => {
         if (isOpen) {
             setLoadingYCloud(true);
-            fetch('/api/ycloud-templates')
+            setLoadingYCloud(true);
+            fetch('/api/ycloud/templates')
                 .then(res => res.json())
                 .then(data => {
                     // Only show approved templates

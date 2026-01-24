@@ -15,7 +15,14 @@ jest.mock('@/lib/whatsapp/factory/WhatsAppProviderFactory', () => ({
     }
 }));
 
+jest.mock('@/lib/whatsapp/manager/WhatsAppProviderManager', () => ({
+    WhatsAppProviderManager: {
+        getInstance: jest.fn()
+    }
+}));
+
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
+import { WhatsAppProviderManager } from '@/lib/whatsapp/manager/WhatsAppProviderManager';
 import { IWhatsAppProvider } from '@/lib/whatsapp/IWhatsAppProvider';
 
 jest.mock('@/lib/messageQueue', () => ({
@@ -42,6 +49,7 @@ const mockPoolQuery = pool.query as jest.Mock;
 
 describe('WhatsApp API', () => {
     let mockProvider: jest.Mocked<IWhatsAppProvider>;
+    let mockManager: any;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -70,17 +78,30 @@ describe('WhatsApp API', () => {
         // Setup Factory mock
         (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
         (WhatsAppProviderFactory.hasProvider as jest.Mock).mockReturnValue(true);
+
+        // Setup Manager mock
+        mockManager = {
+            getOfficialProvider: jest.fn().mockReturnValue(mockProvider),
+            getWebProvider: jest.fn().mockResolvedValue(mockProvider), // Web provider is async in route
+        };
+        (WhatsAppProviderManager.getInstance as jest.Mock).mockReturnValue(mockManager);
     });
 
     describe('Main Route (/api/whatsapp)', () => {
-        it('GET should return status', async () => {
+        it('GET should return status from Manager', async () => {
             const req = new NextRequest('http://localhost/api/whatsapp');
             const res = await GET_STATUS(req);
             const data = await res.json();
 
-            // Factory is called to get status
-            expect(WhatsAppProviderFactory.getProvider).toHaveBeenCalled();
-            if (data.status !== 'connected') console.log('GET Route Debug:', JSON.stringify(data, null, 2));
+            // Manager should be called
+            expect(WhatsAppProviderManager.getInstance).toHaveBeenCalled();
+            expect(mockManager.getOfficialProvider).toHaveBeenCalled();
+            expect(mockManager.getWebProvider).toHaveBeenCalled();
+
+            // Check composite status from new implementation
+            // The route returns { official: ..., web: ..., status: ... }
+            expect(data.web.status).toBe('connected');
+            // Legacy field 'status' should be populated generally based on web
             expect(data.status).toBe('connected');
         });
 

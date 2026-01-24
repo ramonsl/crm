@@ -3,11 +3,12 @@
  * 
  * Serviço responsável por buscar conversas e mensagens do WhatsApp.
  * Utiliza o banco de dados como fonte principal (compatível com todos os providers).
+ * Agora suporta envio híbrido via WhatsAppProviderManager.
  * 
  * Seguindo Single Responsibility Principle (SOLID)
  */
 
-import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory/WhatsAppProviderFactory';
+import { WhatsAppProviderManager } from '@/lib/whatsapp/manager/WhatsAppProviderManager';
 import { chatLogger } from '@/lib/logger';
 import { WhatsAppRepository, LeadRepository } from '@/lib/repositories';
 
@@ -42,6 +43,13 @@ export interface ChatMessage {
     ack: number;
 }
 
+export interface SendMessageOptions {
+    previewUrl?: boolean;
+    quotedMessageId?: string;
+    provider?: 'ycloud' | 'baileys' | 'wwebjs';
+    templateId?: string;
+}
+
 // ============================================================================
 // SERVICE CLASS
 // ============================================================================
@@ -49,19 +57,24 @@ export interface ChatMessage {
 export class WhatsAppChatService {
     private whatsAppRepository: WhatsAppRepository;
     private leadRepository: LeadRepository;
+    private providerManager: WhatsAppProviderManager;
 
     constructor() {
         this.whatsAppRepository = new WhatsAppRepository();
         this.leadRepository = new LeadRepository();
+        this.providerManager = WhatsAppProviderManager.getInstance();
     }
 
     /**
      * Verifica se o provider está pronto para operações
      */
-    async isReady(): Promise<boolean> {
+    async isReady(type?: 'ycloud' | 'baileys' | 'wwebjs'): Promise<boolean> {
         try {
-            const provider = await WhatsAppProviderFactory.getProvider();
-            return provider.isReady();
+            if (type === 'ycloud') {
+                return this.providerManager.isOfficialReady();
+            }
+            // If explicit web type or unspecified (default web)
+            return this.providerManager.isWebReady();
         } catch {
             return false;
         }
@@ -109,6 +122,28 @@ export class WhatsAppChatService {
             return messages;
         } catch (error) {
             chatLogger.error('Erro ao buscar mensagens:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Send a text message with provider selection
+     */
+    async sendTextMessage(phone: string, message: string, options?: SendMessageOptions): Promise<void> {
+        chatLogger.info(`Sending message to ${phone} via ${options?.provider || 'default (web)'}`);
+
+        try {
+            const providerType = options?.provider || 'baileys';
+            const provider = await this.providerManager.getProvider(providerType);
+
+            await provider.sendTextMessage(phone, message);
+
+            // Log is handled by provider adapter usually, but we could add extra Db storage here if needed
+            // The Repository logic for saving sent messages should ideally be hooked into the Provider's event 
+            // or handled here if we want immediate feedback.
+            // For now, we rely on the Adapter/Provider emitting the 'message' event which is captured and saved.
+        } catch (error) {
+            chatLogger.error('Error sending message:', error);
             throw error;
         }
     }

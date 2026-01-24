@@ -136,8 +136,11 @@ export class WhatsAppRepository {
         try {
             const timestamp = data.timestamp || new Date();
             await pool.query(`
-                INSERT INTO messages (id, contact_phone, content, from_me, type, media_url, media_type, timestamp)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                INSERT INTO messages (
+                    id, contact_phone, content, from_me, type, 
+                    media_url, media_type, timestamp, provider, template_id
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 ON CONFLICT (id) DO NOTHING
             `, [
                 data.id,
@@ -147,7 +150,9 @@ export class WhatsAppRepository {
                 data.type,
                 data.media_url || null,
                 data.media_type || null,
-                timestamp
+                timestamp,
+                data.provider || 'baileys',
+                data.template_id || null
             ]);
         } catch (error) {
             dbLogger.error('Error saving message', error);
@@ -164,7 +169,6 @@ export class WhatsAppRepository {
 
         try {
             // Using a simple unnest technique for Postgres bulk insert performance
-            // id, contact_phone, content, from_me, type, media_url, media_type, timestamp
             const ids = messages.map(m => m.id);
             const phones = messages.map(m => m.contact_phone);
             const contents = messages.map(m => m.content);
@@ -173,12 +177,23 @@ export class WhatsAppRepository {
             const mediaUrls = messages.map(m => m.media_url || null);
             const mediaTypes = messages.map(m => m.media_type || null);
             const timestamps = messages.map(m => m.timestamp || new Date());
+            const providers = messages.map(m => m.provider || 'baileys');
+            const templateIds = messages.map(m => m.template_id || null);
 
             await pool.query(`
-                INSERT INTO messages (id, contact_phone, content, from_me, type, media_url, media_type, timestamp)
-                SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[], $4::boolean[], $5::text[], $6::text[], $7::text[], $8::timestamp[])
+                INSERT INTO messages (
+                    id, contact_phone, content, from_me, type, 
+                    media_url, media_type, timestamp, provider, template_id
+                )
+                SELECT * FROM UNNEST(
+                    $1::text[], $2::text[], $3::text[], $4::boolean[], $5::text[], 
+                    $6::text[], $7::text[], $8::timestamp[], $9::text[], $10::text[]
+                )
                 ON CONFLICT (id) DO NOTHING
-            `, [ids, phones, contents, fromMes, types, mediaUrls, mediaTypes, timestamps]);
+            `, [
+                ids, phones, contents, fromMes, types,
+                mediaUrls, mediaTypes, timestamps, providers, templateIds
+            ]);
 
             dbLogger.debug(`Bulk saved ${messages.length} messages`);
         } catch (error) {

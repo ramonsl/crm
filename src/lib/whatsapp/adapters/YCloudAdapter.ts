@@ -76,7 +76,7 @@ export class YCloudAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
                 return;
             }
 
-            this.status = { status: 'ready', phoneNumber: this.phoneId };
+            this.status = { status: 'ready', phoneNumber: this.phoneId, configured: true };
             this.log('YCloud Adapter pronto', 'success');
 
             if (this.statusCallback) {

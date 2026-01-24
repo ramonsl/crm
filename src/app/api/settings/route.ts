@@ -47,7 +47,9 @@ export async function POST(req: Request) {
             `, [key, value]);
         };
 
-        if (openaiApiKey !== undefined) await upsert('openai_api_key', openaiApiKey);
+        if (openaiApiKey !== undefined && !openaiApiKey.startsWith('sk-...')) {
+            await upsert('openai_api_key', openaiApiKey);
+        }
         if (minDelay !== undefined) await upsert('queue_min_delay', minDelay.toString());
         if (maxDelay !== undefined) await upsert('queue_max_delay', maxDelay.toString());
         if (body.metaMatriculas !== undefined) await upsert('meta_matriculas', body.metaMatriculas.toString());
@@ -57,7 +59,9 @@ export async function POST(req: Request) {
 
         // YCloud settings
         if (body.bulk_send_provider !== undefined) await upsert('bulk_send_provider', body.bulk_send_provider);
-        if (body.ycloud_api_key !== undefined) await upsert('ycloud_api_key', body.ycloud_api_key);
+        if (body.ycloud_api_key !== undefined && !body.ycloud_api_key.startsWith('***')) {
+            await upsert('ycloud_api_key', body.ycloud_api_key);
+        }
         if (body.ycloud_waba_id !== undefined) await upsert('ycloud_waba_id', body.ycloud_waba_id);
         if (body.ycloud_phone_id !== undefined) await upsert('ycloud_phone_id', body.ycloud_phone_id);
         if (body.ycloud_phone_number !== undefined) await upsert('ycloud_phone_number', body.ycloud_phone_number);

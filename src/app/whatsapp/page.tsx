@@ -21,6 +21,33 @@ export default function WhatsAppPage() {
     const [currentProvider, setCurrentProvider] = useState<string | null>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
+    // YCloud State
+    const [yCloudConfigured, setYCloudConfigured] = useState(false);
+    const [showYCloudModal, setShowYCloudModal] = useState(false);
+    const [yCloudPhone, setYCloudPhone] = useState('');
+    const [yCloudTemplate, setYCloudTemplate] = useState('hello_world');
+    const [yCloudVariables, setYCloudVariables] = useState('');
+    const [sendingYCloud, setSendingYCloud] = useState(false);
+
+    interface YCloudTemplate {
+        id: string;
+        name: string;
+        language: string;
+        status: string;
+    }
+    const [ycloudTemplates, setYCloudTemplates] = useState<YCloudTemplate[]>([]);
+
+    // Test Modal State (Web)
+    const [showTestModal, setShowTestModal] = useState(false);
+    const [testPhone, setTestPhone] = useState('');
+    const [testMessage, setTestMessage] = useState('');
+    const [sendingTest, setSendingTest] = useState(false);
+
+    // Confirmation Modal
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmMessage, setConfirmMessage] = useState('');
+    const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
     // MUST be declared BEFORE any useEffect that uses isConnected
     const { socket, isConnected } = useSocket();
 
@@ -30,13 +57,47 @@ export default function WhatsAppPage() {
             // Just query the current status
             const res = await fetch('/api/whatsapp');
             const data = await res.json();
+            console.log('[WhatsAppPage] Status Check Response:', data); // DEBUG
             setStatus(data.status);
             setQrCode(data.qrCode || '');
             setPhoneNumber(data.phoneNumber || null);
             setWhatsappError(data.error || null);
-            if (data.provider) {
-                setCurrentProvider(data.provider);
-                setSelectedProvider(data.provider); // Sync selected with current
+            if (data.official && data.web) {
+                // Dual status logic
+                const isOfficialReady = data.official.ready;
+                const isWebReady = data.web.status === 'ready' || data.web.status === 'connected'; // Normalize 'connected'
+
+                // Composite status
+                if (isOfficialReady && isWebReady) setStatus('ready');
+                else if (isOfficialReady || isWebReady) setStatus('ready'); // Partially ready is still ready for UI
+                else setStatus(data.web.status || 'disconnected');
+
+                setQrCode(data.web.qr || '');
+                setPhoneNumber(data.web.phoneNumber || null);
+                setWhatsappError(data.error || null);
+
+                // Store provider types for UI display
+                setCurrentProvider(data.web.provider || 'baileys'); // Web backup
+
+                // Update YCloud status
+                console.log('[WhatsAppPage] YCloud Configured (Official):', data.official.configured); // DEBUG
+                setYCloudConfigured(data.official.configured || false);
+            } else {
+                // Fallback for unexpected response structure
+                setStatus(data.status);
+                setQrCode(data.qrCode || '');
+                setPhoneNumber(data.phoneNumber || null);
+                setWhatsappError(data.error || null);
+                if (data.provider) {
+                    setCurrentProvider(data.provider);
+                    setSelectedProvider(data.provider);
+                }
+
+                // Try to infer YCloud status if available adjacent
+                if (data.official) {
+                    console.log('[WhatsAppPage] YCloud Configured (Fallback):', data.official.configured); // DEBUG
+                    setYCloudConfigured(data.official.configured || false);
+                }
             }
         } catch (error) {
             console.error(error);
@@ -81,16 +142,11 @@ export default function WhatsAppPage() {
             phoneNumber?: string;
             error?: string;
         }) => {
-            console.log('[WhatsApp Page] Received whatsapp:status event:', data);
-            console.log('[WhatsApp Page] Current qrCode state:', qrCode);
-            console.log('[WhatsApp Page] New qr from event:', data.qr);
-
             // Update status directly (don't map qr to initializing!)
             setStatus(data.status);
 
             // CRITICAL: Update QR Code state
             if (data.qr) {
-                console.log('[WhatsApp Page] ✅ Setting QR Code in state');
                 setQrCode(data.qr);
             } else if (data.status !== 'qr') {
                 // Only clear QR if status is NOT qr
@@ -99,7 +155,6 @@ export default function WhatsAppPage() {
 
             setPhoneNumber(data.phoneNumber || null);
             setWhatsappError(data.error || null);
-            console.log('[WhatsApp Page] State updated - status:', data.status, 'hasQR:', !!data.qr);
         };
 
         const handleQueueUpdate = (data: any) => {
@@ -108,12 +163,10 @@ export default function WhatsAppPage() {
 
         socket.on('whatsapp:status', handleWhatsAppStatus);
         socket.on('queue:update', handleQueueUpdate);
-        console.log('[WhatsApp Page] Listening to whatsapp:status and queue:update events');
 
         return () => {
             socket.off('whatsapp:status', handleWhatsAppStatus);
             socket.off('queue:update', handleQueueUpdate);
-            console.log('[WhatsApp Page] Stopped listening to events');
         };
     }, [socket, isConnected]);
 
@@ -123,439 +176,324 @@ export default function WhatsAppPage() {
         }
     }, [queueState?.logs]);
 
-    const handleConnect = async () => {
-        setIsLoading(true);
+    const [yCloudBalance, setYCloudBalance] = useState<string | null>(null);
+
+    const fetchYCloudBalance = async () => {
         try {
-            const response = await fetch('/api/whatsapp', {
+            const res = await fetch('/api/ycloud/balance');
+            if (res.ok) {
+                const data = await res.json();
+                // Assumindo que a API retorna balance e currency. Se retornar array ou outro formato, ajustaremos.
+                // Ex: { balance: 10.50, currency: "USD" } -> "$ 10.50"
+                if (data.amount !== undefined && data.currency) {
+                    setYCloudBalance(`${data.currency} ${data.amount}`);
+                } else if (data.balance !== undefined) {
+                    setYCloudBalance(data.currency ? `${data.currency} ${data.balance}` : `${data.balance}`);
+                } else {
+                    setYCloudBalance(null); // formato desconhecido
+                    console.log('Balance format unknown:', data);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch balance:', error);
+        }
+    };
+
+    const fetchYCloudTemplates = async () => {
+        try {
+            const res = await fetch('/api/ycloud/templates');
+            if (res.ok) {
+                const data = await res.json();
+                // Filter only APPROVED templates
+                const approved = data.filter((t: YCloudTemplate) => t.status === 'APPROVED');
+                setYCloudTemplates(approved);
+
+                // Pre-select first template if none selected or current is invalid
+                if (approved.length > 0 && (!yCloudTemplate || !approved.find((t: YCloudTemplate) => t.name === yCloudTemplate))) {
+                    setYCloudTemplate(approved[0].name);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch templates:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (yCloudConfigured) {
+            fetchYCloudBalance();
+        }
+    }, [yCloudConfigured]);
+
+    const handleYCloudTest = () => {
+        fetchYCloudTemplates();
+        setShowYCloudModal(true);
+    };
+
+    const handleSendYCloudTest = async () => {
+        if (!yCloudPhone || !yCloudTemplate) return;
+
+        setSendingYCloud(true);
+        try {
+            // Parse variables
+            const variables = yCloudVariables.split(',').map((v, i) => ({
+                position: i + 1,
+                value: v.trim()
+            })).filter(v => v.value !== '');
+
+            // Send via provider agnostic queue but specifying provider ycloud
+            const res = await fetch('/api/whatsapp/queue', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    action: 'connect',
-                    provider: selectedProvider
+                    messages: [{
+                        phone: yCloudPhone,
+                        templateName: yCloudTemplate,
+                        variables: variables,
+                        provider: 'ycloud'
+                    }]
                 })
             });
-            // Poll immediately after action
-            setTimeout(checkStatus, 1000);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
-    const handleDisconnect = async () => {
-        setIsLoading(true);
-        try {
-            const res = await fetch('/api/whatsapp', {
-                method: 'DELETE',
-            });
-            const data = await res.json();
             if (res.ok) {
-                setStatus('disconnected');
-                setQrCode('');
-                // Force status check
-                await checkStatus();
+                toastSuccess('Mensagem de teste YCloud enviada para fila!');
+                setShowYCloudModal(false);
+                setYCloudVariables('');
+            } else {
+                const data = await res.json();
+                toastError(data.error || 'Erro ao enviar mensagem');
             }
         } catch (error) {
             console.error(error);
+            toastError('Erro de conexão');
         } finally {
-            setIsLoading(false);
+            setSendingYCloud(false);
         }
     };
-
-    // Test message modal state
-    const [showTestModal, setShowTestModal] = useState(false);
-    const [testPhone, setTestPhone] = useState('51981636027');
-    const [testMessage, setTestMessage] = useState('Teste de conexão CRM');
-    const [sendingTest, setSendingTest] = useState(false);
 
     const handleTestMessage = () => {
         setShowTestModal(true);
     };
 
     const handleSendTest = async () => {
-        if (!testPhone) return;
+        if (!testPhone || !testMessage) return;
 
         setSendingTest(true);
         try {
-            const res = await fetch('/api/whatsapp', {
+            // Send via provider agnostic queue
+            const res = await fetch('/api/whatsapp/queue', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    action: 'send',
-                    phone: testPhone,
-                    message: testMessage
+                    messages: [{
+                        phone: testPhone,
+                        message: testMessage,
+                        provider: currentProvider // Default to current web provider
+                    }]
                 })
             });
 
-            const data = await res.json();
-
             if (res.ok) {
-                toastSuccess('Mensagem de teste enviada!');
+                toastSuccess('Mensagem de teste enviada para fila!');
                 setShowTestModal(false);
+                setTestMessage('');
             } else {
-                toastError(`Erro ao enviar teste: ${data.error || 'Erro desconhecido'}`);
+                const data = await res.json();
+                toastError(data.error || 'Erro ao enviar mensagem');
             }
         } catch (error) {
             console.error(error);
-            toastError('Erro de conexão com o servidor');
+            toastError('Erro de conexão');
         } finally {
             setSendingTest(false);
         }
     };
 
-    // YCloud test modal state
-    const [showYCloudModal, setShowYCloudModal] = useState(false);
-    const [yCloudPhone, setYCloudPhone] = useState('5551981636027');
-    const [yCloudTemplate, setYCloudTemplate] = useState('');
-    const [yCloudVariables, setYCloudVariables] = useState('');
-    const [sendingYCloud, setSendingYCloud] = useState(false);
-    const [yCloudConfigured, setYCloudConfigured] = useState(false);
-
-    // Check if YCloud is configured
-    useEffect(() => {
-        const checkYCloud = async () => {
-            try {
-                const res = await fetch('/api/settings');
-                const data = await res.json();
-                setYCloudConfigured(!!(data.yCloudApiKey && data.yCloudPhoneId));
-            } catch (e) {
-                console.error('Error checking YCloud config:', e);
-            }
-        };
-        checkYCloud();
-    }, []);
-
-    const handleYCloudTest = () => {
-        setShowYCloudModal(true);
-    };
-
-    const handleSendYCloudTest = async () => {
-        if (!yCloudPhone || !yCloudTemplate) {
-            toastError('Preencha telefone e nome do template');
-            return;
-        }
-
-        setSendingYCloud(true);
+    const handleConnect = async () => {
         try {
-            // Parse variables (format: var1, var2, var3)
-            const vars = yCloudVariables
-                .split(',')
-                .map((v, i) => ({ position: i + 1, value: v.trim() }))
-                .filter(v => v.value);
-
-            const res = await fetch('/api/ycloud/send', {
+            setIsLoading(true);
+            await fetch('/api/whatsapp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    phone: yCloudPhone,
-                    templateName: yCloudTemplate,
-                    variables: vars
-                })
+                body: JSON.stringify({ action: 'connect', provider: selectedProvider })
             });
-
-            const data = await res.json();
-
-            if (res.ok && data.success) {
-                toastSuccess(`Mensagem YCloud enviada! ID: ${data.messageId}`);
-                setShowYCloudModal(false);
-            } else {
-                toastError(`Erro YCloud: ${data.error || 'Erro desconhecido'}`);
-            }
+            // Status update will come via socket or polling
         } catch (error) {
             console.error(error);
-            toastError('Erro de conexão com YCloud');
+            toastError('Erro ao iniciar conexão');
         } finally {
-            setSendingYCloud(false);
+            setIsLoading(false);
         }
     };
 
-    // Confirmation modal state
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [confirmAction, setConfirmAction] = useState<'reset' | 'clearQueue' | null>(null);
-    const [confirmMessage, setConfirmMessage] = useState('');
-
-    const handleResetClick = () => {
-        setConfirmAction('reset');
-        setConfirmMessage('Isso irá desconectar e apagar completamente a sessão atual. Você precisará escanear o QR Code novamente.');
-        setShowConfirmModal(true);
-    };
-
-    const handleClearQueueClick = () => {
-        setConfirmAction('clearQueue');
-        setConfirmMessage('Tem certeza que deseja limpar toda a fila de mensagens?');
-        setShowConfirmModal(true);
-    };
-
-    const handleConfirm = async () => {
-        setShowConfirmModal(false);
-
-        if (confirmAction === 'reset') {
-            setIsLoading(true);
+    const handleDisconnect = () => {
+        setConfirmMessage('Tem certeza que deseja desconectar o WhatsApp Web? Você precisará ler o QR Code novamente.');
+        setPendingAction(() => async () => {
             try {
-                const res = await fetch('/api/whatsapp', {
+                await fetch('/api/whatsapp', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'reset' })
+                    body: JSON.stringify({ action: 'disconnect' })
                 });
-                if (res.ok) {
-                    setStatus('disconnected');
-                    setQrCode('');
-                    toastSuccess('Sessão resetada com sucesso.');
-                    await checkStatus();
-                }
+                toastSuccess('Desconectado com sucesso');
             } catch (error) {
                 console.error(error);
-                toastError('Erro ao resetar sessão.');
-            } finally {
-                setIsLoading(false);
+                toastError('Erro ao desconectar');
             }
-        } else if (confirmAction === 'clearQueue') {
-            setIsLoading(true);
-            try {
-                const res = await fetch('/api/whatsapp/queue', {
-                    method: 'DELETE'
-                });
-                if (res.ok) {
-                    toastSuccess('Fila limpa com sucesso!');
-                    fetchQueueState();
-                } else {
-                    toastError('Erro ao limpar fila.');
-                }
-            } catch (error) {
-                console.error(error);
-                toastError('Erro ao limpar fila.');
-            } finally {
-                setIsLoading(false);
-            }
-        }
-
-        setConfirmAction(null);
+        });
+        setShowConfirmModal(true);
     };
 
-    // Calculate progress
-    const total = queueState?.stats?.total || 0;
+    const handleResetClick = () => {
+        setConfirmMessage('Isso irá reiniciar o serviço do WhatsApp Web forçadamente. Deseja continuar?');
+        setPendingAction(() => async () => {
+            try {
+                await fetch('/api/whatsapp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'disconnect' }) // Reset usually just disconnects/restarts
+                });
+                toastSuccess('Reiniciando serviço...');
+            } catch (error) {
+                console.error(error);
+                toastError('Erro ao reiniciar');
+            }
+        });
+        setShowConfirmModal(true);
+    };
+
+    const handleClearQueueClick = async () => {
+        try {
+            const res = await fetch('/api/whatsapp/queue', { method: 'DELETE' });
+            if (res.ok) {
+                toastSuccess('Fila limpa com sucesso');
+                fetchQueueState();
+            }
+        } catch (e) {
+            toastError('Erro ao limpar fila');
+        }
+    };
+
+    const handleConfirm = () => {
+        if (pendingAction) {
+            pendingAction();
+            setPendingAction(null);
+        }
+        setShowConfirmModal(false);
+    };
+
+    // Calculate progress (visual)
     const processed = queueState?.stats?.processed || 0;
     const failed = queueState?.stats?.failed || 0;
+    const total = queueState?.stats?.total || 1; // avoid div/0
     const progress = total > 0 ? ((processed + failed) / total) * 100 : 0;
-
-    // Format estimated time remaining
-    const formatEstimatedTime = (seconds: number): string => {
-        if (seconds <= 0) return '';
-
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-
-        if (hours > 0) {
-            return minutes > 0 ? `${hours}h ${minutes}min` : `${hours}h`;
-        }
-        return `${minutes}min`;
-    };
-
     const estimatedTime = queueState?.estimatedTimeRemaining || 0;
-    const estimatedTimeText = estimatedTime > 0 ? formatEstimatedTime(estimatedTime) : null;
+    const estimatedTimeText = estimatedTime > 0
+        ? estimatedTime > 60 ? `${Math.ceil(estimatedTime / 60)} min` : `${estimatedTime} seg`
+        : null;
 
     return (
         <div className={styles.container}>
             <header className={styles.header}>
                 <div>
                     <h1 className={styles.title}>WhatsApp Connection</h1>
-                    <p className={styles.subtitle}>Gerencie sua conexão e fila de mensagens</p>
+                    <p className={styles.subtitle}>Gerencie suas conexões (Oficial e Web)</p>
                 </div>
                 <div className={styles.statusBadge}>
-                    <div className={`${styles.statusDot} ${styles[status]}`} />
+                    <div className={`${styles.statusDot} ${status === 'ready' ? styles.ready : styles[status]}`} />
                     <span>
-                        {status === 'ready' ? (
-                            currentProvider === 'ycloud' ? 'Conectado (API Oficial)' : 'Conectado'
-                        ) : (status === 'connecting' || status === 'qr' ? 'Inicializando...' : 'Desconectado')}
+                        {status === 'ready' ? 'Online' : 'Desconectado'}
                     </span>
                 </div>
             </header>
 
             <div className={styles.grid}>
-                {/* Connection Card */}
+                {/* Main Connection Card */}
                 <div className={styles.card}>
                     <div className={styles.cardHeader}>
-                        <h3>Status da Conexão</h3>
+                        <h3>Conexões WhatsApp</h3>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            {yCloudConfigured && <span className={styles.tagOfficial}>Oficial Ativo</span>}
+                            <span className={styles.tag}>{selectedProvider}</span>
+                        </div>
                     </div>
                     <div className={styles.cardBody}>
-                        {status === 'ready' ? (
-                            <div className={styles.connectedState}>
-                                <div className={styles.iconCircle}>
-                                    <CheckCircle size={48} color="#10b981" />
-                                </div>
-                                <h3>{currentProvider === 'ycloud' ? 'Conectado via API Oficial' : 'WhatsApp Conectado'}</h3>
-                                {phoneNumber && (
-                                    <p style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-                                        📱 +{phoneNumber}
-                                    </p>
-                                )}
-                                {currentProvider && (
-                                    <p style={{
-                                        fontSize: '0.75rem',
-                                        color: 'var(--text-secondary)',
-                                        backgroundColor: 'var(--bg-muted)',
-                                        padding: '4px 8px',
-                                        borderRadius: '4px',
-                                        marginBottom: '0.5rem',
-                                        display: 'inline-block'
-                                    }}>
-                                        {currentProvider === 'baileys' ? '🚀 Baileys' :
-                                            currentProvider === 'ycloud' ? '☁️ YCloud API' :
-                                                currentProvider === 'wppconnect' ? '📱 WPPConnect' : '🌐 whatsapp-web.js'}
-                                    </p>
-                                )}
-                                <p>O sistema está pronto para enviar mensagens.</p>
-
-                                <div className={styles.actions}>
-                                    <button
-                                        onClick={handleDisconnect}
-                                        className={styles.disconnectButton}
-                                        disabled={isLoading}
-                                    >
-                                        {isLoading ? 'Processando...' : 'Desconectar'}
-                                    </button>
-                                    <button
-                                        onClick={handleTestMessage}
-                                        className={styles.testButton}
-                                        disabled={isLoading}
-                                    >
-                                        <Send size={16} />
-                                        Enviar Teste
-                                    </button>
-                                    {yCloudConfigured && (
-                                        <button
-                                            onClick={handleYCloudTest}
-                                            className={styles.testButton}
-                                            style={{ borderColor: '#0ea5e9', color: '#0ea5e9' }}
-                                            disabled={isLoading}
-                                            title="Testar envio via YCloud API"
-                                        >
-                                            <Cloud size={16} />
-                                            YCloud
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={handleResetClick}
-                                        className={styles.disconnectButton}
-                                        style={{ backgroundColor: '#dc2626' }}
-                                        disabled={isLoading}
-                                        title="Apagar sessão e reiniciar"
-                                    >
-                                        <RefreshCw size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className={styles.disconnectedState}>
-                                {qrCode && selectedProvider !== 'ycloud' ? (
-                                    <div className={styles.qrContainer}>
-                                        <div style={{ background: 'white', padding: '16px' }}>
-                                            {/* If qrCode is a data URL (from Baileys), render as img */}
-                                            {/* Otherwise use QRCode component (from whatsapp-web.js) */}
-                                            {qrCode.startsWith('data:') ? (
-                                                <img src={qrCode} alt="QR Code" style={{ width: 256, height: 256 }} />
-                                            ) : (
-                                                <QRCode value={qrCode} size={256} />
-                                            )}
-                                        </div>
-                                        <p>Escaneie o QR Code com seu WhatsApp</p>
+                        {/* Web Connection Status */}
+                        <div className={styles.webSection}>
+                            {status === 'ready' && currentProvider !== 'ycloud' ? (
+                                <div className={styles.connectedState}>
+                                    <div className={styles.iconCircle}>
+                                        <CheckCircle size={48} color="#10b981" />
                                     </div>
-                                ) : (
-                                    <div className={styles.placeholderState}>
-                                        {whatsappError && (
-                                            <div className={styles.errorBanner} style={{
-                                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                                border: '1px solid #ef4444',
-                                                color: '#ef4444',
-                                                padding: '12px',
-                                                borderRadius: '8px',
-                                                marginBottom: '16px',
-                                                fontSize: '0.875rem'
-                                            }}>
-                                                <AlertCircle size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }} />
-                                                {whatsappError}
+                                    <h3>WhatsApp Web Conectado</h3>
+                                    {phoneNumber && <p className={styles.phone}>{phoneNumber}</p>}
+                                    <div className={styles.actions}>
+                                        <button onClick={handleDisconnect} className={styles.disconnectButton}>Desconectar</button>
+                                        <button onClick={handleTestMessage} className={styles.testButton}>Testar</button>
+                                        <button onClick={handleResetClick} className={styles.disconnectButton} style={{ backgroundColor: '#dc2626' }}><RefreshCw size={16} /></button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className={styles.disconnectedState}>
+                                    {qrCode ? (
+                                        <div className={styles.qrContainer}>
+                                            <div style={{ background: 'white', padding: '16px' }}>
+                                                {qrCode.startsWith('data:') ? (
+                                                    <img src={qrCode} alt="QR Code" style={{ width: 200, height: 200 }} />
+                                                ) : (
+                                                    <QRCode value={qrCode} size={200} />
+                                                )}
                                             </div>
-                                        )}
-                                        {selectedProvider === 'ycloud' ? (
-                                            <>
-                                                <Cloud size={48} className={styles.placeholderIcon} color="#0ea5e9" />
-                                                <p>Conexão via API Oficial (YCloud)</p>
-                                                <p style={{ fontSize: '0.875rem', maxWidth: '300px' }}>
-                                                    Certifique-se de configurar a API Key e Phone ID nas configurações.
-                                                </p>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Smartphone size={48} className={styles.placeholderIcon} />
-                                                <p>Selecione o provider e clique em conectar</p>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Provider Selector - only show when disconnected */}
-                                {status === 'disconnected' && (
-                                    <div style={{ marginBottom: '16px', textAlign: 'center' }}>
-                                        <label style={{
-                                            display: 'block',
-                                            marginBottom: '8px',
-                                            fontSize: '0.875rem',
-                                            color: 'var(--text-secondary)'
-                                        }}>
-                                            Biblioteca de conexão:
-                                        </label>
-                                        <select
-                                            value={selectedProvider}
-                                            onChange={(e) => setSelectedProvider(e.target.value as 'baileys' | 'wwebjs' | 'wppconnect')}
-                                            className={styles.input}
-                                            style={{
-                                                width: 'auto',
-                                                minWidth: '200px',
-                                                textAlign: 'center',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <option value="baileys">🚀 Baileys (Recomendado)</option>
-                                            <option value="ycloud">☁️ YCloud (API Oficial)</option>
-                                            <option value="wwebjs">🌐 WhatsApp Web.js</option>
-                                            <option value="wppconnect">📱 WPPConnect (Puppeteer V2)</option>
-                                        </select>
-                                        <p style={{
-                                            fontSize: '0.75rem',
-                                            color: 'var(--text-muted)',
-                                            marginTop: '8px'
-                                        }}>
-                                            {selectedProvider === 'baileys'
-                                                ? 'Mais leve e rápido. Sem Puppeteer.'
-                                                : selectedProvider === 'ycloud'
-                                                    ? 'API Oficial do WhatsApp. Requer conta YCloud.'
-                                                    : selectedProvider === 'wppconnect'
-                                                        ? 'Usa Puppeteer (Chrome). Mais estável que WWebJS.'
-                                                        : 'Usa navegador Chromium. Mais pesado.'}
-                                        </p>
-                                    </div>
-                                )}
-
-                                <div className={styles.actions}>
-                                    {status === 'connecting' || status === 'qr' ? (
-                                        <button
-                                            onClick={handleDisconnect}
-                                            className={styles.disconnectButton}
-                                            disabled={isLoading}
-                                        >
-                                            Cancelar
-                                        </button>
+                                            <p>Escaneie o QR Code</p>
+                                        </div>
                                     ) : (
-                                        <button
-                                            onClick={handleConnect}
-                                            className={styles.connectButton}
-                                            disabled={isLoading}
-                                        >
-                                            {isLoading ? 'Conectando...' :
-                                                selectedProvider === 'ycloud' ? 'Ativar API Oficial' : 'Conectar WhatsApp'}
-                                        </button>
+                                        <div className={styles.placeholderState}>
+                                            <Smartphone size={32} className={styles.placeholderIcon} />
+                                            <p>WhatsApp Web Desconectado</p>
+                                            <div style={{ marginTop: '1rem' }}>
+                                                <select
+                                                    value={selectedProvider}
+                                                    onChange={e => setSelectedProvider(e.target.value as any)}
+                                                    className={styles.input}
+                                                    style={{ marginBottom: '0.5rem' }}
+                                                >
+                                                    <option value="baileys">Baileys</option>
+                                                    <option value="wwebjs">WWebJS</option>
+                                                </select>
+                                                <button onClick={handleConnect} className={styles.connectButton} disabled={isLoading}>
+                                                    {isLoading ? 'Conectando...' : 'Gerar QR Code'}
+                                                </button>
+                                            </div>
+                                        </div>
                                     )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* YCloud Section (Compact) */}
+                        {yCloudConfigured && (
+                            <div className={styles.ycloudCompact}>
+                                <div className={styles.ycloudHeader}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <Cloud size={20} color="#0ea5e9" />
+                                        <span style={{ fontWeight: 600, color: '#0ea5e9' }}>API Oficial</span>
+                                    </div>
+                                    <span className={styles.statusDot} style={{ background: '#0ea5e9' }}></span>
+                                </div>
+                                <div className={styles.ycloudActions}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Conectado</span>
+                                        {yCloudBalance !== null && (
+                                            <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
+                                                Saldo: {yCloudBalance}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={handleYCloudTest}
+                                        className={styles.miniButton}
+                                    >
+                                        Testar Envio
+                                    </button>
                                 </div>
                             </div>
                         )}
@@ -731,13 +669,22 @@ export default function WhatsAppPage() {
                             </div>
                             <div className={styles.inputGroup}>
                                 <label>Nome do Template</label>
-                                <input
-                                    type="text"
+                                <select
                                     value={yCloudTemplate}
                                     onChange={e => setYCloudTemplate(e.target.value)}
-                                    placeholder="Ex: hello_world"
                                     className={styles.input}
-                                />
+                                >
+                                    <option value="" disabled>Selecione um template</option>
+                                    {ycloudTemplates.length > 0 ? (
+                                        ycloudTemplates.map((t) => (
+                                            <option key={t.id} value={t.name}>
+                                                {t.name} ({t.language})
+                                            </option>
+                                        ))
+                                    ) : (
+                                        <option value="hello_world">hello_world (Fallback)</option>
+                                    )}
+                                </select>
                             </div>
                             <div className={styles.inputGroup}>
                                 <label>Variáveis (separadas por vírgula)</label>

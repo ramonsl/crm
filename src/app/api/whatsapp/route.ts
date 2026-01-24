@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@/lib/types';
 import { NextResponse, NextRequest } from 'next/server';
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
+import { WhatsAppProviderManager } from '@/lib/whatsapp/manager/WhatsAppProviderManager';
 import { LeadRepository, WhatsAppRepository } from '@/lib/repositories';
 import { v4 as uuidv4 } from 'uuid';
 import { requireAuth, UnauthorizedError } from '@/lib/auth/requireAuth';
@@ -11,18 +12,32 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {
-        // Fix: Do not allow GET requests to switch provider.
-        // GET should only return the status of the CURRENT active provider (or default if none).
+        const manager = WhatsAppProviderManager.getInstance();
 
-        // If we pass an argument to getProvider, it might instantiate a new one.
-        // We want to check the existing one or the persisted one.
-        const provider = await WhatsAppProviderFactory.getProvider();
-        const status = await provider.getStatus();
-        const providerType = WhatsAppProviderFactory.getCurrentProviderType();
+        // 1. Get Official Status
+        const officialProvider = manager.getOfficialProvider();
+        const officialStatus = await officialProvider.getStatus(); // Usually 'connected' if config exists or 'disconnected'
+        console.log('[API GET] Official Status:', officialStatus); // DEBUG
+
+        // 2. Get Web Status
+        const webProvider = await manager.getWebProvider();
+        const webStatus = await webProvider.getStatus();
 
         return NextResponse.json({
-            ...status,
-            provider: providerType,
+            official: {
+                status: officialStatus.status,
+                ready: officialStatus.status === 'ready',
+                configured: officialStatus.configured || officialStatus.status === 'ready'
+            },
+            web: {
+                ...webStatus, // Includes qrCode, phoneNumber, etc.
+                provider: (webProvider as any).constructor.name.includes('Baileys') ? 'baileys' : 'wwebjs' // Simplify identification
+            },
+            // Legacy top-level for backward compat (defaults to Web usually, or aggregate)
+            status: webStatus.status, // Legacy UI primarily tracks Web QR status
+            qrCode: webStatus.qrCode,
+            phoneNumber: webStatus.phoneNumber,
+            error: webStatus.error || officialStatus.error,
             reconnectAttempts: (global as any).whatsappReconnectAttempts || 0,
             lastDisconnect: (global as any).whatsappLastDisconnect || null,
             healthCheckActive: (global as any).whatsappHealthCheckTimer !== null,
@@ -162,11 +177,16 @@ export async function POST(req: NextRequest) {
 
         if (action === 'disconnect') {
             await provider.logout();
+            WhatsAppProviderManager.getInstance().resetWebProvider();
             return NextResponse.json({ message: 'Disconnected', status: 'disconnected' });
         }
 
         if (action === 'reset') {
             await provider.clearSession(true);
+            // Don't reset manager here if we want auto-reconnect, 
+            // but for a full reset that forces QR, we might want to?
+            // "reset" usually means "restart service". "disconnect" means "logout".
+            // If action is reset/restart, we usually want it to stay alive.
             return NextResponse.json({ message: 'Session reset', status: 'disconnected' });
         }
 

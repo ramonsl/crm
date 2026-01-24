@@ -3,7 +3,7 @@ import { initAuthCreds, BufferJSON } from '@whiskeysockets/baileys';
 import { execute, queryOne, transaction } from '@/lib/db';
 import { whatsappLogger } from '@/lib/logger';
 
-export const usePostgresAuthState = async (sessionId: string): Promise<{ state: AuthenticationState, saveCreds: () => Promise<void> }> => {
+export const createPostgresAuthState = async (sessionId: string): Promise<{ state: AuthenticationState, saveCreds: () => Promise<void> }> => {
 
     // Helper to read JSON from DB
     const readData = async (fileName: string) => {
@@ -90,4 +90,17 @@ export const usePostgresAuthState = async (sessionId: string): Promise<{ state: 
             await writeData('creds.json', creds);
         }
     };
+};
+
+export const clearPostgresSession = async (sessionId: string): Promise<void> => {
+    try {
+        const result = await execute(
+            `DELETE FROM whatsapp_sessions WHERE id = $1 AND provider = 'baileys'`,
+            [sessionId]
+        );
+        whatsappLogger.info(`[BaileysPostgres] Cleared session ${sessionId}. Rows deleted: ${result}`);
+    } catch (error) {
+        whatsappLogger.error(`[BaileysPostgres] Error clearing session ${sessionId}:`, error);
+        throw error;
+    }
 };
