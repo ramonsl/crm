@@ -569,6 +569,14 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
     async clearSession(autoReconnect = true): Promise<void> {
         whatsappLogger.info(`Clearing Baileys session... (autoReconnect: ${autoReconnect})`);
 
+        // Clear Postgres Session
+        try {
+            await clearPostgresSession('main-production');
+            whatsappLogger.info('Postgres session cleared');
+        } catch (e) {
+            whatsappLogger.error('Failed to clear Postgres session:', e);
+        }
+
         // Remove session files
         if (fs.existsSync(SESSION_PATH)) {
             fs.rmSync(SESSION_PATH, { recursive: true, force: true });
