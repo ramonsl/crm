@@ -26,9 +26,10 @@ export class BaileysMessageHandler {
 
         // Query to find contact by any phone variation
         // Query to find contact by any phone variation
+        // Query to find contact by comparing cleaned phone numbers
         const result = await pool.query(`
             SELECT cpf, nome, telefone FROM leads 
-            WHERE telefone IN (${placeholders})
+            WHERE REGEXP_REPLACE(telefone, '\\D', '', 'g') IN (${placeholders})
             ORDER BY CASE WHEN cpf != telefone THEN 0 ELSE 1 END, cpf
             LIMIT 1
         `, variations);
