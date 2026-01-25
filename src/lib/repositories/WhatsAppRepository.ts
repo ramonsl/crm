@@ -59,8 +59,7 @@ export class WhatsAppRepository {
                 timestamp, 
                 type, 
                 read,
-                media_url,
-                media_type
+                media_url
             FROM messages
             WHERE contact_phone = $1
             ORDER BY timestamp DESC
@@ -102,8 +101,7 @@ export class WhatsAppRepository {
                 timestamp, 
                 type,
                 read,
-                media_url,
-                media_type
+                media_url
             FROM messages 
             WHERE contact_phone IN (${placeholders})
             ORDER BY timestamp DESC 
@@ -138,9 +136,9 @@ export class WhatsAppRepository {
             await pool.query(`
                 INSERT INTO messages (
                     id, contact_phone, content, from_me, type, 
-                    media_url, media_type, timestamp, provider, template_id
+                    media_url, timestamp, provider, template_id
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (id) DO NOTHING
             `, [
                 data.id,
@@ -149,7 +147,6 @@ export class WhatsAppRepository {
                 data.from_me,
                 data.type,
                 data.media_url || null,
-                data.media_type || null,
                 timestamp,
                 data.provider || 'baileys',
                 data.template_id || null
@@ -175,7 +172,6 @@ export class WhatsAppRepository {
             const fromMes = messages.map(m => m.from_me);
             const types = messages.map(m => m.type);
             const mediaUrls = messages.map(m => m.media_url || null);
-            const mediaTypes = messages.map(m => m.media_type || null);
             const timestamps = messages.map(m => m.timestamp || new Date());
             const providers = messages.map(m => m.provider || 'baileys');
             const templateIds = messages.map(m => m.template_id || null);
@@ -183,16 +179,16 @@ export class WhatsAppRepository {
             await pool.query(`
                 INSERT INTO messages (
                     id, contact_phone, content, from_me, type, 
-                    media_url, media_type, timestamp, provider, template_id
+                    media_url, timestamp, provider, template_id
                 )
                 SELECT * FROM UNNEST(
                     $1::text[], $2::text[], $3::text[], $4::boolean[], $5::text[], 
-                    $6::text[], $7::text[], $8::timestamp[], $9::text[], $10::text[]
+                    $6::text[], $7::timestamp[], $8::text[], $9::text[]
                 )
                 ON CONFLICT (id) DO NOTHING
             `, [
                 ids, phones, contents, fromMes, types,
-                mediaUrls, mediaTypes, timestamps, providers, templateIds
+                mediaUrls, timestamps, providers, templateIds
             ]);
 
             dbLogger.debug(`Bulk saved ${messages.length} messages`);
