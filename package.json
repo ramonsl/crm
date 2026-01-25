@@ -23,6 +23,7 @@
     "migrate:test": "ts-node scripts/migrate-test.ts",
     "migrate:prod": "ts-node scripts/migrate.ts",
     "migrate:create": "ts-node scripts/create-migration.ts",
+    "migrate:history": "npx tsx scripts/migrate-history.ts",
     "rollback": "ts-node scripts/rollback.ts",
     "rollback:test": "ts-node -r dotenv/config scripts/rollback.ts dotenv_config_path=.env.local"
   },
