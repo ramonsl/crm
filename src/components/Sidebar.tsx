@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, MessageSquare, Settings, LogOut, Upload, FileText, X, Bot, Zap, BadgeCheck, DollarSign, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, Settings, LogOut, Upload, FileText, X, Bot, Zap, BadgeCheck, DollarSign, Menu, GraduationCap } from 'lucide-react';
 import styles from './Sidebar.module.css';
 import { useEffect, useState } from 'react';
 
@@ -53,6 +53,7 @@ export default function Sidebar({ isOpen, onToggle, isMobile = false }: SidebarP
         { href: '/templates', label: 'Modelos', icon: FileText },
         { href: '/automation', label: 'Automação', icon: Zap },
         { href: '/import', label: 'Importar', icon: Upload },
+        { href: '/enrollments', label: 'Enturmações', icon: GraduationCap },
         { href: '/whatsapp', label: 'WhatsApp', icon: MessageSquare, showStatus: true, showYCloudBadge: true },
         { href: '/costs', label: 'Custos', icon: DollarSign },
         { href: '/usuarios', label: 'Usuários', icon: Users },
