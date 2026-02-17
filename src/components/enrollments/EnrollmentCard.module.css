@@ -15,8 +15,8 @@
 
 .cardHeader {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.25rem;
     margin-bottom: 0.5rem;
 }
 
@@ -25,7 +25,6 @@
     font-weight: 600;
     color: var(--text-main);
     line-height: 1.3;
-    flex: 1;
 }
 
 .classCode {
@@ -34,8 +33,7 @@
     background: rgba(0, 144, 231, 0.1);
     padding: 0.15rem 0.4rem;
     border-radius: 4px;
-    white-space: nowrap;
-    margin-left: 0.5rem;
+    width: fit-content;
     font-weight: 500;
 }
 

@@ -294,7 +294,7 @@ export class EnrollmentService {
         if (!scheduleInfo) return null;
 
         // Extract weekday and time from "Dias e Horários de Aula: Seg - 19:00 às 19:42"
-        const scheduleMatch = scheduleInfo.match(/:\s*(\w+)\s*-\s*(.+)/);
+        const scheduleMatch = scheduleInfo.match(/:\s*([\w\u00C0-\u024F]+)\s*-\s*(.+)/);
         if (!scheduleMatch) return null;
 
         const rawWeekday = scheduleMatch[1];
