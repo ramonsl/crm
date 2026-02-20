@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { pool } from '@/lib/neonDb';
+import { pool } from '@/lib/db';
 import { WhatsAppProviderFactory } from '@/lib/whatsapp/factory';
 
 /**

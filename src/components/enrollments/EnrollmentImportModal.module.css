@@ -1,0 +1,222 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--modal-overlay-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    animation: fadeIn 0.2s ease;
+}
+
+.modal {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 500px;
+    margin: 1rem;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.closeButton {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.closeButton:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+}
+
+.body {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.dropZone {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.dropZone:hover,
+.dropZoneActive {
+    border-color: var(--primary);
+    background: rgba(0, 144, 231, 0.05);
+}
+
+.dropZoneIcon {
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+
+.dropZoneText {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.dropZoneHint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+}
+
+.fileName {
+    font-size: 0.85rem;
+    color: var(--success);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.cancelButton {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.5rem 1.25rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cancelButton:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.importButton {
+    background: var(--primary);
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0.5rem 1.25rem;
+    font-size: 0.85rem;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.importButton:hover {
+    background: var(--primary-hover);
+}
+
+.importButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.result {
+    padding: 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+}
+
+.resultSuccess {
+    background: rgba(0, 210, 91, 0.1);
+    border: 1px solid rgba(0, 210, 91, 0.3);
+    color: var(--success);
+}
+
+.resultError {
+    background: rgba(252, 66, 74, 0.1);
+    border: 1px solid rgba(252, 66, 74, 0.3);
+    color: var(--danger);
+}
+
+.errorList {
+    margin-top: 0.5rem;
+    padding-left: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.errorList li {
+    margin-bottom: 0.25rem;
+}

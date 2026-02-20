@@ -1,0 +1,79 @@
+.gridContainer {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1rem;
+    min-height: 400px;
+}
+
+/* Responsive: stack columns on smaller screens */
+@media (max-width: 1200px) {
+    .gridContainer {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .gridContainer {
+        grid-template-columns: 1fr;
+    }
+}
+
+.dayColumn {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.dayHeader {
+    padding: 0.75rem 1rem;
+    background: rgba(0, 144, 231, 0.1);
+    border-bottom: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.dayTitle {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.daySubtitle {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.15rem;
+}
+
+.dayCount {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    display: inline-block;
+}
+
+.cardList {
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+    overflow-y: auto;
+    max-height: 70vh;
+}
+
+.emptyDay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    flex: 1;
+}

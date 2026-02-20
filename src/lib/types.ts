@@ -3,7 +3,7 @@
  * Eliminates use of 'any' and provides type safety
  */
 
-import type { Pool, PoolClient } from '@neondatabase/serverless';
+import type { Pool, PoolClient } from 'pg';
 
 // ============================================================================
 // DATABASE TYPES
