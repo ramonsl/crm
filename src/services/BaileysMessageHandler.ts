@@ -278,6 +278,24 @@ export class BaileysMessageHandler {
                 return true;
             }
 
+            // Save to DB
+            const { pool } = await import('@/lib/db');
+            const pseudoId = `forwarded-${Date.now()}`;
+
+            await pool.query(`
+                INSERT INTO linkedin_jobs (linkedin_post_id, title, company, location, is_remote, url, formatted_message, status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, 'sent')
+                ON CONFLICT (linkedin_post_id) DO NOTHING
+            `, [
+                pseudoId,
+                'Vaga Encaminhada (Texto)',
+                'Empresa (via Texto)',
+                '',
+                false,
+                result.applicationLink || '',
+                result.formattedMessage
+            ]);
+
             const settingRepo = new SettingRepository();
             const linkedinGroupId = await settingRepo.get('linkedin_group_id');
 
