@@ -162,6 +162,10 @@ export class BaileysMessageHandler {
     private async handleDirectJobLink(msg: WhatsAppMessage): Promise<boolean> {
         if (msg.fromMe) return false;
 
+        // Se a mensagem for texto longo, provavelmente já é a vaga descrita.
+        // Deixa para o handleForwardedJobDescription reescrever.
+        if (msg.body && msg.body.length >= 150) return false;
+
         // Verifica se há URL na mensagem
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         const matches = msg.body.match(urlRegex);
@@ -199,10 +203,11 @@ export class BaileysMessageHandler {
             const parsedJob = await jobTransformerService.transformPost(fullContext, pseudoId, matches[0]);
 
             if (parsedJob && parsedJob.isJob) {
-                // Save to DB
+                const formattedMessage = jobTransformerService.formatWhatsAppMessage(parsedJob);
+
                 await pool.query(`
-                    INSERT INTO linkedin_jobs (linkedin_post_id, title, company, location, is_remote, requirements, application_link, status, processed)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'sent', true)
+                    INSERT INTO linkedin_jobs (linkedin_post_id, title, company, location, is_remote, url, formatted_message, status)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'sent')
                     ON CONFLICT (linkedin_post_id) DO NOTHING
                 `, [
                     parsedJob.post_id,
@@ -210,11 +215,9 @@ export class BaileysMessageHandler {
                     parsedJob.company,
                     parsedJob.location,
                     parsedJob.isRemote,
-                    JSON.stringify(parsedJob.requirements),
-                    parsedJob.applicationLink
+                    parsedJob.applicationLink, // using the extracted link in 'url'
+                    formattedMessage
                 ]);
-
-                const formattedMessage = jobTransformerService.formatWhatsAppMessage(parsedJob);
 
                 const settingRepo = new SettingRepository();
                 const linkedinGroupId = await settingRepo.get('linkedin_group_id');
@@ -248,12 +251,9 @@ export class BaileysMessageHandler {
 
         const body = msg.body?.trim() ?? '';
 
-        // Only process texts that look like a vacancy description:
-        // - At least 100 chars (descriptions are verbose)
-        // - No URL (that case is handled by handleDirectJobLink)
-        if (body.length < 100) return false;
-        const hasUrl = /(https?:\/\/[^\s]+)/.test(body);
-        if (hasUrl) return false;
+        // process texts that look like a vacancy description:
+        // - At least 150 chars (descriptions are verbose)
+        if (body.length < 150) return false;
 
         // Quick keyword pre-screen to avoid calling GPT on every message
         const bodyLower = body.toLowerCase();
