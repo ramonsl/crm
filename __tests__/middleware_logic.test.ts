@@ -1,97 +1,104 @@
+/**
+ * Unit tests for the global authentication middleware.
+ * Tests public route passthrough, cookie presence check, and 401 rejection.
+ * Covers Issue #107: Broken Access Control (Missing Global Middleware)
+ */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { proxy as middleware } from '@/proxy';
 
-// Mock NextResponse
+// Mock NextResponse to make assertions simple
 jest.mock('next/server', () => {
     const actual = jest.requireActual('next/server');
     return {
         ...actual,
         NextResponse: {
-            next: jest.fn().mockReturnValue({ type: 'next' }),
-            json: jest.fn().mockImplementation((body, init) => ({ type: 'json', body, status: init?.status })),
-            redirect: jest.fn().mockImplementation((url) => ({ type: 'redirect', url })),
-        }
+            next: jest.fn().mockReturnValue({ type: 'next', status: 200 }),
+            json: jest.fn().mockImplementation((body: unknown, init?: { status?: number }) => ({
+                type: 'json',
+                body,
+                status: init?.status ?? 200,
+            })),
+        },
     };
 });
 
-describe('Global Security Middleware (Issue #82)', () => {
-    let mockRequest: { nextUrl: { pathname: string; searchParams: URLSearchParams }; url: string; cookies: { get: jest.Mock } };
+import { middleware } from '@/middleware';
 
-    beforeEach(() => {
-        jest.clearAllMocks();
+function buildMockRequest(pathname: string, sessionId?: string) {
+    return {
+        nextUrl: { pathname },
+        cookies: {
+            get: jest.fn().mockReturnValue(sessionId ? { value: sessionId } : undefined),
+        },
+    } as unknown as NextRequest;
+}
 
-        // Basic mock request structure
-        mockRequest = {
-            nextUrl: {
-                pathname: '/',
-                searchParams: new URLSearchParams(),
-            },
-            url: 'http://localhost:3000',
-            cookies: {
-                get: jest.fn().mockReturnValue(undefined) // Default no cookie
+describe('Global Auth Middleware (#107)', () => {
+    beforeEach(() => jest.clearAllMocks());
+
+    describe('Public routes — always pass through', () => {
+        const publicRoutes = [
+            '/api/auth/login',
+            '/api/auth/logout',
+            '/api/auth/session',
+            '/api/auth/register',
+            '/api/health',
+            '/api/ycloud/webhook',
+        ];
+
+        it.each(publicRoutes)(
+            'allows %s without a session cookie',
+            (path) => {
+                const req = buildMockRequest(path); // no cookie
+                middleware(req);
+                expect(NextResponse.next).toHaveBeenCalled();
+                expect(NextResponse.json).not.toHaveBeenCalled();
             }
-        };
-    });
-
-    it('should allow public route /login', () => {
-        mockRequest.nextUrl.pathname = '/login';
-        middleware(mockRequest as unknown as NextRequest);
-        expect(NextResponse.next).toHaveBeenCalled();
-    });
-
-    it('should allow public route /api/auth/login', () => {
-        mockRequest.nextUrl.pathname = '/api/auth/login';
-        middleware(mockRequest as unknown as NextRequest);
-        expect(NextResponse.next).toHaveBeenCalled();
-    });
-
-    it('should allow public route /api/webhooks/stripe', () => {
-        mockRequest.nextUrl.pathname = '/api/webhooks/stripe';
-        middleware(mockRequest as unknown as NextRequest);
-        expect(NextResponse.next).toHaveBeenCalled();
-    });
-
-    // Unauthenticated Scenarios
-    it('should return 401 for unauthenticated /api/users access', () => {
-        mockRequest.nextUrl.pathname = '/api/users';
-        mockRequest.cookies.get.mockReturnValue(undefined); // No session
-
-        const response = middleware(mockRequest as unknown as NextRequest) as NextResponse;
-
-        expect(NextResponse.json).toHaveBeenCalledWith(
-            { error: 'Authentication required' },
-            { status: 401 }
         );
-        expect(response.status).toBe(401);
     });
 
-    it('should redirect unauthenticated /dashboard access to /login', () => {
-        mockRequest.nextUrl.pathname = '/dashboard';
-        mockRequest.cookies.get.mockReturnValue(undefined); // No session
+    describe('Protected API routes — require session cookie', () => {
+        const protectedRoutes = [
+            '/api/leads',
+            '/api/templates',
+            '/api/users',
+            '/api/settings',
+            '/api/enrollments',
+            '/api/whatsapp',
+            '/api/dashboard',
+        ];
 
-        middleware(mockRequest as unknown as NextRequest);
+        it.each(protectedRoutes)(
+            'returns 401 for %s when no session cookie is present',
+            (path) => {
+                const req = buildMockRequest(path); // no cookie
+                const res = middleware(req) as { status: number };
+                expect(res.status).toBe(401);
+                expect(NextResponse.next).not.toHaveBeenCalled();
+            }
+        );
 
-        expect(NextResponse.redirect).toHaveBeenCalled();
-        const redirectUrl = (NextResponse.redirect as jest.Mock).mock.calls[0][0];
-        expect(redirectUrl.toString()).toContain('/login');
-        expect(redirectUrl.searchParams.get('callbackUrl')).toBe('/dashboard');
+        it.each(protectedRoutes)(
+            'passes through %s when a session cookie is present',
+            (path) => {
+                const req = buildMockRequest(path, 'valid-session-id');
+                middleware(req);
+                expect(NextResponse.next).toHaveBeenCalled();
+            }
+        );
     });
 
-    // Authenticated Scenarios
-    it('should allow access to /dashboard with valid session', () => {
-        mockRequest.nextUrl.pathname = '/dashboard';
-        mockRequest.cookies.get.mockReturnValue({ value: 'valid-session' });
+    describe('Non-API page routes — never intercepted', () => {
+        const pageRoutes = ['/', '/login', '/contacts', '/vagas'];
 
-        middleware(mockRequest as unknown as NextRequest);
-        expect(NextResponse.next).toHaveBeenCalled();
-    });
-
-    it('should allow access to /api/users with valid session', () => {
-        mockRequest.nextUrl.pathname = '/api/users';
-        mockRequest.cookies.get.mockReturnValue({ value: 'valid-session' });
-
-        middleware(mockRequest as unknown as NextRequest);
-        expect(NextResponse.next).toHaveBeenCalled();
+        it.each(pageRoutes)(
+            'does not block page route %s',
+            (path) => {
+                const req = buildMockRequest(path); // no cookie
+                middleware(req);
+                expect(NextResponse.next).toHaveBeenCalled();
+                expect(NextResponse.json).not.toHaveBeenCalled();
+            }
+        );
     });
 });
