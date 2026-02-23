@@ -9,7 +9,9 @@ import { linkedInJobAutomationService } from '@/services/LinkedInJobAutomationSe
 import { LinkedInJobRepository } from '@/lib/repositories/LinkedInJobRepository';
 import { dbLogger } from '@/lib/logger';
 
-const repo = new LinkedInJobRepository();
+// Impede o Next.js de tentar gerar esta rota estaticamente no build.
+// A rota depende de banco de dados e variáveis de ambiente em tempo de execução.
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
     dbLogger.info('[API] Manually triggering job sync');
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
  *   - offset=0 - pagination offset
  */
 export async function GET(req: NextRequest) {
+    const repo = new LinkedInJobRepository();
     try {
         const { searchParams } = new URL(req.url);
         const limit = parseInt(searchParams.get('limit') || '20');

@@ -20,15 +20,22 @@ export interface ParsedJob {
 }
 
 export class JobTransformerService {
-    private openai: OpenAI;
+    private openai: OpenAI | null = null;
 
     constructor() {
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-            dbLogger.error('[JobTransformer] OPENAI_API_KEY not configured');
-            throw new Error('OPENAI_API_KEY not configured');
+        // Inicialização lazy: o cliente OpenAI é criado apenas na primeira chamada
+        // para evitar falhas durante o build do Next.js (SSG sem env vars disponíveis)
+    }
+
+    private getOpenAIClient(): OpenAI {
+        if (!this.openai) {
+            const apiKey = process.env.OPENAI_API_KEY;
+            if (!apiKey) {
+                throw new Error('OPENAI_API_KEY not configured');
+            }
+            this.openai = new OpenAI({ apiKey });
         }
-        this.openai = new OpenAI({ apiKey });
+        return this.openai;
     }
 
     /**
@@ -59,7 +66,7 @@ REGRAS:
 
 Retorne APENAS o JSON, sem markdown.`;
 
-            const completion = await this.openai.chat.completions.create({
+            const completion = await this.getOpenAIClient().chat.completions.create({
                 model: 'gpt-4o-mini',
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.2,
