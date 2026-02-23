@@ -2,14 +2,15 @@
 
 import { useState } from 'react';
 import styles from './page.module.css';
-import { Sliders, Palette, Plug, Database } from 'lucide-react';
+import { Sliders, Palette, Plug, Database, Briefcase } from 'lucide-react';
 import { GeneralSettings } from '@/components/settings/GeneralSettings';
 import { StatusSettings } from '@/components/settings/StatusSettings';
 import { DataSettings } from '@/components/settings/DataSettings';
 import { YCloudSettings } from '@/components/settings/YCloudSettings';
+import { LinkedInSettings } from '@/components/settings/LinkedInSettings';
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<'general' | 'status' | 'integrations' | 'data'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'status' | 'integrations' | 'linkedin' | 'data'>('general');
 
     return (
         <div className={styles.container}>
@@ -41,6 +42,13 @@ export default function SettingsPage() {
                     Integrações
                 </button>
                 <button
+                    className={`${styles.tab} ${activeTab === 'linkedin' ? styles.active : ''}`}
+                    onClick={() => setActiveTab('linkedin')}
+                >
+                    <Briefcase size={18} />
+                    LinkedIn
+                </button>
+                <button
                     className={`${styles.tab} ${activeTab === 'data' ? styles.active : ''}`}
                     onClick={() => setActiveTab('data')}
                 >
@@ -53,6 +61,7 @@ export default function SettingsPage() {
                 {activeTab === 'general' && <GeneralSettings />}
                 {activeTab === 'status' && <StatusSettings />}
                 {activeTab === 'integrations' && <YCloudSettings />}
+                {activeTab === 'linkedin' && <LinkedInSettings />}
                 {activeTab === 'data' && <DataSettings />}
             </div>
         </div>

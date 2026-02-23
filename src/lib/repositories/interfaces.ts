@@ -4,7 +4,7 @@
  * All methods are async for PostgreSQL compatibility
  */
 
-import type { LeadRow, TemplateRow, MessageHistoryRow, SettingRow, ActivityRow, UserRow, SessionRow } from '../types';
+import type { LeadRow, TemplateRow, MessageHistoryRow, SettingRow, ActivityRow, UserRow, SessionRow, LinkedInJobRow, LinkedInJobStatus } from '../types';
 import type {
     CreateLeadDto,
     UpdateLeadDto,
@@ -293,4 +293,40 @@ export interface ISessionRepository {
      * Delete expired sessions
      */
     deleteExpired(): Promise<void>;
+}
+
+// ============================================================================
+// LINKEDIN JOB REPOSITORY
+// ============================================================================
+
+export interface ILinkedInJobRepository {
+    /**
+     * Check if a job post already exists in the database
+     */
+    exists(postId: string): Promise<boolean>;
+
+    /**
+     * Create a new job post record
+     */
+    create(data: Omit<LinkedInJobRow, 'id' | 'created_at'>): Promise<LinkedInJobRow>;
+
+    /**
+     * Update the status and optionally error message of a job post
+     */
+    updateStatus(id: number, status: LinkedInJobStatus, errorMessage?: string): Promise<void>;
+
+    /**
+     * Get the latest processed job posts
+     */
+    getLatest(limit: number): Promise<LinkedInJobRow[]>;
+
+    /**
+     * Get job posts by status
+     */
+    getByStatus(status: LinkedInJobStatus, limit: number): Promise<LinkedInJobRow[]>;
+
+    /**
+     * Get summary statistics for LinkedIn job automation
+     */
+    getStats(): Promise<{ total: number; posted: number; error: number }>;
 }
