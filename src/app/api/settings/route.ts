@@ -27,7 +27,8 @@ export async function GET() {
             if (row.key === 'whatsapp_provider') settings.whatsappProvider = row.value;
         });
 
-        return NextResponse.json(settings);
+        // Return both legacy mapped format and raw rows for generic key/value consumers
+        return NextResponse.json({ ...settings, _raw: rows });
     } catch (error) {
         console.error(error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -46,6 +47,12 @@ export async function POST(req: Request) {
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
             `, [key, value]);
         };
+
+        // Generic key/value format (used by job automation settings)
+        if (body.key !== undefined && body.value !== undefined) {
+            await upsert(body.key, body.value);
+            return NextResponse.json({ success: true });
+        }
 
         if (openaiApiKey !== undefined && !openaiApiKey.startsWith('sk-...')) {
             await upsert('openai_api_key', openaiApiKey);

@@ -287,6 +287,34 @@ export interface WhatsAppWebMessage {
 
 
 // ============================================================================
+// LINKEDIN JOB TYPES
+// ============================================================================
+
+/**
+ * LinkedIn Job status
+ */
+export type LinkedInJobStatus = 'pending' | 'posted' | 'rejected' | 'error';
+
+/**
+ * LinkedIn Job table row
+ */
+export interface LinkedInJobRow {
+    id: number;
+    linkedin_post_id: string;
+    title: string;
+    company: string;
+    location: string | null;
+    is_remote: boolean;
+    raw_content: string | null;
+    formatted_message: string | null;
+    url: string | null;
+    posted_at: string | null;
+    created_at: string;
+    status: LinkedInJobStatus;
+    error_message: string | null;
+}
+
+// ============================================================================
 // API TYPES
 // ============================================================================
 
