@@ -239,6 +239,65 @@ export class BaileysMessageHandler {
     }
 
     /**
+     * Handle forwarded job description texts (no URL required).
+     * Triggered when a DM contains a long job-like text without an HTTP link.
+     * Uses OpenAI to clean propaganda and rewrite the description attractively.
+     */
+    private async handleForwardedJobDescription(msg: WhatsAppMessage): Promise<boolean> {
+        if (msg.fromMe) return false;
+
+        const body = msg.body?.trim() ?? '';
+
+        // Only process texts that look like a vacancy description:
+        // - At least 100 chars (descriptions are verbose)
+        // - No URL (that case is handled by handleDirectJobLink)
+        if (body.length < 100) return false;
+        const hasUrl = /(https?:\/\/[^\s]+)/.test(body);
+        if (hasUrl) return false;
+
+        // Quick keyword pre-screen to avoid calling GPT on every message
+        const bodyLower = body.toLowerCase();
+        const jobKeywords = ['vaga', 'oportunidade', 'contratando', 'estamos contratando', 'hiring', 'desenvolvedor', 'programador', 'remoto', 'homeoffice', 'home office', 'salário', 'requisitos', 'currículo', 'curriculum', 'cv'];
+        const hasJobKeyword = jobKeywords.some(kw => bodyLower.includes(kw));
+        if (!hasJobKeyword) return false;
+
+        try {
+            const { jobTransformerService } = await import('@/services/JobTransformerService');
+            const { whatsAppGroupService } = await import('@/services/whatsAppGroupService');
+            const { whatsAppChatService } = await import('@/services/WhatsAppChatService');
+            const { SettingRepository } = await import('@/lib/repositories/SettingRepository');
+
+            whatsappLogger.info(`[ForwardedJobHandler] Texto de vaga detectado via DM de ${msg.from}`);
+            await whatsAppChatService.sendTextMessage(msg.from, `🔍 Identifiquei um texto de vaga. Estou reescrevendo...`);
+
+            const result = await jobTransformerService.rewriteForwardedJobText(body);
+
+            if (!result.isJob || !result.formattedMessage) {
+                await whatsAppChatService.sendTextMessage(msg.from, `ℹ️ O texto enviado não parece descrever uma vaga de emprego válida.`);
+                return true;
+            }
+
+            const settingRepo = new SettingRepository();
+            const linkedinGroupId = await settingRepo.get('linkedin_group_id');
+
+            if (linkedinGroupId) {
+                await whatsAppGroupService.sendToGroupById(linkedinGroupId, result.formattedMessage);
+                await whatsAppChatService.sendTextMessage(msg.from, `✅ Vaga reescrita e enviada para o grupo com sucesso!`);
+            } else {
+                whatsappLogger.warn('[ForwardedJobHandler] linkedin_group_id não configurado');
+                await whatsAppChatService.sendTextMessage(msg.from, `⚠️ Vaga processada, mas o grupo de destino não está configurado.`);
+            }
+
+            return true;
+        } catch (error) {
+            whatsappLogger.error('[ForwardedJobHandler] Erro ao processar texto de vaga:', error);
+            const { whatsAppChatService } = await import('@/services/WhatsAppChatService');
+            await whatsAppChatService.sendTextMessage(msg.from, `⚠️ Ocorreu um erro ao processar a descrição da vaga.`);
+            return true;
+        }
+    }
+
+    /**
      * Handle incoming/outgoing message
      */
     async handle(msg: WhatsAppMessage): Promise<void> {
@@ -248,8 +307,12 @@ export class BaileysMessageHandler {
             return;
         }
 
-        // Tenta interceptar como envio de vaga manual
-        await this.handleDirectJobLink(msg);
+        // Tenta interceptar como envio de vaga manual via link
+        const processedAsLink = await this.handleDirectJobLink(msg);
+        if (!processedAsLink) {
+            // Se não tinha link, tenta processar como texto de vaga encaminhado
+            await this.handleForwardedJobDescription(msg);
+        }
         // For outgoing, we don't easily know the 'to' from the normalized msg object if it's not passed.
         // Baileys.ts normalized object:
         // from: from.replace...

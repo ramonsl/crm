@@ -18,15 +18,21 @@ jest.mock('next/server', () => {
                 body,
                 status: init?.status ?? 200,
             })),
+            redirect: jest.fn().mockImplementation((url: URL | string) => ({
+                type: 'redirect',
+                url: url.toString(),
+                status: 307,
+            })),
         },
     };
 });
 
-import { middleware } from '@/middleware';
+import { proxy as middleware } from '@/proxy';
 
 function buildMockRequest(pathname: string, sessionId?: string) {
     return {
         nextUrl: { pathname },
+        url: `http://localhost${pathname}`,
         cookies: {
             get: jest.fn().mockReturnValue(sessionId ? { value: sessionId } : undefined),
         },
@@ -88,16 +94,22 @@ describe('Global Auth Middleware (#107)', () => {
         );
     });
 
-    describe('Non-API page routes — never intercepted', () => {
-        const pageRoutes = ['/', '/login', '/contacts', '/vagas'];
+    describe('Non-API page routes — never return 401', () => {
+        it('allows /login without a session cookie (public page)', () => {
+            const req = buildMockRequest('/login');
+            middleware(req);
+            expect(NextResponse.next).toHaveBeenCalled();
+            expect(NextResponse.json).not.toHaveBeenCalled();
+        });
 
-        it.each(pageRoutes)(
-            'does not block page route %s',
+        it.each(['/', '/contacts', '/vagas'])(
+            'redirects protected page %s to /login when no cookie (not a 401)',
             (path) => {
                 const req = buildMockRequest(path); // no cookie
                 middleware(req);
-                expect(NextResponse.next).toHaveBeenCalled();
+                // Page routes must NEVER return a 401 JSON — only a login redirect
                 expect(NextResponse.json).not.toHaveBeenCalled();
+                expect(NextResponse.redirect).toHaveBeenCalled();
             }
         );
     });
