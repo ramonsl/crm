@@ -21,6 +21,8 @@ export function proxy(request: NextRequest) {
         '/api/auth',
         '/api/webhooks',
         '/api/public',
+        '/api/health',
+        '/api/ycloud/webhook',
         '/_next',
         '/static',
         '/images',
