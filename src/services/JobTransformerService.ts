@@ -94,6 +94,13 @@ Retorne APENAS o JSON, sem markdown.`;
         }
     }
 
+    /** Rodapé institucional anexado a todas as vagas postadas */
+    private static readonly JOB_FOOTER = `
+---
+📚 *Serviço do Curso de Análise e Desenvolvimento de Sistemas*
+🏫 *ULBRA Torres* — 80% de empregabilidade dos formandos!
+📲 *Mais informações:* +55 51 2160-1994`;
+
     /**
      * Format a parsed job into a professional WhatsApp message
      */
@@ -112,10 +119,70 @@ Retorne APENAS o JSON, sem markdown.`;
 ${requirementsList}
 
 🔗 *Como se candidatar:*
-${job.applicationLink}
+${job.applicationLink}${JobTransformerService.JOB_FOOTER}`;
+    }
+
+    /**
+     * Rewrite a forwarded job description text into an attractive, clean WhatsApp message.
+     * Removes group/consultancy propaganda and formats content professionally.
+     *
+     * @param text Raw text forwarded by the user (description from groups/chats)
+     * @returns Formatted message ready to post, or null if content is not a job
+     */
+    async rewriteForwardedJobText(text: string): Promise<{ isJob: boolean; formattedMessage: string | null; applicationLink: string | null }> {
+        const prompt = `Você é um assistente especializado em vagas de emprego remotas para o mercado brasileiro de tecnologia.
+
+Analise o texto abaixo, que foi encaminhado de um grupo de WhatsApp ou outra fonte:
+
+"""
+${text}
+"""
+
+Sua tarefa:
+1. Determine se este texto descreve uma vaga de emprego legítima (isJob: true/false).
+2. Se for uma vaga:
+   a. REMOVA completamente: propaganda de grupos, menções a consultoras, frases como "entre no nosso grupo", "acesse nosso canal", links de grupos de WhatsApp/Telegram, assinaturas de bots/canais, qualquer conteúdo que não seja a vaga em si.
+   b. EXTRAIA o link de candidatura (URL de inscrição, e-mail, ou número de contato para se candidatar). Se não houver link claro, deixe null.
+   c. REESCREVA a descrição da vaga de forma atrativa, clara e profissional em português brasileiro, usando emojis moderadamente.
+   d. O texto reescrito deve conter: cargo, empresa (se informada), modalidade (remoto/presencial/híbrido), requisitos principais, e como se candidatar.
+   e. Mantenha o tom motivador mas sem exageros.
+   f. Ao final do formattedMessage, adicione SEMPRE este rodapé institucional exatamente como está:
 
 ---
-_Postado automaticamente via CRM Educacional_`;
+📚 *Serviço do Curso de Análise e Desenvolvimento de Sistemas*
+🏫 *ULBRA Torres* — 80% de empregabilidade dos formandos!
+📲 *Mais informações:* +55 51 2160-1994
+
+3. Se NÃO for uma vaga, responda apenas com isJob: false.
+
+Responda APENAS com JSON no formato:
+{
+  "isJob": boolean,
+  "formattedMessage": "texto reescrito e formatado para WhatsApp ou null",
+  "applicationLink": "URL ou email de candidatura ou null"
+}`;
+
+        try {
+            const completion = await this.getOpenAIClient().chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.3,
+                response_format: { type: 'json_object' },
+            });
+
+            const content = completion.choices[0]?.message?.content;
+            if (!content) return { isJob: false, formattedMessage: null, applicationLink: null };
+
+            const data = JSON.parse(content);
+            return {
+                isJob: !!data.isJob,
+                formattedMessage: data.formattedMessage ?? null,
+                applicationLink: data.applicationLink ?? null,
+            };
+        } catch (error) {
+            dbLogger.error('[JobTransformer] Erro ao reescrever vaga encaminhada:', error);
+            return { isJob: false, formattedMessage: null, applicationLink: null };
+        }
     }
 }
 
