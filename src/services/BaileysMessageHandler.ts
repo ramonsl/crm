@@ -229,15 +229,16 @@ export class BaileysMessageHandler {
                     await whatsAppChatService.sendTextMessage(msg.from, `⚠️ Vaga processada, mas o grupo de destino não está configurado.`);
                 }
             } else {
-                await whatsAppChatService.sendTextMessage(msg.from, `ℹ️ O link enviado não parece conectar a uma vaga de emprego válida legível.`);
+                // Ao invés de mandar erro, vamos retornar false para que
+                // o BaileysMessageHandler tente passar a mensagem pro handleForwardedJobDescription
+                // caso o link não seja uma vaga limpa na página, mas o texto do zap seja uma vaga inteira.
                 whatsappLogger.debug(`[JobLinkHandler] Ignorado: não é vaga. Result: ${JSON.stringify(parsedJob)}`);
+                return false;
             }
-            return true; // processou como vaga
+            return true; // processou como vaga com sucesso
         } catch (error) {
-            whatsappLogger.error('[JobLinkHandler] Erro:', error);
-            const { whatsAppChatService } = await import('@/services/WhatsAppChatService');
-            await whatsAppChatService.sendTextMessage(msg.from, `⚠️ Ocorreu um erro ao processar o link.`);
-            return true; // deu erro, mas tentou
+            whatsappLogger.error('[JobLinkHandler] Erro ao processar o link (tentando fallback para texto):', error);
+            return false; // deu erro, devolve false para tentar o proxy de texto encaminhado
         }
     }
 
@@ -290,7 +291,10 @@ export class BaileysMessageHandler {
 
             return true;
         } catch (error) {
-            whatsappLogger.error('[ForwardedJobHandler] Erro ao processar texto de vaga:', error);
+            whatsappLogger.error('[ForwardedJobHandler] Erro FATAL ao processar texto de vaga:', error);
+            if (error instanceof Error) {
+                whatsappLogger.error(`[ForwardedJobHandler] Stack: ${error.stack}`);
+            }
             const { whatsAppChatService } = await import('@/services/WhatsAppChatService');
             await whatsAppChatService.sendTextMessage(msg.from, `⚠️ Ocorreu um erro ao processar a descrição da vaga.`);
             return true;
