@@ -178,8 +178,14 @@ export function LinkedInSettings() {
             // 1. Inicia o processo de sincronização no background
             const startRes = await fetch('/api/jobs/sync/start', { method: 'POST' });
             if (!startRes.ok) {
-                const errData = await startRes.json();
-                throw new Error(errData.error || 'Erro ao iniciar a sincronização.');
+                let errMsg = `Erro no servidor (Status: ${startRes.status})`;
+                try {
+                    const errData = await startRes.json();
+                    if (errData.error) errMsg = errData.error;
+                } catch (e) {
+                    // Ignore, not valid JSON (e.g. 500 framework HTML page)
+                }
+                throw new Error(errMsg);
             }
 
             setSyncLogs(['Sincronização iniciada em backgound. Aguardando logs...']);
@@ -190,9 +196,18 @@ export function LinkedInSettings() {
             syncIntervalRef.current = setInterval(async () => {
                 try {
                     const statusRes = await fetch('/api/jobs/sync/status');
-                    if (!statusRes.ok) return;
+                    if (!statusRes.ok) {
+                        setSyncLogs(prev => [...prev, `\n[Servidor] Aguardando retorno ok (Status: ${statusRes.status})...`]);
+                        return;
+                    }
 
-                    const data = await statusRes.json();
+                    let data;
+                    try {
+                        data = await statusRes.json();
+                    } catch (e) {
+                        setSyncLogs(prev => [...prev, `\n[Erro] Falha ao processar status da sincronização.`]);
+                        return;
+                    }
 
                     if (data.logs && data.logs.length > 0) {
                         setSyncLogs(data.logs);
