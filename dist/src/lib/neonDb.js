@@ -1,9 +1,12 @@
 "use strict";
 /**
- * Neon PostgreSQL Database Connection
+ * Database Connection Layer
  *
- * This module provides database connectivity using Neon's serverless driver.
- * Replaces better-sqlite3 for PostgreSQL compatibility.
+ * Uses the pure `pg` driver for connection pooling on long-lived Node.js servers
+ * (Railway). The @neondatabase/serverless Pool uses WebSocket which is dropped by
+ * Railway/Neon on idle, causing ETIMEDOUT errors.
+ *
+ * The `sql` tag (HTTP) still uses @neondatabase/serverless neon() for compatibility.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.pool = exports.sql = void 0;
@@ -12,6 +15,7 @@ exports.queryOne = queryOne;
 exports.execute = execute;
 exports.transaction = transaction;
 exports.closePool = closePool;
+const pg_1 = require("pg");
 const serverless_1 = require("@neondatabase/serverless");
 const logger_1 = require("../lib/logger");
 // Validate DATABASE_URL is present
@@ -20,102 +24,75 @@ if (!connectionString) {
     logger_1.dbLogger.warn('DATABASE_URL not set - database operations will fail');
 }
 /**
- * SQL template function for HTTP queries (one-shot queries)
- * Best for: Simple reads, API routes, serverless functions
+ * SQL template tag for one-shot HTTP queries (serverless-friendly).
+ * Keep using @neondatabase/serverless neon() for simple, stateless queries.
  *
  * Usage:
  *   const users = await sql`SELECT * FROM users WHERE id = ${id}`;
  */
-// Safely initialize neon - if no connection string, return a dummy function that throws when called
 exports.sql = connectionString
     ? (0, serverless_1.neon)(connectionString)
-    : ((...args) => { throw new Error('DATABASE_URL is not set'); });
+    : ((..._args) => { throw new Error('DATABASE_URL is not set'); });
 /**
- * Connection Pool for WebSocket queries (session-based)
- * Best for: Complex transactions, multiple queries, real-time features
+ * Connection Pool using the pure `pg` driver.
  *
- * Optimized for Neon Serverless:
- * - min: 2 connections always ready (reduces cold start time)
- * - max: 10 connections (prevents overwhelming Neon)
- * - idleTimeoutMillis: 30s (closes idle connections to save compute time)
- * - connectionTimeoutMillis: 5s (fail fast if pool is exhausted)
- * - allowExitOnIdle: true (allows graceful shutdown)
- *
- * Usage:
- *   const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+ * Configured for Railway (persistent Node.js server):
+ * - max: 10   — adequate for Railway's single-instance plan
+ * - keepAlive — prevents ETIMEDOUT from idle TCP connection drops
+ * - idleTimeoutMillis, connectionTimeoutMillis — fail fast if pool exhausted
  */
-exports.pool = new serverless_1.Pool({
-    connectionString: connectionString, // Pool allows undefined connectionString in config, but will fail on connect
-    max: 20, // Maximum number of connections in the pool
-    min: 0, // No idle connections in serverless (reduces Neon compute costs)
-    idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
-    connectionTimeoutMillis: 30000, // Timeout acquiring connection from pool (30s)
-    allowExitOnIdle: true, // Allow process to exit if all connections are idle
+exports.pool = new pg_1.Pool({
+    connectionString,
+    max: 10,
+    min: 1,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
 });
 // ============================================================================
 // ERROR HANDLING & RESILIENCE
 // ============================================================================
-/**
- * Pool error handler - prevents uncaught exceptions from crashing the app
- * Logs errors but allows the pool to handle reconnection automatically
- */
-exports.pool.on('error', (err, client) => {
-    logger_1.dbLogger.error('Unexpected pool error - connection may have been terminated', {
+exports.pool.on('error', (err) => {
+    logger_1.dbLogger.error('Unexpected pool error — connection may have been terminated', {
         error: err.message,
-        stack: err.stack,
         timestamp: new Date().toISOString(),
     });
-    // Do NOT throw or propagate - let the pool manage reconnection
+    // Do NOT throw — let pg handle reconnection automatically
 });
-/**
- * Connection event handler - tracks new connections for debugging
- */
-exports.pool.on('connect', (client) => {
+exports.pool.on('connect', () => {
     logger_1.dbLogger.debug('New client connected to pool', {
         totalCount: exports.pool.totalCount,
         idleCount: exports.pool.idleCount,
         waitingCount: exports.pool.waitingCount,
     });
 });
-/**
- * Remove event handler - tracks connection removal for debugging
- */
-exports.pool.on('remove', (client) => {
+exports.pool.on('remove', () => {
     logger_1.dbLogger.debug('Client removed from pool', {
         totalCount: exports.pool.totalCount,
         idleCount: exports.pool.idleCount,
         waitingCount: exports.pool.waitingCount,
     });
 });
+// ============================================================================
+// QUERY HELPERS
+// ============================================================================
 /**
- * Helper to run a parameterized query
- * Provides compatibility layer for code migrating from better-sqlite3
- *
- * @param query SQL query with $1, $2, etc. placeholders
- * @param params Array of parameter values
- * @returns Query result rows
+ * Run a parameterized query and return all rows.
  */
 async function query(queryText, params = []) {
     const result = await exports.pool.query(queryText, params);
     return result.rows;
 }
 /**
- * Helper to run a query and get the first row
- *
- * @param queryText SQL query with $1, $2, etc. placeholders
- * @param params Array of parameter values
- * @returns First row or undefined
+ * Run a query and return the first row, or undefined if no results.
  */
 async function queryOne(queryText, params = []) {
     const result = await exports.pool.query(queryText, params);
     return result.rows[0];
 }
 /**
- * Execute a query that modifies data (INSERT, UPDATE, DELETE)
- *
- * @param queryText SQL query with $1, $2, etc. placeholders
- * @param params Array of parameter values
- * @returns Number of affected rows
+ * Execute a mutating query (INSERT, UPDATE, DELETE) and return affected row count.
  */
 async function execute(queryText, params = []) {
     var _a;
@@ -123,10 +100,8 @@ async function execute(queryText, params = []) {
     return (_a = result.rowCount) !== null && _a !== void 0 ? _a : 0;
 }
 /**
- * Run multiple queries in a transaction
- *
- * @param callback Function that receives a client and runs queries
- * @returns Result of the callback
+ * Run multiple queries atomically within a transaction.
+ * Automatically commits on success and rolls back on error.
  */
 async function transaction(callback) {
     const client = await exports.pool.connect();
@@ -145,9 +120,9 @@ async function transaction(callback) {
     }
 }
 /**
- * Close all connections - use on app shutdown
+ * Gracefully close all pool connections — call on app shutdown.
  */
 async function closePool() {
     await exports.pool.end();
 }
-logger_1.dbLogger.debug('Neon PostgreSQL driver initialized');
+logger_1.dbLogger.debug('pg Pool initialized (Railway-stable)');
