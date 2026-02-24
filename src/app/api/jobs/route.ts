@@ -12,6 +12,7 @@ import { dbLogger } from '@/lib/logger';
 // Impede o Next.js de tentar gerar esta rota estaticamente no build.
 // A rota depende de banco de dados e variáveis de ambiente em tempo de execução.
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
     dbLogger.info('[API] Manually triggering job sync');
