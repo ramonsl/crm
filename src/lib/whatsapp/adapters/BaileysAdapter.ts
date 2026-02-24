@@ -673,57 +673,69 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
             };
         }
 
-        try {
-            const sendPromise = (async () => {
-                // Resolve correct JID using network check
-                const jid = await this.getChatId(phone);
+        const maxAttempts = 3;
+        let lastError: Error | unknown;
 
-                if (mediaUrl) {
-                    // Send media message
-                    if (mediaUrl.match(/\.(jpg|jpeg|png|gif)$/i) || mediaType === 'image') {
-                        return await this.state.socket!.sendMessage(jid, {
-                            image: { url: mediaUrl },
-                            caption: message
-                        });
-                    } else if (mediaUrl.match(/\.(mp4|mov|avi)$/i) || mediaType === 'video') {
-                        return await this.state.socket!.sendMessage(jid, {
-                            video: { url: mediaUrl },
-                            caption: message
-                        });
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const sendPromise = (async () => {
+                    // Resolve correct JID using network check
+                    const jid = await this.getChatId(phone);
+
+                    if (mediaUrl) {
+                        // Send media message
+                        if (mediaUrl.match(/\.(jpg|jpeg|png|gif)$/i) || mediaType === 'image') {
+                            return await this.state.socket!.sendMessage(jid, {
+                                image: { url: mediaUrl },
+                                caption: message
+                            });
+                        } else if (mediaUrl.match(/\.(mp4|mov|avi)$/i) || mediaType === 'video') {
+                            return await this.state.socket!.sendMessage(jid, {
+                                video: { url: mediaUrl },
+                                caption: message
+                            });
+                        } else {
+                            // Default to document
+                            return await this.state.socket!.sendMessage(jid, {
+                                document: { url: mediaUrl },
+                                mimetype: 'application/octet-stream',
+                                fileName: mediaUrl.split('/').pop() || 'file',
+                                caption: message
+                            });
+                        }
                     } else {
-                        // Default to document
+                        // Send text message
                         return await this.state.socket!.sendMessage(jid, {
-                            document: { url: mediaUrl },
-                            mimetype: 'application/octet-stream',
-                            fileName: mediaUrl.split('/').pop() || 'file',
-                            caption: message
+                            text: message
                         });
                     }
-                } else {
-                    // Send text message
-                    return await this.state.socket!.sendMessage(jid, {
-                        text: message
-                    });
+                })();
+
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                    setTimeout(() => reject(new Error('WhatsApp network operation timeout (45s)')), 45000);
+                });
+
+                const sentMsg = await Promise.race([sendPromise, timeoutPromise]);
+
+                return {
+                    success: true,
+                    messageId: sentMsg?.key?.id || undefined
+                };
+            } catch (error) {
+                lastError = error;
+                whatsappLogger.warn(`Error sending message (Attempt ${attempt}/${maxAttempts}):`, error);
+
+                if (attempt < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, attempt * 2000));
                 }
-            })();
-
-            const timeoutPromise = new Promise<never>((_, reject) => {
-                setTimeout(() => reject(new Error('WhatsApp network operation timeout (15s)')), 15000);
-            });
-
-            const sentMsg = await Promise.race([sendPromise, timeoutPromise]);
-
-            return {
-                success: true,
-                messageId: sentMsg?.key?.id || undefined
-            };
-        } catch (error) {
-            whatsappLogger.error('Error sending message:', error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Erro ao enviar mensagem'
-            };
+            }
         }
+
+        whatsappLogger.error('Error sending message after multiple attempts:', lastError);
+        return {
+            success: false,
+            error: lastError instanceof Error ? lastError.message : 'Erro ao enviar mensagem após múltiplas tentativas'
+        };
     }
 
     async syncChatHistory(phone: string): Promise<void> {
