@@ -25,6 +25,15 @@ export class LinkedInJobAutomationService {
     private jobRepo: LinkedInJobRepository;
     private settingRepo: SettingRepository;
 
+    // In-memory state for UI polling
+    private _isSyncing: boolean = false;
+    private _syncLogs: string[] = [];
+    private _lastSyncStats: any = null;
+
+    get isSyncing() { return this._isSyncing; }
+    get syncLogs() { return this._syncLogs; }
+    get lastSyncStats() { return this._lastSyncStats; }
+
     constructor() {
         this.jobRepo = new LinkedInJobRepository();
         this.settingRepo = new SettingRepository();
@@ -34,51 +43,71 @@ export class LinkedInJobAutomationService {
      * Run the full sync process (LinkedIn + Remotar + VagasRemotas + Workei)
      */
     async runSync(onProgress?: (msg: string) => void): Promise<{ processed: number; posted: number; skipped: number; errors: number }> {
-        const log = (msg: string) => {
-            dbLogger.info(`[JobAutomation] ${msg}`);
-            if (onProgress) onProgress(msg);
-        };
-
-        log('Starting sync...');
-
-        const stats = { processed: 0, posted: 0, skipped: 0, errors: 0 };
-        const groupId = await this.settingRepo.get('linkedin_group_id');
-
-        if (!groupId) {
-            dbLogger.warn('[JobAutomation] Missing WhatsApp group_id setting');
-            if (onProgress) onProgress('Missing WhatsApp group_id setting. Cannot proceed.');
-            return stats;
+        if (this._isSyncing) {
+            throw new Error('Uma sincronização já está em andamento.');
         }
 
-        // Run all sources
-        const linkedInStats = await this.syncLinkedIn(groupId, onProgress);
-        const remotarStats = await this.syncRemotar(groupId, onProgress);
-        const vagasRemotasStats = await this.syncVagasRemotas(groupId, onProgress);
-        const workeiStats = await this.syncWorkei(groupId, onProgress);
+        this._isSyncing = true;
+        this._syncLogs = [];
+        this._lastSyncStats = null;
 
-        // Merge stats
-        stats.processed = linkedInStats.processed + remotarStats.processed + vagasRemotasStats.processed + workeiStats.processed;
-        stats.posted = linkedInStats.posted + remotarStats.posted + vagasRemotasStats.posted + workeiStats.posted;
-        stats.skipped = linkedInStats.skipped + remotarStats.skipped + vagasRemotasStats.skipped + workeiStats.skipped;
-        stats.errors = linkedInStats.errors + remotarStats.errors + vagasRemotasStats.errors + workeiStats.errors;
+        const internalOnProgress = (msg: string) => {
+            if (onProgress) onProgress(msg);
+            this._syncLogs.push(`[${new Date().toISOString()}] ${msg}`);
+            // Keep only the last 50 logs to avoid memory leaks
+            if (this._syncLogs.length > 50) this._syncLogs.shift();
+        };
 
-        log(`Sync complete: ${JSON.stringify(stats)}`);
-        return stats;
+        dbLogger.info('[JobAutomation] runSync initiated');
+        internalOnProgress('Iniciando orquestração global de vagas...');
+
+        const stats = {
+            processed: 0,
+            skipped: 0,
+            posted: 0,
+            errors: 0
+        };
+
+        try {
+            const groupId = await this.settingRepo.get('linkedin_group_id');
+
+            if (!groupId) {
+                dbLogger.warn('[JobAutomation] Missing WhatsApp group_id setting');
+                internalOnProgress('Missing WhatsApp group_id setting. Cannot proceed.');
+                return stats;
+            }
+
+            // Run all sources
+            await this.syncLinkedIn(groupId, stats, internalOnProgress);
+            await this.syncRemotar(groupId, stats, internalOnProgress);
+            await this.syncVagasRemotas(groupId, stats, internalOnProgress);
+            await this.syncWorkei(groupId, stats, internalOnProgress);
+
+            internalOnProgress('Finalizando sincronização global...');
+            this._lastSyncStats = stats;
+            return stats;
+        } catch (error) {
+            dbLogger.error('[JobAutomation] runSync failed:', error);
+            const errLog = `Erro crítico na orquestração: ${error instanceof Error ? error.message : 'Unknown'}`;
+            internalOnProgress(errLog);
+            throw error;
+        } finally {
+            this._isSyncing = false;
+        }
     }
 
     /**
      * Sync jobs from LinkedIn profiles
      */
-    private async syncLinkedIn(groupId: string, onProgress?: (msg: string) => void): Promise<{ processed: number; posted: number; skipped: number; errors: number }> {
-        const stats = { processed: 0, posted: 0, skipped: 0, errors: 0 };
-
+    private async syncLinkedIn(groupId: string, stats: { processed: number; posted: number; skipped: number; errors: number }, onProgress?: (msg: string) => void): Promise<void> {
         try {
             const token = await this.settingRepo.get('linkedin_access_token');
             const profilesStr = await this.settingRepo.get('linkedin_profiles');
 
             if (!token || !profilesStr) {
                 dbLogger.info('[JobAutomation] LinkedIn: Skipping (no token or profiles configured)');
-                return stats;
+                onProgress?.('LinkedIn: Pulando (token ou perfis não configurados)');
+                return;
             }
 
             const profiles = profilesStr.split(',').map(p => p.trim()).filter(p => p !== '');
@@ -90,10 +119,10 @@ export class LinkedInJobAutomationService {
                 recentJobs.push(...recentPosts);
             }
 
-            stats.processed = recentJobs.length;
-            const logMsg = `LinkedIn: ${recentJobs.length} posts from ${profiles.length} profiles`;
+            stats.processed += recentJobs.length;
+            const logMsg = `LinkedIn: ${recentJobs.length} posts de ${profiles.length} perfis`;
             dbLogger.info(`[JobAutomation] ${logMsg}`);
-            if (onProgress) onProgress(logMsg);
+            onProgress?.(logMsg);
 
             for (const post of recentJobs) {
                 try {
@@ -145,11 +174,11 @@ export class LinkedInJobAutomationService {
 
                         const msgStr = `LinkedIn: Vaga "${parsed.title}" (${parsed.company}) postada com sucesso.`;
                         dbLogger.info(`[JobAutomation] ${msgStr}`);
-                        if (onProgress) onProgress(msgStr);
+                        onProgress?.(msgStr);
                     } catch (sendError) {
                         const errMsg = `LinkedIn WhatsApp send error on post ${post.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
                         dbLogger.error(`[JobAutomation] ${errMsg}`);
-                        if (onProgress) onProgress(`[Erro] ${errMsg}`);
+                        onProgress?.(`[Erro] ${errMsg}`);
 
                         await this.jobRepo.updateStatus(createdJob.id, 'error', sendError instanceof Error ? sendError.message : String(sendError));
                         stats.errors++;
@@ -163,23 +192,20 @@ export class LinkedInJobAutomationService {
             }
         } catch (error) {
             dbLogger.error('[JobAutomation] LinkedIn sync failed:', error);
-            if (onProgress) onProgress(`[Erro Crítico] Falha geral no LinkedIn: ${error instanceof Error ? error.message : String(error)}`);
+            onProgress?.(`[Erro Crítico] Falha geral no LinkedIn: ${error instanceof Error ? error.message : String(error)}`);
         }
-
-        return stats;
     }
 
     /**
      * Sync jobs from Remotar.com.br API
      */
-    private async syncRemotar(groupId: string, onProgress?: (msg: string) => void): Promise<{ processed: number; posted: number; skipped: number; errors: number }> {
-        const stats = { processed: 0, posted: 0, skipped: 0, errors: 0 };
-
+    private async syncRemotar(groupId: string, stats: { processed: number; posted: number; skipped: number; errors: number }, onProgress?: (msg: string) => void): Promise<void> {
         try {
             const remotarEnabled = await this.settingRepo.get('remotar_enabled');
             if (remotarEnabled !== 'true') {
                 dbLogger.info('[JobAutomation] Remotar: Skipping (not enabled)');
-                return stats;
+                onProgress?.('Remotar: Pulando (não habilitado)');
+                return;
             }
 
             const categories = await this.settingRepo.get('remotar_categories') || '2,3,4,7,10,12,15,13,14,8';
@@ -189,10 +215,10 @@ export class LinkedInJobAutomationService {
             const allJobs = await remotarScraperService.fetchRecentJobs(categories, 5);
             const recentJobs = remotarScraperService.filterRecentJobs(allJobs, filterHours);
 
-            stats.processed = recentJobs.length;
-            const logMsg = `Remotar: ${allJobs.length} total, ${recentJobs.length} from last ${filterHours}h`;
+            stats.processed += recentJobs.length;
+            const logMsg = `Remotar: ${allJobs.length} total, ${recentJobs.length} das últimas ${filterHours}h`;
             dbLogger.info(`[JobAutomation] ${logMsg}`);
-            if (onProgress) onProgress(logMsg);
+            onProgress?.(logMsg);
 
             for (const job of recentJobs) {
                 try {
@@ -227,11 +253,11 @@ export class LinkedInJobAutomationService {
 
                         const msgStr = `Remotar: Vaga "${job.title}" (${job.company}) postada com sucesso.`;
                         dbLogger.info(`[JobAutomation] ${msgStr}`);
-                        if (onProgress) onProgress(msgStr);
+                        onProgress?.(msgStr);
                     } catch (sendError) {
                         const errMsg = `Remotar WhatsApp send error on job ${job.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
                         dbLogger.error(`[JobAutomation] ${errMsg}`);
-                        if (onProgress) onProgress(`[Erro] ${errMsg}`);
+                        onProgress?.(`[Erro] ${errMsg}`);
 
                         await this.jobRepo.updateStatus(createdJob.id, 'error', sendError instanceof Error ? sendError.message : String(sendError));
                         stats.errors++;
@@ -245,23 +271,20 @@ export class LinkedInJobAutomationService {
             }
         } catch (error) {
             dbLogger.error('[JobAutomation] Remotar sync failed:', error);
-            if (onProgress) onProgress(`[Erro Crítico] Falha geral no Remotar: ${error instanceof Error ? error.message : String(error)}`);
+            onProgress?.(`[Erro Crítico] Falha geral no Remotar: ${error instanceof Error ? error.message : String(error)}`);
         }
-
-        return stats;
     }
 
     /**
      * Sync jobs from VagasRemotas.com.br HTML scraping
      */
-    private async syncVagasRemotas(groupId: string, onProgress?: (msg: string) => void): Promise<{ processed: number; posted: number; skipped: number; errors: number }> {
-        const stats = { processed: 0, posted: 0, skipped: 0, errors: 0 };
-
+    private async syncVagasRemotas(groupId: string, stats: { processed: number; posted: number; skipped: number; errors: number }, onProgress?: (msg: string) => void): Promise<void> {
         try {
             const vagasRemotasEnabled = await this.settingRepo.get('vagasremotas_enabled');
             if (vagasRemotasEnabled !== 'true') {
                 dbLogger.info('[JobAutomation] VagasRemotas: Skipping (not enabled)');
-                return stats;
+                onProgress?.('VagasRemotas: Pulando (não habilitado)');
+                return;
             }
 
             const filterHoursStr = await this.settingRepo.get('remotar_filter_hours');
@@ -270,10 +293,10 @@ export class LinkedInJobAutomationService {
             const allJobs = await vagasRemotasScraperService.fetchJobs();
             const recentJobs = vagasRemotasScraperService.filterRecentJobs(allJobs, filterHours);
 
-            stats.processed = recentJobs.length;
-            const logMsg = `VagasRemotas: ${allJobs.length} total, ${recentJobs.length} from last ${filterHours}h`;
+            stats.processed += recentJobs.length;
+            const logMsg = `VagasRemotas: ${allJobs.length} total, ${recentJobs.length} das últimas ${filterHours}h`;
             dbLogger.info(`[JobAutomation] ${logMsg}`);
-            if (onProgress) onProgress(logMsg);
+            onProgress?.(logMsg);
 
             for (const job of recentJobs) {
                 try {
@@ -307,11 +330,11 @@ export class LinkedInJobAutomationService {
 
                         const msgStr = `VagasRemotas: Vaga "${job.title}" (${job.company}) postada com sucesso.`;
                         dbLogger.info(`[JobAutomation] ${msgStr}`);
-                        if (onProgress) onProgress(msgStr);
+                        onProgress?.(msgStr);
                     } catch (sendError) {
                         const errMsg = `VagasRemotas WhatsApp send error on job ${job.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
                         dbLogger.error(`[JobAutomation] ${errMsg}`);
-                        if (onProgress) onProgress(`[Erro] ${errMsg}`);
+                        onProgress?.(`[Erro] ${errMsg}`);
 
                         await this.jobRepo.updateStatus(createdJob.id, 'error', sendError instanceof Error ? sendError.message : String(sendError));
                         stats.errors++;
@@ -325,23 +348,20 @@ export class LinkedInJobAutomationService {
             }
         } catch (error) {
             dbLogger.error('[JobAutomation] VagasRemotas sync failed:', error);
-            if (onProgress) onProgress(`[Erro Crítico] Falha geral no VagasRemotas: ${error instanceof Error ? error.message : String(error)}`);
+            onProgress?.(`[Erro Crítico] Falha geral no VagasRemotas: ${error instanceof Error ? error.message : String(error)}`);
         }
-
-        return stats;
     }
 
     /**
      * Sync jobs from Workei.com.br REST API
      */
-    private async syncWorkei(groupId: string, onProgress?: (msg: string) => void): Promise<{ processed: number; posted: number; skipped: number; errors: number }> {
-        const stats = { processed: 0, posted: 0, skipped: 0, errors: 0 };
-
+    private async syncWorkei(groupId: string, stats: { processed: number; posted: number; skipped: number; errors: number }, onProgress?: (msg: string) => void): Promise<void> {
         try {
             const workeiEnabled = await this.settingRepo.get('workei_enabled');
             if (workeiEnabled !== 'true') {
                 dbLogger.info('[JobAutomation] Workei: Skipping (not enabled)');
-                return stats;
+                onProgress?.('Workei: Pulando (não habilitado)');
+                return;
             }
 
             const filterHoursStr = await this.settingRepo.get('workei_filter_hours') || await this.settingRepo.get('remotar_filter_hours');
@@ -350,10 +370,10 @@ export class LinkedInJobAutomationService {
             const allJobs = await workeiScraperService.fetchRecentJobs(10);
             const recentJobs = workeiScraperService.filterRecentJobs(allJobs, filterHours);
 
-            stats.processed = recentJobs.length;
-            const logMsg = `Workei: ${allJobs.length} total, ${recentJobs.length} from last ${filterHours}h`;
+            stats.processed += recentJobs.length;
+            const logMsg = `Workei: ${allJobs.length} total, ${recentJobs.length} das últimas ${filterHours}h`;
             dbLogger.info(`[JobAutomation] ${logMsg}`);
-            if (onProgress) onProgress(logMsg);
+            onProgress?.(logMsg);
 
             for (const job of recentJobs) {
                 try {
@@ -387,11 +407,11 @@ export class LinkedInJobAutomationService {
 
                         const msgStr = `Workei: Vaga "${job.title}" (${job.company}) postada com sucesso.`;
                         dbLogger.info(`[JobAutomation] ${msgStr}`);
-                        if (onProgress) onProgress(msgStr);
+                        onProgress?.(msgStr);
                     } catch (sendError) {
                         const errMsg = `Workei WhatsApp send error on job ${job.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
                         dbLogger.error(`[JobAutomation] ${errMsg}`);
-                        if (onProgress) onProgress(`[Erro] ${errMsg}`);
+                        onProgress?.(`[Erro] ${errMsg}`);
 
                         await this.jobRepo.updateStatus(createdJob.id, 'error', sendError instanceof Error ? sendError.message : String(sendError));
                         stats.errors++;
@@ -405,10 +425,8 @@ export class LinkedInJobAutomationService {
             }
         } catch (error) {
             dbLogger.error('[JobAutomation] Workei sync failed:', error);
-            if (onProgress) onProgress(`[Erro Crítico] Falha geral no Workei: ${error instanceof Error ? error.message : String(error)}`);
+            onProgress?.(`[Erro Crítico] Falha geral no Workei: ${error instanceof Error ? error.message : String(error)}`);
         }
-
-        return stats;
     }
 }
 

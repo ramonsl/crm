@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Save, RefreshCw, Briefcase, ExternalLink, AlertCircle,
     CheckCircle2, Users, Loader2, Globe
@@ -23,6 +23,7 @@ export function LinkedInSettings() {
     const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
     const [loadingGroups, setLoadingGroups] = useState(false);
     const [groupsError, setGroupsError] = useState<string | null>(null);
+    const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Remotar settings
     const [remotarEnabled, setRemotarEnabled] = useState(false);
@@ -60,6 +61,13 @@ export function LinkedInSettings() {
         fetchSettings();
         fetchStats();
         fetchGroups();
+
+        // Cleanup interval on unmount
+        return () => {
+            if (syncIntervalRef.current) {
+                clearInterval(syncIntervalRef.current);
+            }
+        };
     }, [fetchGroups]);
 
     const fetchSettings = async () => {
@@ -164,41 +172,51 @@ export function LinkedInSettings() {
         if (!confirm('Deseja iniciar a sincronização manual agora? Note que esse processo pode demorar alguns minutos.')) return;
 
         setSyncing(true);
-        setSyncLogs(['Iniciando conexão de sincronização em tempo real...']);
+        setSyncLogs(['Iniciando requisição de sincronização...']);
 
         try {
-            const eventSource = new EventSource('/api/jobs/sync/stream');
+            // 1. Inicia o processo de sincronização no background
+            const startRes = await fetch('/api/jobs/sync/start', { method: 'POST' });
+            if (!startRes.ok) {
+                const errData = await startRes.json();
+                throw new Error(errData.error || 'Erro ao iniciar a sincronização.');
+            }
 
-            eventSource.onmessage = (event) => {
+            setSyncLogs(['Sincronização iniciada em backgound. Aguardando logs...']);
+
+            // 2. Poll: verifica o status a cada 2 segundos
+            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+
+            syncIntervalRef.current = setInterval(async () => {
                 try {
-                    const data = JSON.parse(event.data);
+                    const statusRes = await fetch('/api/jobs/sync/status');
+                    if (!statusRes.ok) return;
 
-                    if (data.type === 'info' || data.type === 'progress') {
-                        setSyncLogs(prev => [...prev, data.message]);
-                    } else if (data.type === 'complete') {
-                        eventSource.close();
+                    const data = await statusRes.json();
+
+                    if (data.logs && data.logs.length > 0) {
+                        setSyncLogs(data.logs);
+                    }
+
+                    // Se terminou a sincronização
+                    if (!data.isSyncing) {
+                        if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
                         setSyncing(false);
-                        setSyncLogs(prev => [...prev, `[Sucesso] Sincronização concluída! Processados: ${data.stats.processed} | Postados: ${data.stats.posted} | Erros: ${data.stats.errors}`]);
-                        fetchStats();
-                    } else if (data.type === 'error') {
-                        eventSource.close();
-                        setSyncing(false);
-                        setSyncLogs(prev => [...prev, `[ERRO] ${data.message}`]);
+
+                        if (data.lastStats) {
+                            setSyncLogs(prev => [...prev, `\n[Sucesso] Sincronização concluída! Processados: ${data.lastStats.processed} | Postados: ${data.lastStats.posted} | Erros: ${data.lastStats.errors}`]);
+                            fetchStats();
+                        } else {
+                            setSyncLogs(prev => [...prev, `\n[MISTÉRIO] Sincronização terminou, mas não retornou status final.`]);
+                        }
                     }
                 } catch (e) {
-                    console.error('Falha ao processar evento SSE', e);
+                    console.error('Falha ao checar status da sincronização:', e);
                 }
-            };
-
-            eventSource.onerror = (error) => {
-                console.error("EventSource failed:", error);
-                eventSource.close();
-                setSyncing(false);
-                setSyncLogs(prev => [...prev, '[ERRO FATAL] Conexão com o servidor perdida durante o streaming.']);
-            };
+            }, 2000);
 
         } catch (err) {
-            alert('Erro ao iniciar a sincronização.');
+            alert(err instanceof Error ? err.message : 'Erro ao iniciar a sincronização.');
             setSyncing(false);
         }
     };
