@@ -10,6 +10,7 @@
  */
 
 import { WhatsAppProviderFactory } from '../lib/whatsapp';
+import { WhatsAppProviderManager } from '../lib/whatsapp/manager/WhatsAppProviderManager';
 
 export interface WhatsAppGroup {
     id: string;
@@ -78,7 +79,9 @@ export class WhatsAppGroupService {
      * Send message to group by ID
      */
     async sendToGroupById(groupId: string, message: string): Promise<void> {
-        const provider = await WhatsAppProviderFactory.getProvider();
+        // We MUST use the Web Provider (Baileys) for groups, because Official APIs (YCloud) 
+        // do not support sending messages to standard @g.us groups.
+        const provider = await WhatsAppProviderManager.getInstance().getWebProvider();
 
         if (!provider) {
             throw new Error('WhatsApp provider not ready. Please connect WhatsApp first.');
