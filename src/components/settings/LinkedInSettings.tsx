@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Save, RefreshCw, Briefcase, ExternalLink, AlertCircle,
     CheckCircle2, Users, Loader2, Globe
@@ -17,11 +17,13 @@ export function LinkedInSettings() {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [syncing, setSyncing] = useState(false);
+    const [syncLogs, setSyncLogs] = useState<string[]>([]);
     const [stats, setStats] = useState({ total: 0, posted: 0, error: 0 });
     const [latestJobs, setLatestJobs] = useState<Record<string, unknown>[]>([]);
     const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
     const [loadingGroups, setLoadingGroups] = useState(false);
     const [groupsError, setGroupsError] = useState<string | null>(null);
+    const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Remotar settings
     const [remotarEnabled, setRemotarEnabled] = useState(false);
@@ -59,6 +61,13 @@ export function LinkedInSettings() {
         fetchSettings();
         fetchStats();
         fetchGroups();
+
+        // Cleanup interval on unmount
+        return () => {
+            if (syncIntervalRef.current) {
+                clearInterval(syncIntervalRef.current);
+            }
+        };
     }, [fetchGroups]);
 
     const fetchSettings = async () => {
@@ -160,21 +169,69 @@ export function LinkedInSettings() {
     };
 
     const handleSync = async () => {
-        if (!confirm('Deseja iniciar a sincronização manual agora?')) return;
+        if (!confirm('Deseja iniciar a sincronização manual agora? Note que esse processo pode demorar alguns minutos.')) return;
 
         setSyncing(true);
+        setSyncLogs(['Iniciando requisição de sincronização...']);
+
         try {
-            const res = await fetch('/api/jobs', { method: 'POST' });
-            const data = await res.json();
-            if (data.success) {
-                alert(`Sincronização concluída!\nProcessados: ${data.stats.processed}\nPostados: ${data.stats.posted}`);
-                fetchStats();
-            } else {
-                alert('Erro na sincronização: ' + data.error);
+            // 1. Inicia o processo de sincronização no background
+            const startRes = await fetch('/api/jobs/sync/start', { method: 'POST' });
+            if (!startRes.ok) {
+                let errMsg = `Erro no servidor (Status: ${startRes.status})`;
+                try {
+                    const errData = await startRes.json();
+                    if (errData.error) errMsg = errData.error;
+                } catch (e) {
+                    // Ignore, not valid JSON (e.g. 500 framework HTML page)
+                }
+                throw new Error(errMsg);
             }
-        } catch (_err) {
-            alert('Erro na sincronização.');
-        } finally {
+
+            setSyncLogs(['Sincronização iniciada em backgound. Aguardando logs...']);
+
+            // 2. Poll: verifica o status a cada 2 segundos
+            if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+
+            syncIntervalRef.current = setInterval(async () => {
+                try {
+                    const statusRes = await fetch('/api/jobs/sync/status');
+                    if (!statusRes.ok) {
+                        setSyncLogs(prev => [...prev, `\n[Servidor] Aguardando retorno ok (Status: ${statusRes.status})...`]);
+                        return;
+                    }
+
+                    let data;
+                    try {
+                        data = await statusRes.json();
+                    } catch (e) {
+                        setSyncLogs(prev => [...prev, `\n[Erro] Falha ao processar status da sincronização.`]);
+                        return;
+                    }
+
+                    if (data.logs && data.logs.length > 0) {
+                        setSyncLogs(data.logs);
+                    }
+
+                    // Se terminou a sincronização
+                    if (!data.isSyncing) {
+                        if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+                        setSyncing(false);
+
+                        if (data.lastStats) {
+                            setSyncLogs(prev => [...prev, `\n[Sucesso] Sincronização concluída! Processados: ${data.lastStats.processed} | Postados: ${data.lastStats.posted} | Erros: ${data.lastStats.errors}`]);
+                            fetchStats();
+                        } else {
+                            setSyncLogs(prev => [...prev, `\n[MISTÉRIO] Sincronização terminou, mas não retornou status final.`]);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Falha ao checar status da sincronização:', e);
+                }
+            }, 2000);
+
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Erro ao iniciar a sincronização.');
             setSyncing(false);
         }
     };
@@ -209,6 +266,27 @@ export function LinkedInSettings() {
                     </button>
                 </div>
             </div>
+
+            {syncLogs.length > 0 && (
+                <div style={{
+                    backgroundColor: '#1e1e1e',
+                    color: '#00ff00',
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    marginBottom: '1.5rem',
+                    whiteSpace: 'pre-wrap',
+                    border: '1px solid #333'
+                }}>
+                    {syncLogs.map((log, i) => (
+                        <div key={i}>{log}</div>
+                    ))}
+                    {syncing && <div style={{ opacity: 0.7, marginTop: '0.5rem' }}>Aguardando... <Loader2 size={12} className={styles.spin} style={{ display: 'inline', verticalAlign: 'middle' }} /></div>}
+                </div>
+            )}
 
             <div className={styles.grid}>
                 {/* WhatsApp Group Selector */}

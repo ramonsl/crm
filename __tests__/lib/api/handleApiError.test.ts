@@ -32,10 +32,9 @@ describe('handleApiError', () => {
             {
                 code: 'invalid_type',
                 expected: 'string',
-                received: 'number',
                 path: ['name'],
                 message: 'Expected string, received number',
-            },
+            } as any, // Cast to any to bypass strict literal checks for test
         ]);
         const response = handleApiError(zodError) as any;
 
