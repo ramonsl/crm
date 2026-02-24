@@ -18,6 +18,7 @@ import { jobTransformerService } from './JobTransformerService';
 import { LinkedInJobRepository } from '@/lib/repositories/LinkedInJobRepository';
 import { SettingRepository } from '@/lib/repositories/SettingRepository';
 import { whatsAppGroupService } from './whatsAppGroupService';
+import { workeiScraperService } from './scrapers/WorkeiScraperService';
 import { dbLogger } from '@/lib/logger';
 
 export class LinkedInJobAutomationService {
@@ -47,12 +48,13 @@ export class LinkedInJobAutomationService {
         const linkedInStats = await this.syncLinkedIn(groupId);
         const remotarStats = await this.syncRemotar(groupId);
         const vagasRemotasStats = await this.syncVagasRemotas(groupId);
+        const workeiStats = await this.syncWorkei(groupId);
 
         // Merge stats
-        stats.processed = linkedInStats.processed + remotarStats.processed + vagasRemotasStats.processed;
-        stats.posted = linkedInStats.posted + remotarStats.posted + vagasRemotasStats.posted;
-        stats.skipped = linkedInStats.skipped + remotarStats.skipped + vagasRemotasStats.skipped;
-        stats.errors = linkedInStats.errors + remotarStats.errors + vagasRemotasStats.errors;
+        stats.processed = linkedInStats.processed + remotarStats.processed + vagasRemotasStats.processed + workeiStats.processed;
+        stats.posted = linkedInStats.posted + remotarStats.posted + vagasRemotasStats.posted + workeiStats.posted;
+        stats.skipped = linkedInStats.skipped + remotarStats.skipped + vagasRemotasStats.skipped + workeiStats.skipped;
+        stats.errors = linkedInStats.errors + remotarStats.errors + vagasRemotasStats.errors + workeiStats.errors;
 
         dbLogger.info(`[JobAutomation] Sync complete: ${JSON.stringify(stats)}`);
         return stats;
@@ -264,6 +266,68 @@ export class LinkedInJobAutomationService {
             }
         } catch (error) {
             dbLogger.error('[JobAutomation] VagasRemotas sync failed:', error);
+        }
+
+        return stats;
+    }
+
+    /**
+     * Sync jobs from Workei.com.br REST API
+     */
+    private async syncWorkei(groupId: string): Promise<{ processed: number; posted: number; skipped: number; errors: number }> {
+        const stats = { processed: 0, posted: 0, skipped: 0, errors: 0 };
+
+        try {
+            const workeiEnabled = await this.settingRepo.get('workei_enabled');
+            if (workeiEnabled !== 'true') {
+                dbLogger.info('[JobAutomation] Workei: Skipping (not enabled)');
+                return stats;
+            }
+
+            const filterHoursStr = await this.settingRepo.get('workei_filter_hours') || await this.settingRepo.get('remotar_filter_hours');
+            const filterHours = parseInt(filterHoursStr || '48') || 48;
+
+            const allJobs = await workeiScraperService.fetchRecentJobs(10);
+            const recentJobs = workeiScraperService.filterRecentJobs(allJobs, filterHours);
+
+            stats.processed = recentJobs.length;
+            dbLogger.info(`[JobAutomation] Workei: ${allJobs.length} total, ${recentJobs.length} from last ${filterHours}h`);
+
+            for (const job of recentJobs) {
+                try {
+                    const postId = `workei-${job.id}`;
+
+                    if (await this.jobRepo.exists(postId)) {
+                        stats.skipped++;
+                        continue;
+                    }
+
+                    const message = workeiScraperService.formatWhatsAppMessage(job);
+                    await whatsAppGroupService.sendToGroupById(groupId, message);
+
+                    await this.jobRepo.create({
+                        linkedin_post_id: postId,
+                        title: job.title,
+                        company: job.company,
+                        location: job.location, // usually "Remoto"
+                        is_remote: true,
+                        raw_content: job.description.substring(0, 5000),
+                        formatted_message: message,
+                        url: job.url,
+                        posted_at: job.createdAt.toISOString(),
+                        status: 'posted',
+                        error_message: null
+                    });
+
+                    stats.posted++;
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                } catch (error) {
+                    dbLogger.error(`[JobAutomation] Workei error on job ${job.id}:`, error);
+                    stats.errors++;
+                }
+            }
+        } catch (error) {
+            dbLogger.error('[JobAutomation] Workei sync failed:', error);
         }
 
         return stats;
