@@ -14,7 +14,8 @@ const nextConfig: NextConfig = {
     'puppeteer-core',
     '@wppconnect-team/wppconnect',
     'electron',
-    'keyv'
+    'keyv',
+    'undici'
   ],
 
   // Configuração Webpack para ignorar dependências binárias
