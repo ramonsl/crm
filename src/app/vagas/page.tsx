@@ -121,6 +121,29 @@ export default function VagasPage() {
         }
     };
 
+    const handleResendErrors = async () => {
+        setSyncing(true);
+        try {
+            const res = await fetch('/api/jobs/resend-errors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                toastSuccess('Reenvio iniciado em background. Verifique os status das vagas recarregando a página.');
+                // Polling starts here? For now just reload after a few seconds
+                setTimeout(() => loadData(), 3000);
+            } else {
+                toastError(data.error || 'Erro ao iniciar o reenvio');
+            }
+        } catch {
+            toastError('Erro de comunicação ao acionar o reenvio');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     const handlePageChange = (newOffset: number) => {
         setLoading(true);
         loadData(newOffset);
@@ -180,6 +203,16 @@ export default function VagasPage() {
                     <p className={styles.subtitle}>Acompanhe as vagas postadas no grupo WhatsApp</p>
                 </div>
                 <div className={styles.headerActions}>
+                    {(stats?.errors || 0) > 0 && (
+                        <button
+                            className={`${styles.syncButton} ${styles.resendButton} ${syncing ? styles.syncing : ''}`}
+                            onClick={handleResendErrors}
+                            disabled={syncing}
+                        >
+                            <AlertTriangle size={18} />
+                            {syncing ? 'Aguarde...' : `Reenviar falhas (${stats?.errors})`}
+                        </button>
+                    )}
                     <button
                         className={`${styles.syncButton} ${syncing ? styles.syncing : ''}`}
                         onClick={handleSync}
@@ -340,8 +373,8 @@ export default function VagasPage() {
                                             </td>
                                             <td>
                                                 <span className={`${styles.sourceTag} ${source === 'Remotar' ? styles.sourceRemotar :
-                                                        source === 'VagasRemotas' ? styles.sourceVagasRemotas :
-                                                            styles.sourceLinkedin
+                                                    source === 'VagasRemotas' ? styles.sourceVagasRemotas :
+                                                        styles.sourceLinkedin
                                                     }`}>
                                                     {source}
                                                 </span>

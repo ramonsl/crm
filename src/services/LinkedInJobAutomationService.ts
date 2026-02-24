@@ -97,6 +97,91 @@ export class LinkedInJobAutomationService {
     }
 
     /**
+     * Resend all jobs with 'error' status.
+     * Useful when the WhatsApp connection failed but the data was successfully scraped.
+     */
+    async resendErrors(onProgress?: (msg: string) => void): Promise<{ processed: number; posted: number; errors: number }> {
+        if (this._isSyncing) {
+            throw new Error('Uma operação de sincronização já está em andamento.');
+        }
+
+        this._isSyncing = true;
+        this._syncLogs = [];
+        this._lastSyncStats = null;
+
+        const internalOnProgress = (msg: string) => {
+            if (onProgress) onProgress(msg);
+            this._syncLogs.push(`[${new Date().toISOString()}] ${msg}`);
+            if (this._syncLogs.length > 50) this._syncLogs.shift();
+        };
+
+        dbLogger.info('[JobAutomation] resendErrors initiated');
+        internalOnProgress('Iniciando reenvio de vagas com erro...');
+
+        const stats = {
+            processed: 0,
+            posted: 0,
+            errors: 0
+        };
+
+        try {
+            const groupId = await this.settingRepo.get('linkedin_group_id');
+
+            if (!groupId) {
+                dbLogger.warn('[JobAutomation] Missing WhatsApp group_id setting');
+                internalOnProgress('Missing WhatsApp group_id setting. Cannot proceed.');
+                return stats;
+            }
+
+            // Get all jobs with error status (limit to 50 at a time to prevent overload)
+            const errorJobs = await this.jobRepo.getByStatus('error', 50);
+
+            if (errorJobs.length === 0) {
+                internalOnProgress('Nenhuma vaga com erro encontrada.');
+                return stats;
+            }
+
+            internalOnProgress(`Encontradas ${errorJobs.length} vagas com erro. Iniciando reenvio...`);
+            stats.processed = errorJobs.length;
+
+            for (const job of errorJobs) {
+                if (!job.formatted_message) {
+                    internalOnProgress(`Pulando vaga ${job.id} - sem mensagem formatada.`);
+                    continue;
+                }
+
+                try {
+                    await whatsAppGroupService.sendToGroupById(groupId, job.formatted_message);
+                    await this.jobRepo.updateStatus(job.id, 'posted');
+                    stats.posted++;
+
+                    const msgStr = `Vaga reenviada: "${job.title}" (${job.company}) com sucesso.`;
+                    dbLogger.info(`[JobAutomation] ${msgStr}`);
+                    internalOnProgress(msgStr);
+                } catch (sendError) {
+                    const errMsg = `Erro ao reenviar vaga ${job.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
+                    dbLogger.error(`[JobAutomation] ${errMsg}`);
+                    internalOnProgress(`[Erro] ${errMsg}`);
+                    stats.errors++;
+                }
+
+                // Add delay between sends
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+
+            internalOnProgress(`Reenvio finalizado. Processadas: ${stats.processed}, Sucesso: ${stats.posted}, Falhas: ${stats.errors}.`);
+            return stats;
+        } catch (error) {
+            dbLogger.error('[JobAutomation] resendErrors failed:', error);
+            const errLog = `Erro crítico no reenvio: ${error instanceof Error ? error.message : 'Unknown'}`;
+            internalOnProgress(errLog);
+            throw error;
+        } finally {
+            this._isSyncing = false;
+        }
+    }
+
+    /**
      * Sync jobs from LinkedIn profiles
      */
     private async syncLinkedIn(groupId: string, stats: { processed: number; posted: number; skipped: number; errors: number }, onProgress?: (msg: string) => void): Promise<void> {

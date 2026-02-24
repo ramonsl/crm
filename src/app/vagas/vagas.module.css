@@ -93,6 +93,16 @@
     animation: spin 1s linear infinite;
 }
 
+.resendButton {
+    background: #dc2626;
+    /* red-600 */
+}
+
+.resendButton:hover {
+    background: #b91c1c;
+    /* red-700 */
+}
+
 /* Summary Cards */
 .summaryGrid {
     display: grid;
