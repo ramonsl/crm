@@ -61,6 +61,9 @@ describe('Profile Sync API', () => {
             isNumberInGroup: jest.fn(),
             onLog: jest.fn(),
             offLog: jest.fn(),
+            syncChatHistory: jest.fn(),
+            onHistorySync: jest.fn(),
+            offHistorySync: jest.fn(),
         };
         (WhatsAppProviderFactory.getProvider as jest.Mock).mockResolvedValue(mockProvider);
 
