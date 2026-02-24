@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
     // 1. Authenticate Request natively inside the route to bypass proxy edge closure bugs on streaming
