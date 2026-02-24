@@ -18,7 +18,7 @@ jest.mock('@/lib/db', () => ({
 const mockPoolQuery = pool.query as jest.Mock;
 
 describe('TemplateHistoryRepository (Neon)', () => {
-    let repository: SQLiteTemplateHistoryRepository;
+    let repository: import('@/repositories/templateHistoryRepository').SQLiteTemplateHistoryRepository;
 
     beforeEach(() => {
         repository = new SQLiteTemplateHistoryRepository();

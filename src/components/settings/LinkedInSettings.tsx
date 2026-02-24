@@ -17,6 +17,7 @@ export function LinkedInSettings() {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [syncing, setSyncing] = useState(false);
+    const [syncLogs, setSyncLogs] = useState<string[]>([]);
     const [stats, setStats] = useState({ total: 0, posted: 0, error: 0 });
     const [latestJobs, setLatestJobs] = useState<Record<string, unknown>[]>([]);
     const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
@@ -160,21 +161,44 @@ export function LinkedInSettings() {
     };
 
     const handleSync = async () => {
-        if (!confirm('Deseja iniciar a sincronização manual agora?')) return;
+        if (!confirm('Deseja iniciar a sincronização manual agora? Note que esse processo pode demorar alguns minutos.')) return;
 
         setSyncing(true);
+        setSyncLogs(['Iniciando conexão de sincronização em tempo real...']);
+
         try {
-            const res = await fetch('/api/jobs', { method: 'POST' });
-            const data = await res.json();
-            if (data.success) {
-                alert(`Sincronização concluída!\nProcessados: ${data.stats.processed}\nPostados: ${data.stats.posted}`);
-                fetchStats();
-            } else {
-                alert('Erro na sincronização: ' + data.error);
-            }
-        } catch (_err) {
-            alert('Erro na sincronização.');
-        } finally {
+            const eventSource = new EventSource('/api/jobs/sync/stream');
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'info' || data.type === 'progress') {
+                        setSyncLogs(prev => [...prev, data.message]);
+                    } else if (data.type === 'complete') {
+                        eventSource.close();
+                        setSyncing(false);
+                        setSyncLogs(prev => [...prev, `[Sucesso] Sincronização concluída! Processados: ${data.stats.processed} | Postados: ${data.stats.posted} | Erros: ${data.stats.errors}`]);
+                        fetchStats();
+                    } else if (data.type === 'error') {
+                        eventSource.close();
+                        setSyncing(false);
+                        setSyncLogs(prev => [...prev, `[ERRO] ${data.message}`]);
+                    }
+                } catch (e) {
+                    console.error('Falha ao processar evento SSE', e);
+                }
+            };
+
+            eventSource.onerror = (error) => {
+                console.error("EventSource failed:", error);
+                eventSource.close();
+                setSyncing(false);
+                setSyncLogs(prev => [...prev, '[ERRO FATAL] Conexão com o servidor perdida durante o streaming.']);
+            };
+
+        } catch (err) {
+            alert('Erro ao iniciar a sincronização.');
             setSyncing(false);
         }
     };
@@ -209,6 +233,27 @@ export function LinkedInSettings() {
                     </button>
                 </div>
             </div>
+
+            {syncLogs.length > 0 && (
+                <div style={{
+                    backgroundColor: '#1e1e1e',
+                    color: '#00ff00',
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    marginBottom: '1.5rem',
+                    whiteSpace: 'pre-wrap',
+                    border: '1px solid #333'
+                }}>
+                    {syncLogs.map((log, i) => (
+                        <div key={i}>{log}</div>
+                    ))}
+                    {syncing && <div style={{ opacity: 0.7, marginTop: '0.5rem' }}>Aguardando... <Loader2 size={12} className={styles.spin} style={{ display: 'inline', verticalAlign: 'middle' }} /></div>}
+                </div>
+            )}
 
             <div className={styles.grid}>
                 {/* WhatsApp Group Selector */}
