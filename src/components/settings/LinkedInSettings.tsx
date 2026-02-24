@@ -31,6 +31,9 @@ export function LinkedInSettings() {
     // VagasRemotas settings
     const [vagasRemotasEnabled, setVagasRemotasEnabled] = useState(false);
 
+    // Workei settings
+    const [workeiEnabled, setWorkeiEnabled] = useState(false);
+
     const [groupId, setGroupId] = useState('');
 
     const fetchGroups = useCallback(async () => {
@@ -66,7 +69,7 @@ export function LinkedInSettings() {
 
             // The API returns an object with _raw array of {key, value}
             const rawSettings: { key: string; value: string }[] = data._raw || [];
-            const keysToFetch = ['linkedin_group_id', 'remotar_enabled', 'remotar_categories', 'remotar_filter_hours', 'vagasremotas_enabled'];
+            const keysToFetch = ['linkedin_group_id', 'remotar_enabled', 'remotar_categories', 'remotar_filter_hours', 'vagasremotas_enabled', 'workei_enabled'];
             const results: Record<string, string> = {};
 
             rawSettings.forEach((s) => {
@@ -84,6 +87,7 @@ export function LinkedInSettings() {
                 setRemotarHours(parseInt(results.remotar_filter_hours) || 48);
             }
             setVagasRemotasEnabled(results.vagasremotas_enabled === 'true');
+            setWorkeiEnabled(results.workei_enabled === 'true');
         } catch (err) {
             console.error('Error fetching settings:', err);
         } finally {
@@ -138,6 +142,13 @@ export function LinkedInSettings() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key: 'vagasremotas_enabled', value: vagasRemotasEnabled ? 'true' : 'false' })
+            });
+
+            // Save Workei settings
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'workei_enabled', value: workeiEnabled ? 'true' : 'false' })
             });
 
             alert('Configurações salvas com sucesso!');
@@ -359,6 +370,48 @@ export function LinkedInSettings() {
                     </div>
                     <p className={styles.helperText}>
                         Busca vagas 100% remotas no portal VagasRemotas.com.br. Compartilha o período de busca com o Remotar.
+                    </p>
+                </div>
+
+                {/* Workei Toggle */}
+                <div className={styles.card}>
+                    <label className={styles.label}>
+                        <Briefcase size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
+                        Workei.com.br
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                        <button
+                            type="button"
+                            onClick={() => setWorkeiEnabled(!workeiEnabled)}
+                            style={{
+                                width: '48px',
+                                height: '26px',
+                                borderRadius: '13px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                position: 'relative',
+                                transition: 'background 0.2s ease',
+                                background: workeiEnabled ? '#16a34a' : '#d1d5db'
+                            }}
+                        >
+                            <span style={{
+                                position: 'absolute',
+                                top: '3px',
+                                left: workeiEnabled ? '24px' : '3px',
+                                width: '20px',
+                                height: '20px',
+                                borderRadius: '50%',
+                                background: '#fff',
+                                transition: 'left 0.2s ease',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                            }} />
+                        </button>
+                        <span style={{ fontSize: '0.9rem', color: workeiEnabled ? '#16a34a' : '#6b7280' }}>
+                            {workeiEnabled ? 'Ativado' : 'Desativado'}
+                        </span>
+                    </div>
+                    <p className={styles.helperText}>
+                        Busca vagas no portal de vagas Workei. Compartilha o período de busca com o Remotar.
                     </p>
                 </div>
             </div>
