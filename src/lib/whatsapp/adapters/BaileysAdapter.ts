@@ -674,38 +674,44 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
         }
 
         try {
-            // Resolve correct JID using network check
-            const jid = await this.getChatId(phone);
+            const sendPromise = (async () => {
+                // Resolve correct JID using network check
+                const jid = await this.getChatId(phone);
 
-            let sentMsg;
-
-            if (mediaUrl) {
-                // Send media message
-                if (mediaUrl.match(/\.(jpg|jpeg|png|gif)$/i) || mediaType === 'image') {
-                    sentMsg = await this.state.socket.sendMessage(jid, {
-                        image: { url: mediaUrl },
-                        caption: message
-                    });
-                } else if (mediaUrl.match(/\.(mp4|mov|avi)$/i) || mediaType === 'video') {
-                    sentMsg = await this.state.socket.sendMessage(jid, {
-                        video: { url: mediaUrl },
-                        caption: message
-                    });
+                if (mediaUrl) {
+                    // Send media message
+                    if (mediaUrl.match(/\.(jpg|jpeg|png|gif)$/i) || mediaType === 'image') {
+                        return await this.state.socket!.sendMessage(jid, {
+                            image: { url: mediaUrl },
+                            caption: message
+                        });
+                    } else if (mediaUrl.match(/\.(mp4|mov|avi)$/i) || mediaType === 'video') {
+                        return await this.state.socket!.sendMessage(jid, {
+                            video: { url: mediaUrl },
+                            caption: message
+                        });
+                    } else {
+                        // Default to document
+                        return await this.state.socket!.sendMessage(jid, {
+                            document: { url: mediaUrl },
+                            mimetype: 'application/octet-stream',
+                            fileName: mediaUrl.split('/').pop() || 'file',
+                            caption: message
+                        });
+                    }
                 } else {
-                    // Default to document
-                    sentMsg = await this.state.socket.sendMessage(jid, {
-                        document: { url: mediaUrl },
-                        mimetype: 'application/octet-stream',
-                        fileName: mediaUrl.split('/').pop() || 'file',
-                        caption: message
+                    // Send text message
+                    return await this.state.socket!.sendMessage(jid, {
+                        text: message
                     });
                 }
-            } else {
-                // Send text message
-                sentMsg = await this.state.socket.sendMessage(jid, {
-                    text: message
-                });
-            }
+            })();
+
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error('WhatsApp network operation timeout (15s)')), 15000);
+            });
+
+            const sentMsg = await Promise.race([sendPromise, timeoutPromise]);
 
             return {
                 success: true,
