@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { linkedInJobAutomationService } from '@/services/LinkedInJobAutomationService';
 import { LinkedInJobRepository } from '@/lib/repositories/LinkedInJobRepository';
 import { dbLogger } from '@/lib/logger';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // Impede o Next.js de tentar gerar esta rota estaticamente no build.
 // A rota depende de banco de dados e variáveis de ambiente em tempo de execução.
@@ -15,6 +16,12 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
+    try {
+        await requireAuth(req);
+    } catch (error) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     dbLogger.info('[API] Manually triggering job sync');
 
     try {
@@ -43,6 +50,12 @@ export async function POST(req: NextRequest) {
  *   - offset=0 - pagination offset
  */
 export async function GET(req: NextRequest) {
+    try {
+        await requireAuth(req);
+    } catch (error) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const repo = new LinkedInJobRepository();
     try {
         const { searchParams } = new URL(req.url);

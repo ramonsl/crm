@@ -26,7 +26,7 @@ export function proxy(request: NextRequest) {
         '/_next',
         '/static',
         '/images',
-        '/api/jobs/sync/stream', // Bypasses edge proxy to prevent EventSource closing issues (auth is handled in route)
+        '/api/jobs', // Bypasses edge proxy to prevent Undici fetch chunk crashing (auth handled natively)
     ];
 
     // Check if path is public
