@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.baileysMessageHandler = exports.BaileysMessageHandler = void 0;
 const db_1 = require("../lib/db");
@@ -19,9 +52,10 @@ class BaileysMessageHandler {
         const placeholders = variations.map((_, i) => `$${i + 1}`).join(',');
         // Query to find contact by any phone variation
         // Query to find contact by any phone variation
+        // Query to find contact by comparing cleaned phone numbers
         const result = await db_1.pool.query(`
             SELECT cpf, nome, telefone FROM leads 
-            WHERE telefone IN (${placeholders})
+            WHERE REGEXP_REPLACE(telefone, '\\D', '', 'g') IN (${placeholders})
             ORDER BY CASE WHEN cpf != telefone THEN 0 ELSE 1 END, cpf
             LIMIT 1
         `, variations);
@@ -81,13 +115,210 @@ class BaileysMessageHandler {
         return { cpf: tempCpf, nome: contactName, telefone: phone };
     }
     /**
+     * Handle incoming group message to trigger Job Automation Sync
+     */
+    async handleGroupMessage(msg) {
+        if (msg.fromMe)
+            return;
+        const bodyMatch = msg.body.trim().toLowerCase();
+        // User requested: "vagas", "vaga de hoje" or something similar
+        const validCommands = ['vagas', 'vaga de hoje', 'vagas de hoje', 'novas vagas'];
+        if (!validCommands.includes(bodyMatch)) {
+            return;
+        }
+        try {
+            const { SettingRepository } = await Promise.resolve().then(() => __importStar(require('../lib/repositories/SettingRepository')));
+            const { linkedInJobAutomationService } = await Promise.resolve().then(() => __importStar(require('../services/LinkedInJobAutomationService')));
+            const { whatsAppGroupService } = await Promise.resolve().then(() => __importStar(require('../services/whatsAppGroupService')));
+            const settingRepo = new SettingRepository();
+            const linkedinGroupId = await settingRepo.get('linkedin_group_id');
+            // Normalize the IDs to safely compare (remove @g.us / @c.us if any)
+            const normalizedFrom = msg.from.split('@')[0];
+            const normalizedConf = linkedinGroupId === null || linkedinGroupId === void 0 ? void 0 : linkedinGroupId.split('@')[0];
+            if (!linkedinGroupId || !normalizedConf || !normalizedFrom.includes(normalizedConf)) {
+                logger_1.whatsappLogger.debug(`[GroupCommand] Ignorado. msg.from: ${msg.from}, Configured: ${linkedinGroupId}`);
+                return;
+            }
+            logger_1.whatsappLogger.info(`[GroupCommand] Iniciando sincronização manual via grupo ${msg.from}`);
+            // Let the group know it's processing
+            await whatsAppGroupService.sendToGroupById(msg.from, `🔍 Buscando as vagas de hoje. Aguarde um momento...`);
+            // Run the automation
+            const jobsStats = await linkedInJobAutomationService.runSync();
+            if (jobsStats.posted > 0) {
+                await whatsAppGroupService.sendToGroupById(msg.from, `✅ Sincronização concluída! Foram enviadas ${jobsStats.posted} novas vagas.`);
+            }
+            else {
+                await whatsAppGroupService.sendToGroupById(msg.from, `ℹ️ Sincronização concluída. Nenhuma vaga nova encontrada, as últimas vagas já foram enviadas!`);
+            }
+        }
+        catch (error) {
+            logger_1.whatsappLogger.error('[GroupCommand] Erro ao processar comando de vagas no grupo:', error);
+            const { whatsAppGroupService } = await Promise.resolve().then(() => __importStar(require('../services/whatsAppGroupService')));
+            await whatsAppGroupService.sendToGroupById(msg.from, `⚠️ Ocorreu um erro ao buscar novas vagas. Tente novamente mais tarde.`);
+        }
+    }
+    /**
+     * Tenta processar mensagens diretas que contêm links como vagas manuais
+     */
+    async handleDirectJobLink(msg) {
+        if (msg.fromMe)
+            return false;
+        // Se a mensagem for texto longo, provavelmente já é a vaga descrita.
+        // Deixa para o handleForwardedJobDescription reescrever.
+        if (msg.body && msg.body.length >= 150)
+            return false;
+        // Verifica se há URL na mensagem
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const matches = msg.body.match(urlRegex);
+        if (!matches || matches.length === 0)
+            return false;
+        // Opcional: Como leads comuns podem mandar links (ex: portfolios),
+        // ideal seria checar se o número é de um admin. Por enquanto, se o link for do linkedin ou similar, damos prioridade,
+        // mas o ideal é que como é um bot focado também no dono, processamos.
+        // Vamos processar apenas se contiver linkedin, lnkd.in, remotar, vagas, gupy, etc para evitar falsos positivos com leads reais
+        const url = matches[0].toLowerCase();
+        const isJobDomain = url.includes('lnkd.in') || url.includes('linkedin.com/jobs') || url.includes('gupy.io') || url.includes('remotar') || url.includes('vagas');
+        // Se a pessoa enviou literalmente só o link, ou o texto fala de vaga
+        const bodyLower = msg.body.toLowerCase();
+        const seemsLikeJob = isJobDomain || bodyLower.includes('vaga') || bodyLower.includes('remoto');
+        if (!seemsLikeJob)
+            return false;
+        try {
+            const { jobTransformerService } = await Promise.resolve().then(() => __importStar(require('../services/JobTransformerService')));
+            const { htmlScraperService } = await Promise.resolve().then(() => __importStar(require('../services/HtmlScraperService')));
+            const { whatsAppGroupService } = await Promise.resolve().then(() => __importStar(require('../services/whatsAppGroupService')));
+            const { whatsAppChatService } = await Promise.resolve().then(() => __importStar(require('../services/WhatsAppChatService')));
+            const { SettingRepository } = await Promise.resolve().then(() => __importStar(require('../lib/repositories/SettingRepository')));
+            logger_1.whatsappLogger.info(`[JobLinkHandler] Processando possível vaga manual recebida via DM de ${msg.from}`);
+            await whatsAppChatService.sendTextMessage(msg.from, `🔍 Identifiquei um link de vaga. Estou processando...`);
+            const scrapedText = await htmlScraperService.scrapeUrlText(matches[0]);
+            const fullContext = `Mensagem original: ${msg.body}\n\nConteúdo do link:\n${scrapedText}`;
+            const pseudoId = `manual-${Date.now()}`;
+            const parsedJob = await jobTransformerService.transformPost(fullContext, pseudoId, matches[0]);
+            if (parsedJob && parsedJob.isJob) {
+                const formattedMessage = jobTransformerService.formatWhatsAppMessage(parsedJob);
+                await db_1.pool.query(`
+                    INSERT INTO linkedin_jobs (linkedin_post_id, title, company, location, is_remote, url, formatted_message, status)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'sent')
+                    ON CONFLICT (linkedin_post_id) DO NOTHING
+                `, [
+                    parsedJob.post_id,
+                    parsedJob.title,
+                    parsedJob.company,
+                    parsedJob.location,
+                    parsedJob.isRemote,
+                    parsedJob.applicationLink, // using the extracted link in 'url'
+                    formattedMessage
+                ]);
+                const settingRepo = new SettingRepository();
+                const linkedinGroupId = await settingRepo.get('linkedin_group_id');
+                if (linkedinGroupId) {
+                    await whatsAppGroupService.sendToGroupById(linkedinGroupId, formattedMessage);
+                    await whatsAppChatService.sendTextMessage(msg.from, `✅ Vaga processada e enviada para o grupo com sucesso!`);
+                }
+                else {
+                    await whatsAppChatService.sendTextMessage(msg.from, `⚠️ Vaga processada, mas o grupo de destino não está configurado.`);
+                }
+            }
+            else {
+                // Ao invés de mandar erro, vamos retornar false para que
+                // o BaileysMessageHandler tente passar a mensagem pro handleForwardedJobDescription
+                // caso o link não seja uma vaga limpa na página, mas o texto do zap seja uma vaga inteira.
+                logger_1.whatsappLogger.debug(`[JobLinkHandler] Ignorado: não é vaga. Result: ${JSON.stringify(parsedJob)}`);
+                return false;
+            }
+            return true; // processou como vaga com sucesso
+        }
+        catch (error) {
+            logger_1.whatsappLogger.error('[JobLinkHandler] Erro ao processar o link (tentando fallback para texto):', error);
+            return false; // deu erro, devolve false para tentar o proxy de texto encaminhado
+        }
+    }
+    /**
+     * Handle forwarded job description texts (no URL required).
+     * Triggered when a DM contains a long job-like text without an HTTP link.
+     * Uses OpenAI to clean propaganda and rewrite the description attractively.
+     */
+    async handleForwardedJobDescription(msg) {
+        var _a, _b;
+        if (msg.fromMe)
+            return false;
+        const body = (_b = (_a = msg.body) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : '';
+        // process texts that look like a vacancy description:
+        // - At least 150 chars (descriptions are verbose)
+        if (body.length < 150)
+            return false;
+        // Quick keyword pre-screen to avoid calling GPT on every message
+        const bodyLower = body.toLowerCase();
+        const jobKeywords = ['vaga', 'oportunidade', 'contratando', 'estamos contratando', 'hiring', 'desenvolvedor', 'programador', 'remoto', 'homeoffice', 'home office', 'salário', 'requisitos', 'currículo', 'curriculum', 'cv'];
+        const hasJobKeyword = jobKeywords.some(kw => bodyLower.includes(kw));
+        if (!hasJobKeyword)
+            return false;
+        try {
+            const { jobTransformerService } = await Promise.resolve().then(() => __importStar(require('../services/JobTransformerService')));
+            const { whatsAppGroupService } = await Promise.resolve().then(() => __importStar(require('../services/whatsAppGroupService')));
+            const { whatsAppChatService } = await Promise.resolve().then(() => __importStar(require('../services/WhatsAppChatService')));
+            const { SettingRepository } = await Promise.resolve().then(() => __importStar(require('../lib/repositories/SettingRepository')));
+            logger_1.whatsappLogger.info(`[ForwardedJobHandler] Texto de vaga detectado via DM de ${msg.from}`);
+            await whatsAppChatService.sendTextMessage(msg.from, `🔍 Identifiquei um texto de vaga. Estou reescrevendo...`);
+            const result = await jobTransformerService.rewriteForwardedJobText(body);
+            if (!result.isJob || !result.formattedMessage) {
+                await whatsAppChatService.sendTextMessage(msg.from, `ℹ️ O texto enviado não parece descrever uma vaga de emprego válida.`);
+                return true;
+            }
+            // Save to DB
+            const { pool } = await Promise.resolve().then(() => __importStar(require('../lib/db')));
+            const pseudoId = `forwarded-${Date.now()}`;
+            await pool.query(`
+                INSERT INTO linkedin_jobs (linkedin_post_id, title, company, location, is_remote, url, formatted_message, status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, 'sent')
+                ON CONFLICT (linkedin_post_id) DO NOTHING
+            `, [
+                pseudoId,
+                'Vaga Encaminhada (Texto)',
+                'Empresa (via Texto)',
+                '',
+                false,
+                result.applicationLink || '',
+                result.formattedMessage
+            ]);
+            const settingRepo = new SettingRepository();
+            const linkedinGroupId = await settingRepo.get('linkedin_group_id');
+            if (linkedinGroupId) {
+                await whatsAppGroupService.sendToGroupById(linkedinGroupId, result.formattedMessage);
+                await whatsAppChatService.sendTextMessage(msg.from, `✅ Vaga reescrita e enviada para o grupo com sucesso!`);
+            }
+            else {
+                logger_1.whatsappLogger.warn('[ForwardedJobHandler] linkedin_group_id não configurado');
+                await whatsAppChatService.sendTextMessage(msg.from, `⚠️ Vaga processada, mas o grupo de destino não está configurado.`);
+            }
+            return true;
+        }
+        catch (error) {
+            logger_1.whatsappLogger.error('[ForwardedJobHandler] Erro FATAL ao processar texto de vaga:', error);
+            if (error instanceof Error) {
+                logger_1.whatsappLogger.error(`[ForwardedJobHandler] Stack: ${error.stack}`);
+            }
+            const { whatsAppChatService } = await Promise.resolve().then(() => __importStar(require('../services/WhatsAppChatService')));
+            await whatsAppChatService.sendTextMessage(msg.from, `⚠️ Ocorreu um erro ao processar a descrição da vaga.`);
+            return true;
+        }
+    }
+    /**
      * Handle incoming/outgoing message
      */
     async handle(msg) {
-        // Skip groups for now (simplified)
-        if (msg.isGroup)
+        // Handle group commands and skip generic lead logic
+        if (msg.isGroup) {
+            await this.handleGroupMessage(msg);
             return;
-        const phone = msg.fromMe ? (msg.id.length > 15 ? '' : '') : msg.from;
+        }
+        // Tenta interceptar como envio de vaga manual via link
+        const processedAsLink = await this.handleDirectJobLink(msg);
+        if (!processedAsLink) {
+            // Se não tinha link, tenta processar como texto de vaga encaminhado
+            await this.handleForwardedJobDescription(msg);
+        }
         // For outgoing, we don't easily know the 'to' from the normalized msg object if it's not passed.
         // Baileys.ts normalized object:
         // from: from.replace...
