@@ -13,6 +13,8 @@ export interface ContactInfo {
 }
 
 export class BaileysMessageHandler {
+    private processingMessages = new Set<string>();
+
     constructor(private autoReplyEnabled: boolean = true) { }
 
     /**
@@ -135,24 +137,48 @@ export class BaileysMessageHandler {
                 return;
             }
 
-            whatsappLogger.info(`[GroupCommand] Iniciando sincronização manual via grupo ${msg.from}`);
+            whatsappLogger.info(`[GroupCommand] Iniciando sincronização manual via ${msg.isGroup ? 'grupo' : 'DM'} ${msg.from}`);
 
             // Let the group know it's processing
-            await whatsAppGroupService.sendToGroupById(msg.from, `🔍 Buscando as vagas de hoje. Aguarde um momento...`);
+            const isDM = !msg.isGroup;
+            if (isDM) {
+                const { whatsAppChatService } = await import('@/services/WhatsAppChatService');
+                await whatsAppChatService.sendTextMessage(msg.from, `🔍 Buscando as vagas de hoje. Aguarde um momento...`);
+            } else {
+                await whatsAppGroupService.sendToGroupById(msg.from, `🔍 Buscando as vagas de hoje. Aguarde um momento...`);
+            }
 
             // Run the automation
             const jobsStats = await linkedInJobAutomationService.runSync();
 
             if (jobsStats.posted > 0) {
-                await whatsAppGroupService.sendToGroupById(msg.from, `✅ Sincronização concluída! Foram enviadas ${jobsStats.posted} novas vagas.`);
+                const successMsg = `✅ Sincronização concluída! Foram enviadas ${jobsStats.posted} novas vagas.`;
+                if (!msg.isGroup) {
+                    const { whatsAppChatService } = await import('@/services/WhatsAppChatService');
+                    await whatsAppChatService.sendTextMessage(msg.from, successMsg);
+                } else {
+                    await whatsAppGroupService.sendToGroupById(msg.from, successMsg);
+                }
             } else {
-                await whatsAppGroupService.sendToGroupById(msg.from, `ℹ️ Sincronização concluída. Nenhuma vaga nova encontrada, as últimas vagas já foram enviadas!`);
+                const emptyMsg = `ℹ️ Sincronização concluída. Nenhuma vaga nova encontrada, as últimas vagas já foram enviadas!`;
+                if (!msg.isGroup) {
+                    const { whatsAppChatService } = await import('@/services/WhatsAppChatService');
+                    await whatsAppChatService.sendTextMessage(msg.from, emptyMsg);
+                } else {
+                    await whatsAppGroupService.sendToGroupById(msg.from, emptyMsg);
+                }
             }
 
         } catch (error) {
-            whatsappLogger.error('[GroupCommand] Erro ao processar comando de vagas no grupo:', error);
-            const { whatsAppGroupService } = await import('@/services/whatsAppGroupService');
-            await whatsAppGroupService.sendToGroupById(msg.from, `⚠️ Ocorreu um erro ao buscar novas vagas. Tente novamente mais tarde.`);
+            whatsappLogger.error('[GroupCommand] Erro ao processar comando de vagas:', error);
+            const errMsg = `⚠️ Ocorreu um erro ao buscar novas vagas. Tente novamente mais tarde.`;
+            if (!msg.isGroup) {
+                const { whatsAppChatService } = await import('@/services/WhatsAppChatService');
+                await whatsAppChatService.sendTextMessage(msg.from, errMsg);
+            } else {
+                const { whatsAppGroupService } = await import('@/services/whatsAppGroupService');
+                await whatsAppGroupService.sendToGroupById(msg.from, errMsg);
+            }
         }
     }
 
@@ -323,27 +349,32 @@ export class BaileysMessageHandler {
      * Handle incoming/outgoing message
      */
     async handle(msg: WhatsAppMessage): Promise<void> {
-        // Handle group commands and skip generic lead logic
-        if (msg.isGroup) {
-            await this.handleGroupMessage(msg);
+        if (!msg.id) return;
+
+        // Deduplication in memory
+        if (this.processingMessages.has(msg.id)) {
+            whatsappLogger.debug(`[BaileysMessageHandler] Mensagem já em processamento (ignorada duplo evento): ${msg.id}`);
             return;
         }
+        this.processingMessages.add(msg.id);
 
-        // Tenta interceptar como envio de vaga manual via link
-        const processedAsLink = await this.handleDirectJobLink(msg);
-        if (!processedAsLink) {
-            // Se não tinha link, tenta processar como texto de vaga encaminhado
-            await this.handleForwardedJobDescription(msg);
+        // TTL of 10 minutes for memory set
+        setTimeout(() => {
+            this.processingMessages.delete(msg.id);
+        }, 10 * 60 * 1000);
+
+        // Verifica primeiro se é um comando (agora aceita em grupo e no privado se autorizado)
+        const bodyMatch = msg.body?.trim().toLowerCase() || '';
+        const validCommands = ['vagas', 'vaga de hoje', 'vagas de hoje', 'novas vagas'];
+        if (validCommands.includes(bodyMatch)) {
+            await this.handleGroupMessage(msg);
+            // Don't save commands to DB to keep the UI clean, 
+            // or we can save them if they are sent in direct messages, but typically commands are ignored in CRM history.
+            // If we want them in CRM, remove the return here and let it flow down just returning after.
+            if (msg.isGroup) return;
+        } else if (msg.isGroup) {
+            return; // Outras mensagens de grupo são ignoradas
         }
-        // For outgoing, we don't easily know the 'to' from the normalized msg object if it's not passed.
-        // Baileys.ts normalized object:
-        // from: from.replace...
-        // doesn't have 'to'. 
-        // If fromMe is true, 'from' is ME. Who is 'to'? 
-        // Baileys.ts logic: "const from = msg.key.remoteJid". 
-        // If fromMe is true, remoteJid is the RECIPIENT.
-        // So 'from' variable in Baileys.ts IS actually the 'remote' party (the contact).
-        // Correct.
 
         const contactPhone = msg.from; // This is the other person.
 
@@ -380,7 +411,7 @@ export class BaileysMessageHandler {
 
             // Save message with media info
             const messageType = msg.mediaType || 'text';
-            await pool.query(`
+            const insertResult = await pool.query(`
                 INSERT INTO messages (id, contact_phone, content, from_me, timestamp, type, media_url, media_type, read)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (id) DO NOTHING
@@ -395,6 +426,12 @@ export class BaileysMessageHandler {
                 msg.mediaType || null,
                 msg.fromMe ? true : false
             ]);
+
+            // Se a mensagem já existir no banco, significa que o evento da lib foi re-disparado em uma sessão / timeout do DB.
+            if (insertResult.rowCount === 0) {
+                whatsappLogger.debug(`[BaileysMessageHandler] Mensagem ignorada pois já existe no banco de dados: ${msg.id}`);
+                return;
+            }
 
             // Emit Socket Events
             if (!msg.fromMe) {
@@ -441,6 +478,14 @@ export class BaileysMessageHandler {
             }
 
             whatsappLogger.info(`Saved Baileys message from ${contact.nome}: ${msg.body.substring(0, 20)}...`);
+
+            // =========== AFTER SAVING MESSAGE, PROCESS AI/VAGAS LOGIC ============ //
+            // Tenta interceptar como envio de vaga manual via link
+            const processedAsLink = await this.handleDirectJobLink(msg);
+            if (!processedAsLink) {
+                // Se não tinha link, tenta processar como texto de vaga encaminhado
+                await this.handleForwardedJobDescription(msg);
+            }
 
         } catch (error) {
             whatsappLogger.error('Error handling Baileys message:', error);
