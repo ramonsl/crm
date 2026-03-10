@@ -11,6 +11,7 @@
 
 import { WhatsAppProviderFactory } from '../lib/whatsapp';
 import { WhatsAppProviderManager } from '../lib/whatsapp/manager/WhatsAppProviderManager';
+import { IdempotencyRepository } from '@/lib/repositories/IdempotencyRepository';
 
 export interface WhatsAppGroup {
     id: string;
@@ -18,7 +19,14 @@ export interface WhatsAppGroup {
     participantCount: number;
 }
 
+interface SendGroupOptions {
+    idempotencyKey?: string;
+    idempotencyTtlSeconds?: number;
+}
+
 export class WhatsAppGroupService {
+    private idempotencyRepo = new IdempotencyRepository();
+
     /**
      * Get all available WhatsApp groups
      */
@@ -78,13 +86,29 @@ export class WhatsAppGroupService {
     /**
      * Send message to group by ID
      */
-    async sendToGroupById(groupId: string, message: string): Promise<void> {
+    async sendToGroupById(groupId: string, message: string, options?: SendGroupOptions): Promise<void> {
         // We MUST use the Web Provider (Baileys) for groups, because Official APIs (YCloud) 
         // do not support sending messages to standard @g.us groups.
         const provider = await WhatsAppProviderManager.getInstance().getWebProvider();
 
         if (!provider) {
             throw new Error('WhatsApp provider not ready. Please connect WhatsApp first.');
+        }
+
+        const idempotencyKey = options?.idempotencyKey;
+        const idempotencyTtlSeconds = options?.idempotencyTtlSeconds ?? 24 * 60 * 60;
+
+        if (idempotencyKey) {
+            const acquired = await this.idempotencyRepo.acquire(
+                idempotencyKey,
+                idempotencyTtlSeconds,
+                { groupId }
+            );
+
+            if (!acquired) {
+                console.log(`[WhatsAppGroupService] Skipping duplicate send for key ${idempotencyKey}`);
+                return;
+            }
         }
 
         try {
@@ -98,6 +122,9 @@ export class WhatsAppGroupService {
 
             console.log(`[WhatsAppGroupService] ✅ Message sent successfully to group ${groupId}`);
         } catch (error) {
+            if (idempotencyKey) {
+                await this.idempotencyRepo.release(idempotencyKey);
+            }
             console.error('[WhatsAppGroupService] ❌ Error sending message:', error);
             throw new Error('Failed to send message: ' + (error instanceof Error ? error.message : 'Unknown error'));
         }

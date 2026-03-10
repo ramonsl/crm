@@ -673,7 +673,11 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
             };
         }
 
-        const maxAttempts = 3;
+        // Group posts (job automation) must be idempotent.
+        // If the first send reaches WhatsApp but the local ack times out,
+        // retrying can duplicate/triplicate the same message in the group.
+        const isGroupTarget = phone.includes('@g.us');
+        const maxAttempts = isGroupTarget ? 1 : 3;
         let lastError: Error | unknown;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {

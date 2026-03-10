@@ -21,6 +21,13 @@ import { whatsAppGroupService } from './whatsAppGroupService';
 import { workeiScraperService } from './scrapers/WorkeiScraperService';
 import { dbLogger } from '@/lib/logger';
 
+type SyncRunStats = {
+    processed: number;
+    posted: number;
+    errors: number;
+    skipped?: number;
+};
+
 export class LinkedInJobAutomationService {
     private jobRepo: LinkedInJobRepository;
     private settingRepo: SettingRepository;
@@ -28,7 +35,7 @@ export class LinkedInJobAutomationService {
     // In-memory state for UI polling
     private _isSyncing: boolean = false;
     private _syncLogs: string[] = [];
-    private _lastSyncStats: any = null;
+    private _lastSyncStats: SyncRunStats | null = null;
 
     get isSyncing() { return this._isSyncing; }
     get syncLogs() { return this._syncLogs; }
@@ -151,7 +158,10 @@ export class LinkedInJobAutomationService {
                 }
 
                 try {
-                    await whatsAppGroupService.sendToGroupById(groupId, job.formatted_message);
+                    await whatsAppGroupService.sendToGroupById(groupId, job.formatted_message, {
+                        idempotencyKey: `jobs:resend:${job.id}`,
+                        idempotencyTtlSeconds: 10 * 60
+                    });
                     await this.jobRepo.updateStatus(job.id, 'posted');
                     stats.posted++;
 
@@ -253,7 +263,10 @@ export class LinkedInJobAutomationService {
                     });
 
                     try {
-                        await whatsAppGroupService.sendToGroupById(groupId, message);
+                        await whatsAppGroupService.sendToGroupById(groupId, message, {
+                            idempotencyKey: `jobs:linkedin:${post.id}`,
+                            idempotencyTtlSeconds: 24 * 60 * 60
+                        });
                         await this.jobRepo.updateStatus(createdJob.id, 'posted');
                         stats.posted++;
 
@@ -332,7 +345,10 @@ export class LinkedInJobAutomationService {
                     });
 
                     try {
-                        await whatsAppGroupService.sendToGroupById(groupId, message);
+                        await whatsAppGroupService.sendToGroupById(groupId, message, {
+                            idempotencyKey: `jobs:remotar:${postId}`,
+                            idempotencyTtlSeconds: 24 * 60 * 60
+                        });
                         await this.jobRepo.updateStatus(createdJob.id, 'posted');
                         stats.posted++;
 
@@ -409,7 +425,10 @@ export class LinkedInJobAutomationService {
                     });
 
                     try {
-                        await whatsAppGroupService.sendToGroupById(groupId, message);
+                        await whatsAppGroupService.sendToGroupById(groupId, message, {
+                            idempotencyKey: `jobs:vagasremotas:${postId}`,
+                            idempotencyTtlSeconds: 24 * 60 * 60
+                        });
                         await this.jobRepo.updateStatus(createdJob.id, 'posted');
                         stats.posted++;
 
@@ -486,7 +505,10 @@ export class LinkedInJobAutomationService {
                     });
 
                     try {
-                        await whatsAppGroupService.sendToGroupById(groupId, message);
+                        await whatsAppGroupService.sendToGroupById(groupId, message, {
+                            idempotencyKey: `jobs:workei:${postId}`,
+                            idempotencyTtlSeconds: 24 * 60 * 60
+                        });
                         await this.jobRepo.updateStatus(createdJob.id, 'posted');
                         stats.posted++;
 
