@@ -84,15 +84,36 @@ export class WhatsAppGroupService {
     }
 
     /**
-     * Send message to group by ID
+     * Send message to group by ID.
+     * Uses the Web Provider (Baileys) exclusively — official APIs (YCloud) do not
+     * support standard @g.us groups.
+     * 
+     * Waits up to 15 seconds for the provider to become ready before failing,
+     * which handles cases where Baileys is still initializing after a restart.
      */
     async sendToGroupById(groupId: string, message: string, options?: SendGroupOptions): Promise<void> {
-        // We MUST use the Web Provider (Baileys) for groups, because Official APIs (YCloud) 
-        // do not support sending messages to standard @g.us groups.
         const provider = await WhatsAppProviderManager.getInstance().getWebProvider();
 
         if (!provider) {
-            throw new Error('WhatsApp provider not ready. Please connect WhatsApp first.');
+            throw new Error('WhatsApp Web provider not available. Please connect WhatsApp first.');
+        }
+
+        // Wait up to 15s for the provider to become ready before failing.
+        // This protects against Baileys being mid-initialization when a job sync fires.
+        const READY_POLL_MS = 1000;
+        const READY_TIMEOUT_MS = 15000;
+        let elapsed = 0;
+        while (!(await provider.isReady()) && elapsed < READY_TIMEOUT_MS) {
+            console.warn(`[WhatsAppGroupService] Provider not ready yet, waiting... (${elapsed}ms elapsed)`);
+            await new Promise(resolve => setTimeout(resolve, READY_POLL_MS));
+            elapsed += READY_POLL_MS;
+        }
+
+        if (!(await provider.isReady())) {
+            throw new Error(
+                `WhatsApp Web Provider não está pronto após ${READY_TIMEOUT_MS / 1000}s. ` +
+                `Verifique a conexão do Baileys no painel.`
+            );
         }
 
         const idempotencyKey = options?.idempotencyKey;

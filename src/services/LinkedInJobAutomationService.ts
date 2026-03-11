@@ -91,6 +91,7 @@ export class LinkedInJobAutomationService {
             await this.syncWorkei(groupId, stats, internalOnProgress);
 
             internalOnProgress('Finalizando sincronização global...');
+            dbLogger.info(`[JobAutomation] runSync completed: processed=${stats.processed}, posted=${stats.posted}, skipped=${stats.skipped}, errors=${stats.errors}`);
             this._lastSyncStats = stats;
             return stats;
         } catch (error) {
@@ -346,7 +347,7 @@ export class LinkedInJobAutomationService {
 
                     try {
                         await whatsAppGroupService.sendToGroupById(groupId, message, {
-                            idempotencyKey: `jobs:remotar:${postId}`,
+                            idempotencyKey: `jobs:remotar:${job.id}`,
                             idempotencyTtlSeconds: 24 * 60 * 60
                         });
                         await this.jobRepo.updateStatus(createdJob.id, 'posted');
@@ -426,7 +427,7 @@ export class LinkedInJobAutomationService {
 
                     try {
                         await whatsAppGroupService.sendToGroupById(groupId, message, {
-                            idempotencyKey: `jobs:vagasremotas:${postId}`,
+                            idempotencyKey: `jobs:vagasremotas:${job.id}`,
                             idempotencyTtlSeconds: 24 * 60 * 60
                         });
                         await this.jobRepo.updateStatus(createdJob.id, 'posted');
@@ -506,7 +507,7 @@ export class LinkedInJobAutomationService {
 
                     try {
                         await whatsAppGroupService.sendToGroupById(groupId, message, {
-                            idempotencyKey: `jobs:workei:${postId}`,
+                            idempotencyKey: `jobs:workei:${job.id}`,
                             idempotencyTtlSeconds: 24 * 60 * 60
                         });
                         await this.jobRepo.updateStatus(createdJob.id, 'posted');
