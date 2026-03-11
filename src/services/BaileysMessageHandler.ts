@@ -19,7 +19,7 @@ export class BaileysMessageHandler {
   private processingMessages = new Set<string>();
   private lastCommandTimestamps: Record<string, number> = {};
 
-  constructor(private autoReplyEnabled: boolean = true) {}
+  constructor(private autoReplyEnabled: boolean = true) { }
 
   /**
    * Find contact in database by phone variations
@@ -202,15 +202,21 @@ export class BaileysMessageHandler {
         );
       }
 
+      whatsappLogger.info(`[GroupCommand] Chamando runSync()...`);
+
       // Run the automation ASYNCHRONOUSLY to prevent blocking the Webhook response!
       // If we await here, YCloud times out after a few seconds and retries the webhook,
       // resulting in the 3x duplicated execution bug.
       linkedInJobAutomationService
         .runSync()
         .then(async (jobsStats) => {
+          whatsappLogger.info(
+            `[GroupCommand] runSync() completed: posted=${jobsStats.posted}, skipped=${jobsStats.skipped ?? 0}, errors=${jobsStats.errors}, processed=${jobsStats.processed}`,
+          );
           try {
             if (jobsStats.posted > 0) {
               const successMsg = `✅ Sincronização concluída! Foram enviadas ${jobsStats.posted} novas vagas.`;
+              whatsappLogger.info(`[GroupCommand] Enviando mensagem de sucesso para ${msg.from}`);
               if (!msg.isGroup) {
                 const { whatsAppChatService } =
                   await import("@/services/WhatsAppChatService");
@@ -225,6 +231,7 @@ export class BaileysMessageHandler {
               }
             } else {
               const emptyMsg = `ℹ️ Sincronização concluída. Nenhuma vaga nova encontrada, as últimas vagas já foram enviadas!`;
+              whatsappLogger.info(`[GroupCommand] Enviando mensagem de 'nenhuma vaga' para ${msg.from}`);
               if (!msg.isGroup) {
                 const { whatsAppChatService } =
                   await import("@/services/WhatsAppChatService");
@@ -235,23 +242,25 @@ export class BaileysMessageHandler {
                 await whatsAppGroupService.sendToGroupById(msg.from, emptyMsg);
               }
             }
+            whatsappLogger.info(`[GroupCommand] Mensagem de resultado enviada com sucesso`);
           } catch (sendError) {
             whatsappLogger.error(
-              "[GroupCommand] Erro ao enviar resultado:",
+              "[GroupCommand] ERRO ao enviar mensagem de resultado:",
               sendError,
             );
           }
         })
         .catch(async (error) => {
           whatsappLogger.error(
-            "[GroupCommand] Erro ao processar comando de vagas:",
-            error,
+            "[GroupCommand] ERRO CRITICO no runSync:",
+            error instanceof Error ? error.message : error,
           );
           const errorReason =
             error instanceof Error ? error.message : "Unknown error";
           const errMsg = `⚠️ Ocorreu um erro ao buscar novas vagas (${errorReason}). Tente novamente mais tarde.`;
 
           try {
+            whatsappLogger.info(`[GroupCommand] Tentando enviar mensagem de erro para ${msg.from}`);
             if (!msg.isGroup) {
               const { whatsAppChatService } =
                 await import("@/services/WhatsAppChatService");
@@ -263,7 +272,7 @@ export class BaileysMessageHandler {
             }
           } catch (sendErr) {
             whatsappLogger.error(
-              "[GroupCommand] Failed to send error msg:",
+              "[GroupCommand] FALHA ao enviar msg de erro (dupla falha):",
               sendErr,
             );
           }

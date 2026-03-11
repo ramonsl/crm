@@ -177,7 +177,15 @@ export async function POST(req: NextRequest) {
 
         if (action === 'disconnect') {
             await provider.logout();
-            WhatsAppProviderManager.getInstance().resetWebProvider();
+            const manager = WhatsAppProviderManager.getInstance();
+            manager.resetWebProvider();
+
+            // Reinicia o provider para que o QR Code apareça imediatamente
+            const newProvider = await manager.getWebProvider();
+            newProvider.initialize().catch((err: unknown) => {
+                console.error('[API disconnect] Erro ao reinicializar provider após desconectar:', err);
+            });
+
             return NextResponse.json({ message: 'Disconnected', status: 'disconnected' });
         }
 
