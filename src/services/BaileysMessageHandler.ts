@@ -164,11 +164,14 @@ export class BaileysMessageHandler {
         !normalizedConf ||
         !normalizedFrom.includes(normalizedConf)
       ) {
+        console.log(`❌ [DEBUG] Grupo não corresponde. msg.from=${msg.from} (normalizado=${normalizedFrom}), Configurado=${linkedinGroupId} (normalizado=${normalizedConf})`);
         whatsappLogger.debug(
           `[GroupCommand] Ignorado. msg.from: ${msg.from}, Configured: ${linkedinGroupId}`,
         );
         return;
       }
+
+      console.log(`✅ [DEBUG] Grupo corresponde! Verificando debounce...`);
 
       // --- DEBOUNCE LOGIC ---
       const now = Date.now();
@@ -538,6 +541,7 @@ export class BaileysMessageHandler {
    * Handle incoming/outgoing message
    */
   async handle(msg: WhatsAppMessage): Promise<void> {
+    console.log(`\n📩 [DEBUG] Mensagem recebida: from=${msg.from} body="${msg.body?.substring(0, 50)}" isGroup=${msg.isGroup} fromMe=${msg.fromMe}`);
     if (!msg.id) return;
 
     // Deduplication in memory
@@ -566,6 +570,7 @@ export class BaileysMessageHandler {
       "novas vagas",
     ];
     if (validCommands.includes(bodyMatch)) {
+      console.log(`\n🔔 [DEBUG] Comando de vagas detectado! bodyMatch="${bodyMatch}" from=${msg.from}`);
       await this.handleGroupMessage(msg);
       // Don't save commands to DB to keep the UI clean,
       // or we can save them if they are sent in direct messages, but typically commands are ignored in CRM history.

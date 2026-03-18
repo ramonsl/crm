@@ -4,7 +4,7 @@
  * All methods are async for PostgreSQL compatibility
  */
 
-import type { LeadRow, TemplateRow, MessageHistoryRow, SettingRow, ActivityRow, UserRow, SessionRow, LinkedInJobRow, LinkedInJobStatus } from '../types';
+import type { LeadRow, TemplateRow, MessageHistoryRow, SettingRow, ActivityRow, UserRow, SessionRow, LinkedInJobRow, LinkedInJobStatus, SeniorityLevel } from '../types';
 import type {
     CreateLeadDto,
     UpdateLeadDto,
@@ -329,4 +329,14 @@ export interface ILinkedInJobRepository {
      * Get summary statistics for LinkedIn job automation
      */
     getStats(): Promise<{ total: number; posted: number; error: number }>;
+
+    /**
+     * Get collected jobs grouped by seniority level
+     */
+    getCollectedGroupedByLevel(): Promise<Record<SeniorityLevel, LinkedInJobRow[]>>;
+
+    /**
+     * Bulk update status for multiple job IDs
+     */
+    bulkUpdateStatus(ids: number[], status: LinkedInJobStatus, errorMessage?: string): Promise<void>;
 }
