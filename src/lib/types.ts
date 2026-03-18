@@ -291,9 +291,14 @@ export interface WhatsAppWebMessage {
 // ============================================================================
 
 /**
+ * Seniority level for job classification
+ */
+export type SeniorityLevel = 'estagio' | 'junior' | 'pleno' | 'senior' | 'outros';
+
+/**
  * LinkedIn Job status
  */
-export type LinkedInJobStatus = 'pending' | 'posted' | 'rejected' | 'error';
+export type LinkedInJobStatus = 'pending' | 'collected' | 'posted' | 'rejected' | 'error';
 
 /**
  * LinkedIn Job table row
@@ -312,6 +317,7 @@ export interface LinkedInJobRow {
     created_at: string;
     status: LinkedInJobStatus;
     error_message: string | null;
+    seniority_level: SeniorityLevel;
 }
 
 // ============================================================================
