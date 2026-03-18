@@ -4,7 +4,7 @@
  */
 
 import { pool } from '../db';
-import type { LinkedInJobRow, LinkedInJobStatus } from '../types';
+import type { LinkedInJobRow, LinkedInJobStatus, SeniorityLevel } from '../types';
 import type { ILinkedInJobRepository } from './interfaces';
 
 export class LinkedInJobRepository implements ILinkedInJobRepository {
@@ -21,9 +21,9 @@ export class LinkedInJobRepository implements ILinkedInJobRepository {
         const result = await pool.query(`
             INSERT INTO linkedin_jobs (
                 linkedin_post_id, title, company, location, is_remote, 
-                raw_content, formatted_message, url, posted_at, status, error_message
+                raw_content, formatted_message, url, posted_at, status, error_message, seniority_level
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING *
         `, [
             data.linkedin_post_id,
@@ -36,7 +36,8 @@ export class LinkedInJobRepository implements ILinkedInJobRepository {
             data.url,
             data.posted_at,
             data.status,
-            data.error_message
+            data.error_message,
+            data.seniority_level || 'outros'
         ]);
 
         return result.rows[0];
@@ -172,5 +173,42 @@ export class LinkedInJobRepository implements ILinkedInJobRepository {
             jobs: jobsResult.rows as LinkedInJobRow[],
             total: parseInt(countResult.rows[0].total || '0')
         };
+    }
+
+    /**
+     * Get all collected jobs grouped by seniority level.
+     * Returns a record keyed by SeniorityLevel with arrays of matching jobs.
+     */
+    async getCollectedGroupedByLevel(): Promise<Record<SeniorityLevel, LinkedInJobRow[]>> {
+        const result = await pool.query(
+            `SELECT * FROM linkedin_jobs WHERE status = 'collected' ORDER BY seniority_level, title`,
+        );
+
+        const grouped: Record<SeniorityLevel, LinkedInJobRow[]> = {
+            estagio: [],
+            junior: [],
+            pleno: [],
+            senior: [],
+            outros: [],
+        };
+
+        for (const row of result.rows as LinkedInJobRow[]) {
+            const level = row.seniority_level || 'outros';
+            grouped[level].push(row);
+        }
+
+        return grouped;
+    }
+
+    /**
+     * Bulk update status for multiple job IDs in a single query.
+     */
+    async bulkUpdateStatus(ids: number[], status: LinkedInJobStatus, errorMessage?: string): Promise<void> {
+        if (ids.length === 0) return;
+
+        await pool.query(
+            `UPDATE linkedin_jobs SET status = $1, error_message = $2 WHERE id = ANY($3::int[])`,
+            [status, errorMessage || null, ids],
+        );
     }
 }

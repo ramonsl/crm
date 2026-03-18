@@ -315,9 +315,20 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
 
             // Handle incoming messages
             sock.ev.on('messages.upsert', async (m) => {
-                if (m.type !== 'notify') return;
+                console.log(`\n📨 [BAILEYS] messages.upsert: type=${m.type}, count=${m.messages.length}, hasCallback=${!!this.messageCallback}`);
+
+                // Accept both 'notify' (real-time) and 'append' (sync) messages
+                // but filter out old history messages by timestamp
+                if (m.type !== 'notify' && m.type !== 'append') return;
 
                 for (const msg of m.messages) {
+                    // Skip old history messages (append type can include old synced messages)
+                    const msgTimestamp = msg.messageTimestamp as number;
+                    const ageSeconds = Math.floor(Date.now() / 1000) - msgTimestamp;
+                    if (m.type === 'append' && ageSeconds > 60) {
+                        continue; // Skip messages older than 60 seconds
+                    }
+
                     // Process ALL messages (both received and sent)
                     const rawJid = msg.key.remoteJid || '';
                     const isGroup = rawJid.endsWith('@g.us');

@@ -1,14 +1,16 @@
 /**
  * LinkedInJobAutomationService
- * 
+ *
  * Responsibility: Orchestrate the full job automation flow.
- * Sources: LinkedIn profiles + Remotar.com.br API + VagasRemotas.com.br HTML
+ * Sources: LinkedIn profiles + Remotar.com.br API + VagasRemotas.com.br HTML + Workei.com.br
+ *
+ * Flow (v2 — grouped by seniority):
  * 1. Fetch settings
- * 2. Scrape profiles (LinkedIn) and API (Remotar)
- * 3. Filter duplicates
- * 4. Transform via AI (LinkedIn only — Remotar data is already structured)
- * 5. Send to WhatsApp Group
- * 6. Record metrics
+ * 2. Scrape all sources → classify seniority → save to DB as 'collected'
+ * 3. After all sources: group collected jobs by seniority level
+ * 4. Format one consolidated message per level
+ * 5. Send ≤6 messages (5 levels + 1 daily summary) to the WhatsApp group
+ * 6. Mark jobs as 'posted'
  */
 
 import { linkedInScraperService } from './LinkedInScraperService';
@@ -19,6 +21,10 @@ import { LinkedInJobRepository } from '@/lib/repositories/LinkedInJobRepository'
 import { SettingRepository } from '@/lib/repositories/SettingRepository';
 import { whatsAppGroupService } from './whatsAppGroupService';
 import { workeiScraperService } from './scrapers/WorkeiScraperService';
+import { classifySeniority } from './SeniorityClassifier';
+import { formatGroupByLevel, formatDailySummary } from './JobGroupMessageFormatter';
+import type { SeniorityLevel } from '@/lib/types';
+import type { GroupedJobItem } from './JobGroupMessageFormatter';
 import { dbLogger } from '@/lib/logger';
 
 type SyncRunStats = {
@@ -48,6 +54,7 @@ export class LinkedInJobAutomationService {
 
     /**
      * Run the full sync process (LinkedIn + Remotar + VagasRemotas + Workei)
+     * v2: collect all → group by seniority → send consolidated messages
      */
     async runSync(onProgress?: (msg: string) => void): Promise<{ processed: number; posted: number; skipped: number; errors: number }> {
         if (this._isSyncing) {
@@ -58,46 +65,43 @@ export class LinkedInJobAutomationService {
         this._syncLogs = [];
         this._lastSyncStats = null;
 
-        const internalOnProgress = (msg: string) => {
+        const log = (msg: string) => {
             if (onProgress) onProgress(msg);
             this._syncLogs.push(`[${new Date().toISOString()}] ${msg}`);
-            // Keep only the last 50 logs to avoid memory leaks
             if (this._syncLogs.length > 50) this._syncLogs.shift();
         };
 
         dbLogger.info('[JobAutomation] runSync initiated');
-        internalOnProgress('Iniciando orquestração global de vagas...');
+        log('Iniciando orquestração global de vagas...');
 
-        const stats = {
-            processed: 0,
-            skipped: 0,
-            posted: 0,
-            errors: 0
-        };
+        const stats = { processed: 0, skipped: 0, posted: 0, errors: 0 };
 
         try {
             const groupId = await this.settingRepo.get('linkedin_group_id');
 
             if (!groupId) {
                 dbLogger.warn('[JobAutomation] Missing WhatsApp group_id setting');
-                internalOnProgress('Missing WhatsApp group_id setting. Cannot proceed.');
+                log('Missing WhatsApp group_id setting. Cannot proceed.');
                 return stats;
             }
 
-            // Run all sources
-            await this.syncLinkedIn(groupId, stats, internalOnProgress);
-            await this.syncRemotar(groupId, stats, internalOnProgress);
-            await this.syncVagasRemotas(groupId, stats, internalOnProgress);
-            await this.syncWorkei(groupId, stats, internalOnProgress);
+            // ── Phase 1: Collect from all sources ────────────────────────
+            await this.collectLinkedIn(stats, log);
+            await this.collectRemotar(stats, log);
+            await this.collectVagasRemotas(stats, log);
+            await this.collectWorkei(stats, log);
 
-            internalOnProgress('Finalizando sincronização global...');
+            // ── Phase 2: Group & send ────────────────────────────────────
+            await this.sendGroupedMessages(groupId, stats, log);
+
+            log('Finalizando sincronização global...');
             dbLogger.info(`[JobAutomation] runSync completed: processed=${stats.processed}, posted=${stats.posted}, skipped=${stats.skipped}, errors=${stats.errors}`);
             this._lastSyncStats = stats;
             return stats;
         } catch (error) {
             dbLogger.error('[JobAutomation] runSync failed:', error);
             const errLog = `Erro crítico na orquestração: ${error instanceof Error ? error.message : 'Unknown'}`;
-            internalOnProgress(errLog);
+            log(errLog);
             throw error;
         } finally {
             this._isSyncing = false;
@@ -106,7 +110,6 @@ export class LinkedInJobAutomationService {
 
     /**
      * Resend all jobs with 'error' status.
-     * Useful when the WhatsApp connection failed but the data was successfully scraped.
      */
     async resendErrors(onProgress?: (msg: string) => void): Promise<{ processed: number; posted: number; errors: number }> {
         if (this._isSyncing) {
@@ -117,44 +120,39 @@ export class LinkedInJobAutomationService {
         this._syncLogs = [];
         this._lastSyncStats = null;
 
-        const internalOnProgress = (msg: string) => {
+        const log = (msg: string) => {
             if (onProgress) onProgress(msg);
             this._syncLogs.push(`[${new Date().toISOString()}] ${msg}`);
             if (this._syncLogs.length > 50) this._syncLogs.shift();
         };
 
         dbLogger.info('[JobAutomation] resendErrors initiated');
-        internalOnProgress('Iniciando reenvio de vagas com erro...');
+        log('Iniciando reenvio de vagas com erro...');
 
-        const stats = {
-            processed: 0,
-            posted: 0,
-            errors: 0
-        };
+        const stats = { processed: 0, posted: 0, errors: 0 };
 
         try {
             const groupId = await this.settingRepo.get('linkedin_group_id');
 
             if (!groupId) {
                 dbLogger.warn('[JobAutomation] Missing WhatsApp group_id setting');
-                internalOnProgress('Missing WhatsApp group_id setting. Cannot proceed.');
+                log('Missing WhatsApp group_id setting. Cannot proceed.');
                 return stats;
             }
 
-            // Get all jobs with error status (limit to 50 at a time to prevent overload)
             const errorJobs = await this.jobRepo.getByStatus('error', 50);
 
             if (errorJobs.length === 0) {
-                internalOnProgress('Nenhuma vaga com erro encontrada.');
+                log('Nenhuma vaga com erro encontrada.');
                 return stats;
             }
 
-            internalOnProgress(`Encontradas ${errorJobs.length} vagas com erro. Iniciando reenvio...`);
+            log(`Encontradas ${errorJobs.length} vagas com erro. Iniciando reenvio...`);
             stats.processed = errorJobs.length;
 
             for (const job of errorJobs) {
                 if (!job.formatted_message) {
-                    internalOnProgress(`Pulando vaga ${job.id} - sem mensagem formatada.`);
+                    log(`Pulando vaga ${job.id} - sem mensagem formatada.`);
                     continue;
                 }
 
@@ -165,44 +163,41 @@ export class LinkedInJobAutomationService {
                     });
                     await this.jobRepo.updateStatus(job.id, 'posted');
                     stats.posted++;
-
-                    const msgStr = `Vaga reenviada: "${job.title}" (${job.company}) com sucesso.`;
-                    dbLogger.info(`[JobAutomation] ${msgStr}`);
-                    internalOnProgress(msgStr);
+                    log(`Vaga reenviada: "${job.title}" (${job.company}) com sucesso.`);
                 } catch (sendError) {
                     const errMsg = `Erro ao reenviar vaga ${job.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
                     dbLogger.error(`[JobAutomation] ${errMsg}`);
-                    internalOnProgress(`[Erro] ${errMsg}`);
+                    log(`[Erro] ${errMsg}`);
                     stats.errors++;
                 }
 
-                // Add delay between sends
                 await new Promise(resolve => setTimeout(resolve, 3000));
             }
 
-            internalOnProgress(`Reenvio finalizado. Processadas: ${stats.processed}, Sucesso: ${stats.posted}, Falhas: ${stats.errors}.`);
+            log(`Reenvio finalizado. Processadas: ${stats.processed}, Sucesso: ${stats.posted}, Falhas: ${stats.errors}.`);
             return stats;
         } catch (error) {
             dbLogger.error('[JobAutomation] resendErrors failed:', error);
-            const errLog = `Erro crítico no reenvio: ${error instanceof Error ? error.message : 'Unknown'}`;
-            internalOnProgress(errLog);
             throw error;
         } finally {
             this._isSyncing = false;
         }
     }
 
-    /**
-     * Sync jobs from LinkedIn profiles
-     */
-    private async syncLinkedIn(groupId: string, stats: { processed: number; posted: number; skipped: number; errors: number }, onProgress?: (msg: string) => void): Promise<void> {
+    // ========================================================================
+    // PHASE 1 — COLLECT (scrape → classify → save as 'collected')
+    // ========================================================================
+
+    private async collectLinkedIn(
+        stats: { processed: number; skipped: number; errors: number },
+        log: (msg: string) => void,
+    ): Promise<void> {
         try {
             const token = await this.settingRepo.get('linkedin_access_token');
             const profilesStr = await this.settingRepo.get('linkedin_profiles');
 
             if (!token || !profilesStr) {
-                dbLogger.info('[JobAutomation] LinkedIn: Skipping (no token or profiles configured)');
-                onProgress?.('LinkedIn: Pulando (token ou perfis não configurados)');
+                log('LinkedIn: Pulando (token ou perfis não configurados)');
                 return;
             }
 
@@ -216,16 +211,11 @@ export class LinkedInJobAutomationService {
             }
 
             stats.processed += recentJobs.length;
-            const logMsg = `LinkedIn: ${recentJobs.length} posts de ${profiles.length} perfis`;
-            dbLogger.info(`[JobAutomation] ${logMsg}`);
-            onProgress?.(logMsg);
+            log(`LinkedIn: ${recentJobs.length} posts de ${profiles.length} perfis`);
 
             for (const post of recentJobs) {
                 try {
-                    if (await this.jobRepo.exists(post.id)) {
-                        stats.skipped++;
-                        continue;
-                    }
+                    if (await this.jobRepo.exists(post.id)) { stats.skipped++; continue; }
 
                     const parsed = await jobTransformerService.transformPost(post.text, post.id, post.url);
 
@@ -241,71 +231,49 @@ export class LinkedInJobAutomationService {
                             url: post.url,
                             posted_at: post.postedAt,
                             status: 'rejected',
-                            error_message: parsed?.isJob ? 'Not remote' : 'Not a job post'
+                            error_message: parsed?.isJob ? 'Not remote' : 'Not a job post',
+                            seniority_level: 'outros',
                         });
                         stats.skipped++;
                         continue;
                     }
 
-                    const message = jobTransformerService.formatWhatsAppMessage(parsed);
+                    const seniority = classifySeniority(parsed.title, [], post.text);
 
-                    const createdJob = await this.jobRepo.create({
+                    await this.jobRepo.create({
                         linkedin_post_id: post.id,
                         title: parsed.title,
                         company: parsed.company,
                         location: parsed.location,
                         is_remote: parsed.isRemote,
                         raw_content: post.text,
-                        formatted_message: message,
+                        formatted_message: jobTransformerService.formatWhatsAppMessage(parsed),
                         url: post.url,
                         posted_at: post.postedAt,
-                        status: 'pending',
-                        error_message: null
+                        status: 'collected',
+                        error_message: null,
+                        seniority_level: seniority,
                     });
 
-                    try {
-                        await whatsAppGroupService.sendToGroupById(groupId, message, {
-                            idempotencyKey: `jobs:linkedin:${post.id}`,
-                            idempotencyTtlSeconds: 24 * 60 * 60
-                        });
-                        await this.jobRepo.updateStatus(createdJob.id, 'posted');
-                        stats.posted++;
-
-                        const msgStr = `LinkedIn: Vaga "${parsed.title}" (${parsed.company}) postada com sucesso.`;
-                        dbLogger.info(`[JobAutomation] ${msgStr}`);
-                        onProgress?.(msgStr);
-                    } catch (sendError) {
-                        const errMsg = `LinkedIn WhatsApp send error on post ${post.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
-                        dbLogger.error(`[JobAutomation] ${errMsg}`);
-                        onProgress?.(`[Erro] ${errMsg}`);
-
-                        await this.jobRepo.updateStatus(createdJob.id, 'error', sendError instanceof Error ? sendError.message : String(sendError));
-                        stats.errors++;
-                    }
-
-                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    log(`LinkedIn: Coletada "${parsed.title}" (${parsed.company}) [${seniority}]`);
                 } catch (error) {
-                    dbLogger.error(`[JobAutomation] LinkedIn generic error on post ${post.id}:`, error);
+                    dbLogger.error(`[JobAutomation] LinkedIn error on post ${post.id}:`, error);
                     stats.errors++;
                 }
             }
         } catch (error) {
-            dbLogger.error('[JobAutomation] LinkedIn sync failed:', error);
-            onProgress?.(`[Erro Crítico] Falha geral no LinkedIn: ${error instanceof Error ? error.message : String(error)}`);
+            dbLogger.error('[JobAutomation] LinkedIn collect failed:', error);
+            log(`[Erro Crítico] Falha geral no LinkedIn: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
-    /**
-     * Sync jobs from Remotar.com.br API
-     */
-    private async syncRemotar(groupId: string, stats: { processed: number; posted: number; skipped: number; errors: number }, onProgress?: (msg: string) => void): Promise<void> {
+    private async collectRemotar(
+        stats: { processed: number; skipped: number; errors: number },
+        log: (msg: string) => void,
+    ): Promise<void> {
         try {
             const remotarEnabled = await this.settingRepo.get('remotar_enabled');
-            if (remotarEnabled !== 'true') {
-                dbLogger.info('[JobAutomation] Remotar: Skipping (not enabled)');
-                onProgress?.('Remotar: Pulando (não habilitado)');
-                return;
-            }
+            if (remotarEnabled !== 'true') { log('Remotar: Pulando (não habilitado)'); return; }
 
             const categories = await this.settingRepo.get('remotar_categories') || '2,3,4,7,10,12,15,13,14,8';
             const filterHoursStr = await this.settingRepo.get('remotar_filter_hours');
@@ -315,79 +283,49 @@ export class LinkedInJobAutomationService {
             const recentJobs = remotarScraperService.filterRecentJobs(allJobs, filterHours);
 
             stats.processed += recentJobs.length;
-            const logMsg = `Remotar: ${allJobs.length} total, ${recentJobs.length} das últimas ${filterHours}h`;
-            dbLogger.info(`[JobAutomation] ${logMsg}`);
-            onProgress?.(logMsg);
+            log(`Remotar: ${allJobs.length} total, ${recentJobs.length} das últimas ${filterHours}h`);
 
             for (const job of recentJobs) {
                 try {
-                    // Use remotar- prefix to avoid collision with LinkedIn post IDs
                     const postId = `remotar-${job.id}`;
+                    if (await this.jobRepo.exists(postId)) { stats.skipped++; continue; }
 
-                    if (await this.jobRepo.exists(postId)) {
-                        stats.skipped++;
-                        continue;
-                    }
+                    const seniority = classifySeniority(job.title, job.tags, job.description);
 
-                    const message = remotarScraperService.formatWhatsAppMessage(job);
-
-                    const createdJob = await this.jobRepo.create({
+                    await this.jobRepo.create({
                         linkedin_post_id: postId,
                         title: job.title,
                         company: job.company,
                         location: job.location,
                         is_remote: true,
                         raw_content: job.description.substring(0, 5000),
-                        formatted_message: message,
+                        formatted_message: remotarScraperService.formatWhatsAppMessage(job),
                         url: job.externalLink || job.url,
                         posted_at: job.createdAt,
-                        status: 'pending',
-                        error_message: null
+                        status: 'collected',
+                        error_message: null,
+                        seniority_level: seniority,
                     });
 
-                    try {
-                        await whatsAppGroupService.sendToGroupById(groupId, message, {
-                            idempotencyKey: `jobs:remotar:${job.id}`,
-                            idempotencyTtlSeconds: 24 * 60 * 60
-                        });
-                        await this.jobRepo.updateStatus(createdJob.id, 'posted');
-                        stats.posted++;
-
-                        const msgStr = `Remotar: Vaga "${job.title}" (${job.company}) postada com sucesso.`;
-                        dbLogger.info(`[JobAutomation] ${msgStr}`);
-                        onProgress?.(msgStr);
-                    } catch (sendError) {
-                        const errMsg = `Remotar WhatsApp send error on job ${job.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
-                        dbLogger.error(`[JobAutomation] ${errMsg}`);
-                        onProgress?.(`[Erro] ${errMsg}`);
-
-                        await this.jobRepo.updateStatus(createdJob.id, 'error', sendError instanceof Error ? sendError.message : String(sendError));
-                        stats.errors++;
-                    }
-
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    log(`Remotar: Coletada "${job.title}" (${job.company}) [${seniority}]`);
                 } catch (error) {
-                    dbLogger.error(`[JobAutomation] Remotar generic error on job ${job.id}:`, error);
+                    dbLogger.error(`[JobAutomation] Remotar error on job ${job.id}:`, error);
                     stats.errors++;
                 }
             }
         } catch (error) {
-            dbLogger.error('[JobAutomation] Remotar sync failed:', error);
-            onProgress?.(`[Erro Crítico] Falha geral no Remotar: ${error instanceof Error ? error.message : String(error)}`);
+            dbLogger.error('[JobAutomation] Remotar collect failed:', error);
+            log(`[Erro Crítico] Falha geral no Remotar: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
-    /**
-     * Sync jobs from VagasRemotas.com.br HTML scraping
-     */
-    private async syncVagasRemotas(groupId: string, stats: { processed: number; posted: number; skipped: number; errors: number }, onProgress?: (msg: string) => void): Promise<void> {
+    private async collectVagasRemotas(
+        stats: { processed: number; skipped: number; errors: number },
+        log: (msg: string) => void,
+    ): Promise<void> {
         try {
-            const vagasRemotasEnabled = await this.settingRepo.get('vagasremotas_enabled');
-            if (vagasRemotasEnabled !== 'true') {
-                dbLogger.info('[JobAutomation] VagasRemotas: Skipping (not enabled)');
-                onProgress?.('VagasRemotas: Pulando (não habilitado)');
-                return;
-            }
+            const enabled = await this.settingRepo.get('vagasremotas_enabled');
+            if (enabled !== 'true') { log('VagasRemotas: Pulando (não habilitado)'); return; }
 
             const filterHoursStr = await this.settingRepo.get('remotar_filter_hours');
             const filterHours = parseInt(filterHoursStr || '48') || 48;
@@ -396,78 +334,49 @@ export class LinkedInJobAutomationService {
             const recentJobs = vagasRemotasScraperService.filterRecentJobs(allJobs, filterHours);
 
             stats.processed += recentJobs.length;
-            const logMsg = `VagasRemotas: ${allJobs.length} total, ${recentJobs.length} das últimas ${filterHours}h`;
-            dbLogger.info(`[JobAutomation] ${logMsg}`);
-            onProgress?.(logMsg);
+            log(`VagasRemotas: ${allJobs.length} total, ${recentJobs.length} das últimas ${filterHours}h`);
 
             for (const job of recentJobs) {
                 try {
                     const postId = `vagasremotas-${job.id}`;
+                    if (await this.jobRepo.exists(postId)) { stats.skipped++; continue; }
 
-                    if (await this.jobRepo.exists(postId)) {
-                        stats.skipped++;
-                        continue;
-                    }
+                    const seniority = classifySeniority(job.title, job.tags, job.description);
 
-                    const message = vagasRemotasScraperService.formatWhatsAppMessage(job);
-
-                    const createdJob = await this.jobRepo.create({
+                    await this.jobRepo.create({
                         linkedin_post_id: postId,
                         title: job.title,
                         company: job.company,
                         location: '100% Remoto',
                         is_remote: true,
                         raw_content: job.description.substring(0, 5000),
-                        formatted_message: message,
+                        formatted_message: vagasRemotasScraperService.formatWhatsAppMessage(job),
                         url: job.url,
                         posted_at: new Date().toISOString(),
-                        status: 'pending',
-                        error_message: null
+                        status: 'collected',
+                        error_message: null,
+                        seniority_level: seniority,
                     });
 
-                    try {
-                        await whatsAppGroupService.sendToGroupById(groupId, message, {
-                            idempotencyKey: `jobs:vagasremotas:${job.id}`,
-                            idempotencyTtlSeconds: 24 * 60 * 60
-                        });
-                        await this.jobRepo.updateStatus(createdJob.id, 'posted');
-                        stats.posted++;
-
-                        const msgStr = `VagasRemotas: Vaga "${job.title}" (${job.company}) postada com sucesso.`;
-                        dbLogger.info(`[JobAutomation] ${msgStr}`);
-                        onProgress?.(msgStr);
-                    } catch (sendError) {
-                        const errMsg = `VagasRemotas WhatsApp send error on job ${job.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
-                        dbLogger.error(`[JobAutomation] ${errMsg}`);
-                        onProgress?.(`[Erro] ${errMsg}`);
-
-                        await this.jobRepo.updateStatus(createdJob.id, 'error', sendError instanceof Error ? sendError.message : String(sendError));
-                        stats.errors++;
-                    }
-
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    log(`VagasRemotas: Coletada "${job.title}" (${job.company}) [${seniority}]`);
                 } catch (error) {
-                    dbLogger.error(`[JobAutomation] VagasRemotas generic error on job ${job.id}:`, error);
+                    dbLogger.error(`[JobAutomation] VagasRemotas error on job ${job.id}:`, error);
                     stats.errors++;
                 }
             }
         } catch (error) {
-            dbLogger.error('[JobAutomation] VagasRemotas sync failed:', error);
-            onProgress?.(`[Erro Crítico] Falha geral no VagasRemotas: ${error instanceof Error ? error.message : String(error)}`);
+            dbLogger.error('[JobAutomation] VagasRemotas collect failed:', error);
+            log(`[Erro Crítico] Falha geral no VagasRemotas: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
-    /**
-     * Sync jobs from Workei.com.br REST API
-     */
-    private async syncWorkei(groupId: string, stats: { processed: number; posted: number; skipped: number; errors: number }, onProgress?: (msg: string) => void): Promise<void> {
+    private async collectWorkei(
+        stats: { processed: number; skipped: number; errors: number },
+        log: (msg: string) => void,
+    ): Promise<void> {
         try {
-            const workeiEnabled = await this.settingRepo.get('workei_enabled');
-            if (workeiEnabled !== 'true') {
-                dbLogger.info('[JobAutomation] Workei: Skipping (not enabled)');
-                onProgress?.('Workei: Pulando (não habilitado)');
-                return;
-            }
+            const enabled = await this.settingRepo.get('workei_enabled');
+            if (enabled !== 'true') { log('Workei: Pulando (não habilitado)'); return; }
 
             const filterHoursStr = await this.settingRepo.get('workei_filter_hours') || await this.settingRepo.get('remotar_filter_hours');
             const filterHours = parseInt(filterHoursStr || '48') || 48;
@@ -476,64 +385,153 @@ export class LinkedInJobAutomationService {
             const recentJobs = workeiScraperService.filterRecentJobs(allJobs, filterHours);
 
             stats.processed += recentJobs.length;
-            const logMsg = `Workei: ${allJobs.length} total, ${recentJobs.length} das últimas ${filterHours}h`;
-            dbLogger.info(`[JobAutomation] ${logMsg}`);
-            onProgress?.(logMsg);
+            log(`Workei: ${allJobs.length} total, ${recentJobs.length} das últimas ${filterHours}h`);
 
             for (const job of recentJobs) {
                 try {
                     const postId = `workei-${job.id}`;
+                    if (await this.jobRepo.exists(postId)) { stats.skipped++; continue; }
 
-                    if (await this.jobRepo.exists(postId)) {
-                        stats.skipped++;
-                        continue;
-                    }
+                    const seniority = classifySeniority(job.title, [], job.description);
 
-                    const message = workeiScraperService.formatWhatsAppMessage(job);
-
-                    const createdJob = await this.jobRepo.create({
+                    await this.jobRepo.create({
                         linkedin_post_id: postId,
                         title: job.title,
                         company: job.company,
-                        location: job.location, // usually "Remoto"
+                        location: job.location,
                         is_remote: true,
                         raw_content: job.description.substring(0, 5000),
-                        formatted_message: message,
+                        formatted_message: workeiScraperService.formatWhatsAppMessage(job),
                         url: job.url,
                         posted_at: job.createdAt.toISOString(),
-                        status: 'pending',
-                        error_message: null
+                        status: 'collected',
+                        error_message: null,
+                        seniority_level: seniority,
                     });
 
-                    try {
-                        await whatsAppGroupService.sendToGroupById(groupId, message, {
-                            idempotencyKey: `jobs:workei:${job.id}`,
-                            idempotencyTtlSeconds: 24 * 60 * 60
-                        });
-                        await this.jobRepo.updateStatus(createdJob.id, 'posted');
-                        stats.posted++;
-
-                        const msgStr = `Workei: Vaga "${job.title}" (${job.company}) postada com sucesso.`;
-                        dbLogger.info(`[JobAutomation] ${msgStr}`);
-                        onProgress?.(msgStr);
-                    } catch (sendError) {
-                        const errMsg = `Workei WhatsApp send error on job ${job.id}: ${sendError instanceof Error ? sendError.message : String(sendError)}`;
-                        dbLogger.error(`[JobAutomation] ${errMsg}`);
-                        onProgress?.(`[Erro] ${errMsg}`);
-
-                        await this.jobRepo.updateStatus(createdJob.id, 'error', sendError instanceof Error ? sendError.message : String(sendError));
-                        stats.errors++;
-                    }
-
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    log(`Workei: Coletada "${job.title}" (${job.company}) [${seniority}]`);
                 } catch (error) {
-                    dbLogger.error(`[JobAutomation] Workei generic error on job ${job.id}:`, error);
+                    dbLogger.error(`[JobAutomation] Workei error on job ${job.id}:`, error);
                     stats.errors++;
                 }
             }
         } catch (error) {
-            dbLogger.error('[JobAutomation] Workei sync failed:', error);
-            onProgress?.(`[Erro Crítico] Falha geral no Workei: ${error instanceof Error ? error.message : String(error)}`);
+            dbLogger.error('[JobAutomation] Workei collect failed:', error);
+            log(`[Erro Crítico] Falha geral no Workei: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    // ========================================================================
+    // PHASE 2 — GROUP & SEND
+    // ========================================================================
+
+    /**
+     * Fetches all 'collected' jobs from the DB, groups by seniority, and sends
+     * one consolidated message per level + a daily summary.
+     */
+    private async sendGroupedMessages(
+        groupId: string,
+        stats: { posted: number; errors: number },
+        log: (msg: string) => void,
+    ): Promise<void> {
+        const grouped = await this.jobRepo.getCollectedGroupedByLevel();
+
+        const levels: SeniorityLevel[] = ['estagio', 'junior', 'pleno', 'senior', 'outros'];
+        const statsByLevel: Record<SeniorityLevel, number> = {
+            estagio: 0, junior: 0, pleno: 0, senior: 0, outros: 0,
+        };
+
+        let totalPostedInBatch = 0;
+
+        for (const level of levels) {
+            const jobs = grouped[level];
+            if (jobs.length === 0) continue;
+
+            statsByLevel[level] = jobs.length;
+
+            const items: GroupedJobItem[] = jobs.map(j => ({
+                title: j.title,
+                company: j.company,
+                location: j.location || '100% Remoto',
+                url: j.url || '',
+                description: j.raw_content?.substring(0, 200) || '',
+            }));
+
+            const message = formatGroupByLevel(level, items);
+            const ids = jobs.map(j => j.id);
+
+            try {
+                await whatsAppGroupService.sendToGroupById(groupId, message, {
+                    idempotencyKey: `jobs:grouped:${level}:${new Date().toISOString().slice(0, 10)}`,
+                    idempotencyTtlSeconds: 24 * 60 * 60,
+                });
+
+                await this.jobRepo.bulkUpdateStatus(ids, 'posted');
+                totalPostedInBatch += ids.length;
+                stats.posted += ids.length;
+                log(`Enviadas ${ids.length} vagas de ${level} em mensagem consolidada.`);
+            } catch (error) {
+                await this.jobRepo.bulkUpdateStatus(ids, 'error', error instanceof Error ? error.message : String(error));
+                stats.errors += ids.length;
+                dbLogger.error(`[JobAutomation] Error sending grouped ${level}:`, error);
+                log(`[Erro] Falha ao enviar vagas de ${level}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+
+            // Delay between group sends to avoid WhatsApp blocking
+            await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+
+        // ── Daily summary message ──────────────────────────────────────
+        if (totalPostedInBatch > 0) {
+            try {
+                const quote = await this.generateMotivationalQuote();
+                const summaryMsg = formatDailySummary(statsByLevel, quote);
+
+                await whatsAppGroupService.sendToGroupById(groupId, summaryMsg, {
+                    idempotencyKey: `jobs:summary:${new Date().toISOString().slice(0, 10)}`,
+                    idempotencyTtlSeconds: 24 * 60 * 60,
+                });
+
+                log(`Resumo diário enviado: ${totalPostedInBatch} vagas no total.`);
+            } catch (error) {
+                dbLogger.error('[JobAutomation] Error sending daily summary:', error);
+                log(`[Aviso] Falha ao enviar resumo diário: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+    }
+
+    /**
+     * Generate a short motivational quote via OpenAI.
+     * Falls back to a static list if the API call fails.
+     */
+    private async generateMotivationalQuote(): Promise<string> {
+        const fallbackQuotes = [
+            'O sucesso é a soma de pequenos esforços repetidos dia após dia.',
+            'Não espere por oportunidades, crie-as.',
+            'Cada vaga é uma porta. Bata em todas.',
+            'A persistência é o caminho do êxito.',
+            'Seu próximo emprego pode ser o que muda tudo.',
+        ];
+
+        try {
+            const OpenAI = (await import('openai')).default;
+            const apiKey = process.env.OPENAI_API_KEY;
+            if (!apiKey) return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
+
+            const openai = new OpenAI({ apiKey });
+            const completion = await openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [{
+                    role: 'user',
+                    content: 'Gere uma frase motivacional curta (máximo 1 linha) sobre busca de emprego e carreira em TI. Apenas a frase, sem aspas.',
+                }],
+                temperature: 0.9,
+                max_tokens: 60,
+            });
+
+            return completion.choices[0]?.message?.content?.trim() || fallbackQuotes[0];
+        } catch {
+            return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
         }
     }
 }
