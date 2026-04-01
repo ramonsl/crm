@@ -1,4 +1,4 @@
-import { linkedInJobAutomationService } from '@/services/LinkedInJobAutomationService';
+import { jobOrchestrationService } from '@/services/JobOrchestrationService';
 import { dbLogger } from '@/lib/logger';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (linkedInJobAutomationService.isSyncing) {
+    if (jobOrchestrationService.isSyncing) {
         return NextResponse.json({ error: 'Uma sincronização já está em andamento.' }, { status: 400 });
     }
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     dbLogger.info('[API] Starting background job sync');
 
     // We don't await this so the HTTP connection returns immediately for the frontend to start polling
-    linkedInJobAutomationService.runSync().catch(err => {
+    jobOrchestrationService.runSync().catch(err => {
         console.error('Background sync crashed', err);
     });
 
