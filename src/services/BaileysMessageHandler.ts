@@ -50,7 +50,7 @@ export class BaileysMessageHandler {
   // =========================================================================
 
   async handle(msg: WhatsAppMessage): Promise<void> {
-    console.log(`\n📩 [DEBUG] Mensagem recebida: from=${msg.from} body="${msg.body?.substring(0, 50)}" isGroup=${msg.isGroup} fromMe=${msg.fromMe}`);
+    whatsappLogger.debug(`[Handler] Mensagem recebida: from=${msg.from} body="${msg.body?.substring(0, 50)}" isGroup=${msg.isGroup} fromMe=${msg.fromMe}`);
 
     if (!msg.id) return;
 
@@ -59,7 +59,7 @@ export class BaileysMessageHandler {
     const bodyMatch = msg.body?.trim().toLowerCase() ?? '';
 
     if (JOB_COMMANDS.includes(bodyMatch as typeof JOB_COMMANDS[number])) {
-      console.log(`\n🔔 [DEBUG] Comando de vagas detectado! bodyMatch="${bodyMatch}" from=${msg.from}`);
+      whatsappLogger.debug(`[Handler] Comando de vagas detectado: "${bodyMatch}" from=${msg.from}`);
       await this.handleJobCommand(msg);
       if (msg.isGroup) return; // Don't persist group commands to CRM
     } else if (msg.isGroup) {
@@ -84,7 +84,6 @@ export class BaileysMessageHandler {
       const normalizedConf = linkedinGroupId?.split('@')[0];
 
       if (!linkedinGroupId || !normalizedConf || !normalizedFrom.includes(normalizedConf)) {
-        console.log(`❌ [DEBUG] Grupo não corresponde. msg.from=${msg.from}, Configurado=${linkedinGroupId}`);
         whatsappLogger.debug(`[Handler] Ignorado. msg.from: ${msg.from}, Configured: ${linkedinGroupId}`);
         return;
       }
