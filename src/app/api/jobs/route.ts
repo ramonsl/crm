@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { linkedInJobAutomationService } from '@/services/LinkedInJobAutomationService';
+import { jobOrchestrationService } from '@/services/JobOrchestrationService';
 import { LinkedInJobRepository } from '@/lib/repositories/LinkedInJobRepository';
 import { dbLogger } from '@/lib/logger';
 import { requireAuth } from '@/lib/auth/requireAuth';
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     dbLogger.info('[API] Manually triggering job sync');
 
     try {
-        const stats = await linkedInJobAutomationService.runSync();
+        const stats = await jobOrchestrationService.runSync();
 
         return NextResponse.json({
             success: true,
