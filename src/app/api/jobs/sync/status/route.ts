@@ -1,4 +1,4 @@
-import { linkedInJobAutomationService } from '@/services/LinkedInJobAutomationService';
+import { jobOrchestrationService } from '@/services/JobOrchestrationService';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -11,14 +11,12 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const isSyncing = linkedInJobAutomationService.isSyncing;
-    const logs = linkedInJobAutomationService.syncLogs;
-    const lastStats = linkedInJobAutomationService.lastSyncStats;
+    const { isSyncing, logs, lastRunAt } = jobOrchestrationService.state.getState();
 
     return NextResponse.json({
         success: true,
         isSyncing,
         logs,
-        lastStats,
+        lastRunAt,
     });
 }
