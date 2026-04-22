@@ -69,6 +69,24 @@ describe('JobGroupMessageFormatter', () => {
             const result = formatGroupByLevel('outros', manyJobs);
             expect(result.length).toBeLessThanOrEqual(62000);
         });
+
+        it('should strip HTML tags and entities from the description', () => {
+            const htmlJob: GroupedJobItem = {
+                title: 'Desenvolvedor Frontend',
+                company: 'Web Corp',
+                location: 'Remoto',
+                url: 'https://example.com/html',
+                description: '<p>Vaga <strong>excelente</strong>!</p><br/>&nbsp;Venha trabalhar conosco &amp; crescer.',
+            };
+            const result = formatGroupByLevel('pleno', [htmlJob]);
+            expect(result).toContain('Vaga excelente!');
+            expect(result).not.toContain('<p>');
+            expect(result).not.toContain('<strong>');
+            expect(result).not.toContain('<br/>');
+            expect(result).not.toContain('&nbsp;');
+            expect(result).not.toContain('&amp;');
+            expect(result).toContain('Venha trabalhar conosco & crescer.');
+        });
     });
 
     describe('formatDailySummary()', () => {
