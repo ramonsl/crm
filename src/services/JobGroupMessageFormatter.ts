@@ -18,6 +18,20 @@ export interface GroupedJobItem {
 /** Institutional footer appended to every grouped message */
 const FOOTER = `\n---\n📚 *Serviço do Curso de Análise e Desenvolvimento de Sistemas*\n🏫 *ULBRA Torres* — 80% de empregabilidade dos formandos!\n📲 *Mais informações:* +55 51 2160-1994`;
 
+function stripHtml(html: string): string {
+    return html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/?[^>]+(>|$)/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
 /**
  * Format all jobs of a given seniority level into a single consolidated message.
  * Each job appears as a numbered item with brief description + link.
@@ -33,7 +47,7 @@ export function formatGroupByLevel(
 
     const items = jobs.map((job, index) => {
         const num = `${index + 1}️⃣`;
-        const descSnippet = job.description
+        const descSnippet = stripHtml(job.description)
             .replace(/\n+/g, ' ')
             .substring(0, 120)
             .trim();
