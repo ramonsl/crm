@@ -202,7 +202,13 @@ export class DirectJobIntakeService {
             const linkedinGroupId = await this.settingRepo.get('linkedin_group_id');
 
             if (linkedinGroupId) {
-                await whatsAppGroupService.sendToGroupById(linkedinGroupId, result.formattedMessage);
+                try {
+                    await whatsAppGroupService.sendToGroupById(linkedinGroupId, result.formattedMessage);
+                } catch (sendError) {
+                    // The message may have been delivered even if the ACK timed out (Baileys race condition).
+                    // Log the error but don't propagate — the job was already saved and likely sent.
+                    whatsappLogger.warn('[DirectJobIntake] Group send returned an error (message may still have been delivered):', sendError);
+                }
                 await whatsAppChatService.sendTextMessage(
                     msg.from,
                     '✅ Vaga reescrita e enviada para o grupo com sucesso!',
