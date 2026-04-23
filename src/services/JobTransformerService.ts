@@ -123,6 +123,81 @@ ${job.applicationLink}${JobTransformerService.JOB_FOOTER}`;
     }
 
     /**
+     * Extract and rewrite multiple job vacancies from a single forwarded text (e.g. job list from Telegram/WhatsApp groups).
+     * Removes propaganda, group links and consultancy noise, returning each job individually formatted.
+     *
+     * @param text Raw text containing one or more job listings
+     * @returns Array of individually formatted jobs, or empty array if none found
+     */
+    async extractJobList(text: string): Promise<Array<{ title: string; formattedMessage: string; applicationLink: string | null }>> {
+        const prompt = `Você é um assistente especializado em vagas de emprego remotas para o mercado brasileiro de tecnologia.
+
+O texto abaixo foi encaminhado de um grupo e contém MÚLTIPLAS vagas de emprego:
+
+"""
+${text.substring(0, 6000)}
+"""
+
+Sua tarefa:
+1. Identifique CADA vaga individualmente no texto.
+2. Para cada vaga, IGNORE e REMOVA completamente:
+   - Propaganda de grupos/canais ("entre no nosso grupo", "acesse nosso Telegram", etc.)
+   - Links de grupos de WhatsApp ou Telegram
+   - Assinaturas de bots, canais ou consultoras
+   - Avisos de curadoria ou disclaimers
+   - Qualquer conteúdo que não seja a vaga em si
+3. Para cada vaga extraída:
+   - Reescreva de forma atrativa e profissional em português brasileiro
+   - Use emojis moderadamente
+   - Inclua: cargo, empresa (se informada), modalidade (remoto/presencial/híbrido), tecnologias/requisitos principais e link de candidatura
+   - Ao final de cada formattedMessage, adicione SEMPRE este rodapé exatamente como está:
+
+---
+📚 *Serviço do Curso de Análise e Desenvolvimento de Sistemas*
+🏫 *ULBRA Torres* — 80% de empregabilidade dos formandos!
+📲 *Mais informações:* +55 51 2160-1994
+
+Responda APENAS com JSON no formato:
+{
+  "jobs": [
+    {
+      "title": "título/cargo da vaga",
+      "formattedMessage": "mensagem formatada para WhatsApp",
+      "applicationLink": "URL ou email de candidatura ou null"
+    }
+  ]
+}
+
+Se não encontrar nenhuma vaga válida, retorne { "jobs": [] }.`;
+
+        try {
+            const completion = await this.getOpenAIClient().chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.3,
+                response_format: { type: 'json_object' },
+            });
+
+            const content = completion.choices[0]?.message?.content;
+            if (!content) return [];
+
+            const data = JSON.parse(content);
+            if (!Array.isArray(data.jobs)) return [];
+
+            return data.jobs
+                .filter((j: { title?: string; formattedMessage?: string }) => j.title && j.formattedMessage)
+                .map((j: { title: string; formattedMessage: string; applicationLink?: string | null }) => ({
+                    title: j.title,
+                    formattedMessage: j.formattedMessage,
+                    applicationLink: j.applicationLink ?? null,
+                }));
+        } catch (error) {
+            dbLogger.error('[JobTransformer] Erro ao extrair lista de vagas:', error);
+            return [];
+        }
+    }
+
+    /**
      * Rewrite a forwarded job description text into an attractive, clean WhatsApp message.
      * Removes group/consultancy propaganda and formats content professionally.
      *

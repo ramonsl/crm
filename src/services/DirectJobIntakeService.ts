@@ -154,6 +154,13 @@ export class DirectJobIntakeService {
     // INTAKE MODE 2 — Text-based (forwarded descriptions)
     // =========================================================================
 
+    /** Returns true if the text looks like a list of multiple jobs (2+ distinct URLs). */
+    private isJobList(text: string): boolean {
+        const urls = text.match(/(https?:\/\/[^\s]+)/g) ?? [];
+        const distinct = new Set(urls);
+        return distinct.size >= 2;
+    }
+
     private async handleForwardedJobText(msg: WhatsAppMessage): Promise<boolean> {
         const body = msg.body?.trim() ?? '';
         if (body.length < MIN_JOB_TEXT_LENGTH) return false;
@@ -162,6 +169,14 @@ export class DirectJobIntakeService {
         const hasJobKeyword = JOB_TEXT_KEYWORDS.some(kw => bodyLower.includes(kw));
         if (!hasJobKeyword) return false;
 
+        if (this.isJobList(body)) {
+            return this.handleJobList(msg, body);
+        }
+
+        return this.handleSingleJobText(msg, body);
+    }
+
+    private async handleSingleJobText(msg: WhatsAppMessage, body: string): Promise<boolean> {
         try {
             const { jobTransformerService } = await import('./JobTransformerService');
 
@@ -179,7 +194,7 @@ export class DirectJobIntakeService {
                     msg.from,
                     'ℹ️ O texto enviado não parece descrever uma vaga de emprego válida.',
                 );
-                return true; // Handled (no fallback needed)
+                return true;
             }
 
             const pseudoId = `forwarded-${Date.now()}`;
@@ -231,7 +246,89 @@ export class DirectJobIntakeService {
                 msg.from,
                 '⚠️ Ocorreu um erro ao processar a descrição da vaga.',
             );
-            return true; // Handled (error notified)
+            return true;
+        }
+    }
+
+    private async handleJobList(msg: WhatsAppMessage, body: string): Promise<boolean> {
+        try {
+            const { jobTransformerService } = await import('./JobTransformerService');
+
+            whatsappLogger.info(`[DirectJobIntake] Job list detected from ${msg.from}`);
+
+            await whatsAppChatService.sendTextMessage(
+                msg.from,
+                '🔍 Identifiquei uma lista de vagas. Estou processando...',
+            );
+
+            const jobs = await jobTransformerService.extractJobList(body);
+
+            if (jobs.length === 0) {
+                await whatsAppChatService.sendTextMessage(
+                    msg.from,
+                    'ℹ️ Não consegui identificar vagas válidas no texto enviado.',
+                );
+                return true;
+            }
+
+            const linkedinGroupId = await this.settingRepo.get('linkedin_group_id');
+            let sent = 0;
+
+            for (const job of jobs) {
+                const pseudoId = `forwarded-list-${Date.now()}-${sent}`;
+
+                await this.jobRepo.create({
+                    linkedin_post_id: pseudoId,
+                    title: job.title,
+                    company: 'Empresa (via Lista)',
+                    location: '',
+                    is_remote: false,
+                    raw_content: body.substring(0, 5000),
+                    formatted_message: job.formattedMessage,
+                    url: job.applicationLink || '',
+                    posted_at: new Date().toISOString(),
+                    status: linkedinGroupId ? 'posted' : 'pending',
+                    error_message: null,
+                    seniority_level: 'outros',
+                });
+
+                if (linkedinGroupId) {
+                    try {
+                        await whatsAppGroupService.sendToGroupById(linkedinGroupId, job.formattedMessage);
+                    } catch (sendError) {
+                        whatsappLogger.warn(`[DirectJobIntake] Group send error for job "${job.title}" (may still have been delivered):`, sendError);
+                    }
+                    // Small delay between messages to avoid WhatsApp rate limits
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+
+                sent++;
+            }
+
+            if (linkedinGroupId) {
+                await whatsAppChatService.sendTextMessage(
+                    msg.from,
+                    `✅ ${sent} ${sent === 1 ? 'vaga enviada' : 'vagas enviadas'} para o grupo com sucesso!`,
+                );
+            } else {
+                whatsappLogger.warn('[DirectJobIntake] linkedin_group_id not configured');
+                await whatsAppChatService.sendTextMessage(
+                    msg.from,
+                    `⚠️ ${sent} ${sent === 1 ? 'vaga processada' : 'vagas processadas'}, mas o grupo de destino não está configurado.`,
+                );
+            }
+
+            return true;
+        } catch (error) {
+            whatsappLogger.error('[DirectJobIntake] Fatal error processing job list:', error);
+            if (error instanceof Error) {
+                whatsappLogger.error(`[DirectJobIntake] Stack: ${error.stack}`);
+            }
+            await whatsAppChatService.sendTextMessage(
+                msg.from,
+                '⚠️ Ocorreu um erro ao processar a lista de vagas.',
+            );
+            return true;
         }
     }
 }
