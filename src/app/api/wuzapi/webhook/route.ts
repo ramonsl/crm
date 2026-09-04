@@ -18,7 +18,16 @@ import type { WhatsAppMessage, MediaType } from '@/lib/whatsapp/IWhatsAppProvide
 
 export async function POST(request: NextRequest) {
     try {
-        const payload = await request.json() as WuzAPIWebhookPayload;
+        const rawBody = await request.text();
+        whatsappLogger.info(`[WuzAPI Webhook] raw body (primeiros 300 chars): ${rawBody.substring(0, 300)}`);
+
+        let payload: WuzAPIWebhookPayload;
+        try {
+            payload = JSON.parse(rawBody) as WuzAPIWebhookPayload;
+        } catch {
+            whatsappLogger.warn(`[WuzAPI Webhook] body não é JSON válido, ignorando`);
+            return NextResponse.json({ ok: true, skipped: true });
+        }
 
         whatsappLogger.info(`[WuzAPI Webhook] evento="${payload.event}" isGroup=${payload.data?.IsGroup ?? false} fromMe=${payload.data?.FromMe ?? false} body="${payload.data?.Body?.substring(0, 50) ?? ''}"`);
 

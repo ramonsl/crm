@@ -36,6 +36,11 @@ import type {
 
 interface WuzAPIStatusResponse {
     data?: {
+        // WuzAPI retorna campos em camelCase lowercase
+        connected?: boolean;
+        loggedIn?: boolean;
+        jid?: string;
+        // Aliases uppercase por compatibilidade
         Connected?: boolean;
         LoggedIn?: boolean;
     };
@@ -258,9 +263,12 @@ export class WuzAPIAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
         try {
             const res = await this.get<WuzAPIStatusResponse>('/session/status');
 
-            if (res?.data?.Connected && res?.data?.LoggedIn) {
+            const isConnected = res?.data?.connected ?? res?.data?.Connected;
+            const isLoggedIn  = res?.data?.loggedIn  ?? res?.data?.LoggedIn;
+
+            if (isConnected && isLoggedIn) {
                 // Extrai o número do JID (ex: "5511999999999@s.whatsapp.net" → "5511999999999")
-                const jid = (res.data as any).jid as string | undefined;
+                const jid = res.data?.jid;
                 const phoneNumber = jid ? jid.replace('@s.whatsapp.net', '') : undefined;
                 return { status: 'ready', phoneNumber };
             }
