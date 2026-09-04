@@ -417,6 +417,12 @@ export class JobOrchestrationService {
         };
         let totalPostedInBatch = 0;
 
+        const totalCollected = levels.reduce((sum, l) => sum + grouped[l].length, 0);
+        if (totalCollected === 0) {
+            log('📭 Nenhuma vaga nova coletada nesta sincronização. Fontes ativas retornaram 0 vagas nas últimas 48h ou todas já foram enviadas anteriormente.');
+            return;
+        }
+
         for (const level of levels) {
             const jobs = grouped[level];
             if (jobs.length === 0) continue;
