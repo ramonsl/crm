@@ -16,7 +16,7 @@ export interface GroupedJobItem {
 }
 
 /** Institutional footer appended to every grouped message */
-const FOOTER = `\n---\n📚 *Serviço do Curso de Análise e Desenvolvimento de Sistemas*\n🏫 *ULBRA Torres* — 80% de empregabilidade dos formandos!\n📲 *Mais informações:* +55 51 2160-1994`;
+const FOOTER = `\n\n---\n🌊 *Hub Litoral Tech*\n_Grupo de profissionais e alunos de Tecnologia do Litoral Norte do RS e Sul de SC._\n\n💼 *Não está sendo chamado para entrevistas?*\nTalvez seu currículo ou LinkedIn precise de um ajuste estratégico.\n👉 Me chama no WhatsApp: *(51) 98163-6027*`;
 
 function stripHtml(html: string): string {
     return html
@@ -81,5 +81,5 @@ export function formatDailySummary(
         .map(([level, label]) => `${label}: ${statsByLevel[level]}`)
         .join(' | ');
 
-    return `📊 *RESUMO DO DIA*\nHoje foram *${total}* novas vagas remotas!\n${levelSummary}\n\n💪 _"${motivationalQuote}"_\n\n📚 *Coordena+ ADS* — ULBRA Torres`;
+    return `📊 *RESUMO DO DIA — Hub Litoral Tech*\n\n🎯 Hoje foram *${total}* novas vagas remotas para a região!\n📊 ${levelSummary}\n\n💪 _"${motivationalQuote}"_\n\n🌊 *Hub Litoral Tech* | Litoral Norte do RS & Sul de SC\n\n💼 _Dificuldade em conseguir entrevistas? Seu currículo ou LinkedIn pode ser o gargalo. Manda uma mensagem: (51) 98163-6027_`;
 }
