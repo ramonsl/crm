@@ -380,8 +380,25 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                     let mediaUrl: string | undefined;
                     let mediaType: MediaType | undefined;
 
-                    const message = msg.message;
+                    let message = msg.message;
                     if (!message) continue;
+
+                    // Unwrap nested message envelopes (ephemeral/disappearing, viewOnce, edited, etc.)
+                    if (message.ephemeralMessage?.message) {
+                        message = message.ephemeralMessage.message;
+                    }
+                    if (message.viewOnceMessage?.message) {
+                        message = message.viewOnceMessage.message;
+                    }
+                    if (message.viewOnceMessageV2?.message) {
+                        message = message.viewOnceMessageV2.message;
+                    }
+                    if (message.documentWithCaptionMessage?.message) {
+                        message = message.documentWithCaptionMessage.message;
+                    }
+                    if (message.editedMessage?.message?.protocolMessage?.editedMessage) {
+                        message = message.editedMessage.message.protocolMessage.editedMessage;
+                    }
 
                     // Text messages
                     if (message.conversation) {
