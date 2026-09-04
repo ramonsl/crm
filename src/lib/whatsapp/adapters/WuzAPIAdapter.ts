@@ -54,17 +54,20 @@ interface WuzAPISendResponse {
 }
 
 interface WuzAPIGroupEntry {
-    Id: string;
+    JID: string;          // "120363xxx@g.us"
     Name: string;
+    ParticipantCount?: number;
     Participants?: Array<{
-        JID: string;
+        JID: string;          // pode ser LID (@lid) em contas novas
+        PhoneNumber?: string; // "555181636027@s.whatsapp.net" — número real
         IsAdmin: boolean;
         IsSuperAdmin: boolean;
     }>;
 }
 
 interface WuzAPIGroupsResponse {
-    data?: WuzAPIGroupEntry[];
+    // WuzAPI retorna { data: { Groups: [...] } }
+    data?: { Groups?: WuzAPIGroupEntry[] } | WuzAPIGroupEntry[];
 }
 
 // Webhook payload sent by WuzAPI to our endpoint
@@ -352,11 +355,19 @@ export class WuzAPIAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
         if (!this.baseUrl || !this.token) return [];
         try {
             const res = await this.get<WuzAPIGroupsResponse>('/group/list');
-            return (res?.data ?? []).map(g => ({
-                id: g.Id,
+
+            // WuzAPI retorna { data: { Groups: [...] } } ou { data: [...] }
+            const raw = res?.data;
+            const entries: WuzAPIGroupEntry[] = Array.isArray(raw)
+                ? raw
+                : ((raw as any)?.Groups ?? []);
+
+            return entries.map(g => ({
+                id: g.JID,
                 subject: g.Name,
                 participants: (g.Participants ?? []).map(p => ({
-                    id: p.JID,
+                    // Prefere PhoneNumber (número real) sobre JID (pode ser LID)
+                    id: p.PhoneNumber?.replace('@s.whatsapp.net', '') ?? p.JID,
                     admin: p.IsAdmin,
                     superAdmin: p.IsSuperAdmin,
                 })),
