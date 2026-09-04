@@ -23,6 +23,7 @@ export function proxy(request: NextRequest) {
         '/api/public',
         '/api/health',
         '/api/ycloud/webhook',
+        '/api/wuzapi/webhook', // WuzAPI chama sem sessão (chamada server-to-server)
         '/_next',
         '/static',
         '/images',
