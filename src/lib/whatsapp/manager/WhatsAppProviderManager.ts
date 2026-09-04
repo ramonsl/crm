@@ -12,10 +12,11 @@ import { IWhatsAppProvider } from '../IWhatsAppProvider';
 import { YCloudAdapter } from '../adapters/YCloudAdapter';
 import { BaileysAdapter } from '../adapters/BaileysAdapter';
 import { WWebJSAdapter } from '../adapters/WWebJSAdapter';
+import { WuzAPIAdapter } from '../adapters/WuzAPIAdapter';
 import { whatsappLogger } from '@/lib/logger';
 import { queryOne } from '@/lib/db';
 
-export type WebProviderType = 'baileys' | 'wwebjs';
+export type WebProviderType = 'baileys' | 'wwebjs' | 'wuzapi';
 
 // Global scope for singleton persistence
 declare global {
@@ -142,6 +143,8 @@ export class WhatsAppProviderManager {
             whatsappLogger.info(`[ProviderManager] Initializing Web Provider: ${this.currentWebProviderType}`);
             if (this.currentWebProviderType === 'wwebjs') {
                 this.webProvider = new WWebJSAdapter();
+            } else if (this.currentWebProviderType === 'wuzapi') {
+                this.webProvider = new WuzAPIAdapter();
             } else {
                 this.webProvider = new BaileysAdapter();
             }
@@ -178,7 +181,7 @@ export class WhatsAppProviderManager {
             const row = await queryOne<{ value: string }>(
                 "SELECT value FROM settings WHERE key = 'whatsapp_web_provider'"
             );
-            if (row && (row.value === 'baileys' || row.value === 'wwebjs')) {
+            if (row && (['baileys', 'wwebjs', 'wuzapi'] as string[]).includes(row.value)) {
                 return row.value as WebProviderType;
             }
         } catch (e) {

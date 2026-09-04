@@ -9,7 +9,7 @@ import type { IWhatsAppProvider } from '../IWhatsAppProvider';
 import { WhatsAppProviderManager, WebProviderType } from '../manager/WhatsAppProviderManager';
 import { whatsappLogger } from '@/lib/logger';
 
-export type ProviderType = 'baileys' | 'wwebjs' | 'wppconnect' | 'ycloud' | 'twilio';
+export type ProviderType = 'baileys' | 'wwebjs' | 'wuzapi' | 'wppconnect' | 'ycloud' | 'twilio';
 
 export class WhatsAppProviderFactory {
 
@@ -32,7 +32,7 @@ export class WhatsAppProviderFactory {
             return manager.getOfficialProvider();
         }
 
-        if (type === 'baileys' || type === 'wwebjs') {
+        if (type === 'baileys' || type === 'wwebjs' || type === 'wuzapi') {
             return manager.getProvider(type);
         }
 
@@ -79,9 +79,9 @@ export class WhatsAppProviderFactory {
      */
     static async persistProvider(type: ProviderType): Promise<void> {
         // Only persist if it's a web provider type
-        if (type === 'baileys' || type === 'wwebjs') {
+        if (type === 'baileys' || type === 'wwebjs' || type === 'wuzapi') {
             const manager = WhatsAppProviderManager.getInstance();
-            // We need to expose persist logic or just use getProvider which handles switching + persisting
+            // getProvider handles switching + persisting the preference to DB
             await manager.getProvider(type);
         }
     }
