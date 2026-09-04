@@ -12,31 +12,48 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { WhatsAppProviderManager } from '@/lib/whatsapp/manager/WhatsAppProviderManager';
-import { WuzAPIAdapter, WuzAPIWebhookPayload } from '@/lib/whatsapp/adapters/WuzAPIAdapter';
+import { WuzAPIWebhookPayload } from '@/lib/whatsapp/adapters/WuzAPIAdapter';
 import { whatsappLogger } from '@/lib/logger';
+import type { WhatsAppMessage, MediaType } from '@/lib/whatsapp/IWhatsAppProvider';
 
 export async function POST(request: NextRequest) {
     try {
         const payload = await request.json() as WuzAPIWebhookPayload;
 
-        whatsappLogger.info(`[WuzAPI Webhook] evento="${payload.event}" isGroup=${payload.data?.IsGroup ?? false} fromMe=${payload.data?.FromMe ?? false}`);
+        whatsappLogger.info(`[WuzAPI Webhook] evento="${payload.event}" isGroup=${payload.data?.IsGroup ?? false} fromMe=${payload.data?.FromMe ?? false} body="${payload.data?.Body?.substring(0, 50) ?? ''}"`);
 
         // Ignore non-message events (receipts, presence, etc.)
         if (payload.event !== 'Message') {
             return NextResponse.json({ ok: true, skipped: true });
         }
 
-        // Get the current web provider — must be WuzAPIAdapter
-        const manager = WhatsAppProviderManager.getInstance();
-        const webProvider = await manager.getWebProvider();
+        const { data } = payload;
+        if (!data) return NextResponse.json({ ok: true, skipped: true });
 
-        if (!(webProvider instanceof WuzAPIAdapter)) {
-            whatsappLogger.warn('[WuzAPI Webhook] Web provider atual não é WuzAPIAdapter. Webhook ignorado.');
-            return NextResponse.json({ ok: false, error: 'WuzAPI provider not active' }, { status: 409 });
-        }
+        // Ignora mensagens enviadas por nós mesmos
+        if (data.FromMe) return NextResponse.json({ ok: true, skipped: true });
 
-        webProvider.dispatchWebhookPayload(payload);
+        // Monta o WhatsAppMessage no mesmo formato que o BaileysAdapter produz
+        const from = data.IsGroup
+            ? (data.GroupId ?? data.Sender ?? '')
+            : (data.Sender ?? '');
+
+        const message: WhatsAppMessage = {
+            id: data.Id ?? `wuzapi-${Date.now()}`,
+            from,
+            body: data.Body ?? '',
+            isGroup: !!data.IsGroup,
+            timestamp: data.Timestamp ? new Date(data.Timestamp * 1000) : new Date(),
+            fromMe: false,
+            mediaUrl: data.MediaUrl ?? undefined,
+            mediaType: mapMediaType(data.Type),
+        };
+
+        // Chama o handler diretamente — evita depender do messageCallback ser registrado
+        const { baileysMessageHandler } = await import('@/services/BaileysMessageHandler');
+        baileysMessageHandler.handle(message).catch((err: unknown) => {
+            whatsappLogger.error('[WuzAPI Webhook] Erro no handler:', err instanceof Error ? err.message : String(err));
+        });
 
         return NextResponse.json({ ok: true });
     } catch (err) {
@@ -44,6 +61,16 @@ export async function POST(request: NextRequest) {
         whatsappLogger.error('[WuzAPI Webhook] Erro ao processar payload:', msg);
         return NextResponse.json({ ok: false, error: msg }, { status: 400 });
     }
+}
+
+function mapMediaType(type?: string): MediaType | undefined {
+    if (!type) return undefined;
+    const t = type.toLowerCase();
+    if (t.includes('image')) return 'image';
+    if (t.includes('video')) return 'video';
+    if (t.includes('audio') || t.includes('ptt')) return 'audio';
+    if (t.includes('document')) return 'document';
+    return undefined;
 }
 
 // WuzAPI envia um GET para verificar se o endpoint está ativo
