@@ -64,8 +64,10 @@ export class JobOrchestrationService {
      * Run the full sync process (LinkedIn + Remotar + VagasRemotas + Workei).
      *
      * @param notifyGroupId - Optional group ID to send a "searching..." notice before sync starts.
+     * @param targetGroupId - Optional group ID to send jobs to. Overrides linkedin_group_id setting.
+     *                        When triggered from WhatsApp, pass msg.from so jobs go to the same group.
      */
-    async runSync(notifyGroupId?: string): Promise<SyncResult> {
+    async runSync(notifyGroupId?: string, targetGroupId?: string): Promise<SyncResult> {
         if (this.state.isSyncing) {
             throw new Error('Uma sincronização já está em andamento.');
         }
@@ -80,13 +82,16 @@ export class JobOrchestrationService {
         const stats: SyncResult = { processed: 0, skipped: 0, posted: 0, errors: 0 };
 
         try {
-            const groupId = await this.settingRepo.get('linkedin_group_id');
+            // Use targetGroupId if provided (WhatsApp trigger), otherwise fall back to setting
+            const groupId = targetGroupId ?? await this.settingRepo.get('linkedin_group_id');
 
             if (!groupId) {
                 dbLogger.warn('[JobOrchestration] Missing WhatsApp group_id setting');
                 log('Missing WhatsApp group_id setting. Cannot proceed.');
                 return stats;
             }
+
+            dbLogger.info(`[JobOrchestration] Sending jobs to group: ${groupId}`);
 
             if (notifyGroupId) {
                 await whatsAppGroupService.sendToGroupById(

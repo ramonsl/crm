@@ -81,11 +81,8 @@ export class BaileysMessageHandler {
       const settingRepo = new SettingRepository();
       const linkedinGroupId = await settingRepo.get('linkedin_group_id');
 
-      const normalizedFrom = msg.from.split('@')[0];
-      const normalizedConf = linkedinGroupId?.split('@')[0];
-
       whatsappLogger.info(`[Handler] 🔍 Verificando grupo autorizado | msg.from="${msg.from}" | configured="${linkedinGroupId ?? 'NÃO CONFIGURADO'}"`);
-      messageQueue.addLog(`🔍 Verificando grupo autorizado... Recebido: "${normalizedFrom}" | Configurado: "${normalizedConf ?? 'NÃO CONFIGURADO'}"`, 'info');
+      messageQueue.addLog(`🔍 Verificando grupo autorizado... Recebido: "${msg.from}" | Configurado: "${linkedinGroupId ?? 'NÃO CONFIGURADO'}"`, 'info');
 
       if (!linkedinGroupId) {
         whatsappLogger.warn('[Handler] ❌ BLOQUEADO: setting "linkedin_group_id" não está configurada no banco. Acesse Configurações e defina o grupo.');
@@ -93,10 +90,18 @@ export class BaileysMessageHandler {
         return;
       }
 
-      if (msg.isGroup && (!normalizedConf || (!normalizedFrom.includes(normalizedConf) && !normalizedConf.includes(normalizedFrom)))) {
-        whatsappLogger.warn(`[Handler] ❌ BLOQUEADO: grupo não autorizado. Recebido="${normalizedFrom}" | Esperado="${normalizedConf}". Atualize a setting "linkedin_group_id".`);
-        messageQueue.addLog(`❌ BLOQUEADO: grupo não autorizado. Recebido="${normalizedFrom}" | Esperado="${normalizedConf}". Corrija a setting "linkedin_group_id".`, 'error');
-        return;
+      // O WuzAPI pode usar dois JIDs para o mesmo grupo (novo numérico vs legado phone-timestamp).
+      // Comparamos o JID completo E o prefixo numérico do JID (antes do '@') para aceitar ambos.
+      if (msg.isGroup) {
+        const fromJid = msg.from.split('@')[0];
+        const confJid = linkedinGroupId.split('@')[0];
+        // Aceita se JID bate exatamente, ou se um contém o outro como substring (prefixo comum)
+        const isAuthorized = fromJid === confJid || fromJid.includes(confJid) || confJid.includes(fromJid);
+        if (!isAuthorized) {
+          whatsappLogger.warn(`[Handler] ❌ BLOQUEADO: grupo não autorizado. Recebido="${msg.from}" | Esperado="${linkedinGroupId}".`);
+          messageQueue.addLog(`❌ BLOQUEADO: grupo não autorizado. Recebido="${msg.from}" | Esperado="${linkedinGroupId}".`, 'error');
+          return;
+        }
       }
 
       if (!this.checkDebounce(msg.from)) {
@@ -121,8 +126,11 @@ export class BaileysMessageHandler {
       }
 
       // Fire-and-forget: avoids blocking webhook response (prevents timeout)
+      // Passa msg.from como targetGroupId para garantir que as vagas são enviadas
+      // para o mesmo grupo/JID de onde veio o comando (o WuzAPI pode usar JIDs
+      // diferentes para o mesmo grupo em webhook vs listGroups).
       this.orchestrationService
-        .runSync()
+        .runSync(undefined, msg.isGroup ? msg.from : undefined)
         .then(stats => this.notifyJobSyncResult(msg, stats))
         .catch(error => this.notifyJobSyncError(msg, error));
 
