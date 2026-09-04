@@ -77,7 +77,9 @@ export default function WhatsAppPage() {
                 setWhatsappError(data.error || null);
 
                 // Store provider types for UI display
-                setCurrentProvider(data.web.provider || 'baileys'); // Web backup
+                const webProvider = data.web.provider || 'baileys';
+                setCurrentProvider(webProvider);
+                setSelectedProvider(webProvider as any); // mantém dropdown sincronizado
 
                 // Update YCloud status
                 console.log('[WhatsAppPage] YCloud Configured (Official):', data.official.configured); // DEBUG
@@ -417,9 +419,9 @@ export default function WhatsAppPage() {
                         </div>
                     </div>
                     <div className={styles.cardBody}>
-                        {/* Web Connection Status */}
-                        <div className={styles.webSection}>
-                            {status === 'ready' && currentProvider !== 'ycloud' ? (
+                        {/* Web Connection Status — oculto quando WuzAPI está conectado */}
+                        {!(currentProvider === 'wuzapi' && status === 'ready') && <div className={styles.webSection}>
+                            {status === 'ready' && currentProvider !== 'ycloud' && currentProvider !== 'wuzapi' ? (
                                 <div className={styles.connectedState}>
                                     <div className={styles.iconCircle}>
                                         <CheckCircle size={48} color="#10b981" />
@@ -480,7 +482,7 @@ export default function WhatsAppPage() {
                                     )}
                                 </div>
                             )}
-                        </div>
+                        </div>}
 
                         {/* WuzAPI Section (Compact) */}
                         {currentProvider === 'wuzapi' && status === 'ready' && (
