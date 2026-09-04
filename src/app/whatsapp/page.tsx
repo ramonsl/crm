@@ -496,15 +496,23 @@ export default function WhatsAppPage() {
                                 </div>
                                 <div className={styles.ycloudActions}>
                                     <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Conectado via WuzAPI</span>
-                                    <a
-                                        href="https://wuzapi-production-b02f.up.railway.app/dashboard"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={styles.miniButton}
-                                        style={{ textDecoration: 'none', textAlign: 'center' }}
-                                    >
-                                        Dashboard
-                                    </a>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <button
+                                            onClick={handleTestMessage}
+                                            className={styles.miniButton}
+                                        >
+                                            Testar
+                                        </button>
+                                        <a
+                                            href="https://wuzapi-production-b02f.up.railway.app/dashboard"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={styles.miniButton}
+                                            style={{ textDecoration: 'none', textAlign: 'center' }}
+                                        >
+                                            Dashboard
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         )}
