@@ -281,29 +281,39 @@ export class WuzAPIAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
     // =========================================================================
 
     async sendTextMessage(phone: string, message: string): Promise<SendMessageResult> {
-        return this.sendWuzAPI('/chat/send/text', { Phone: phone, Body: message });
+        return this.sendWuzAPI('/chat/send/text', { Phone: this.normalizePhone(phone), Body: message });
     }
 
     async sendImage(phone: string, imageUrl: string, caption?: string): Promise<SendMessageResult> {
         return this.sendWuzAPI('/chat/send/image', {
-            Phone: phone, Image: imageUrl, Caption: caption ?? '',
+            Phone: this.normalizePhone(phone), Image: imageUrl, Caption: caption ?? '',
         });
     }
 
     async sendVideo(phone: string, videoUrl: string, caption?: string): Promise<SendMessageResult> {
         return this.sendWuzAPI('/chat/send/video', {
-            Phone: phone, Video: videoUrl, Caption: caption ?? '',
+            Phone: this.normalizePhone(phone), Video: videoUrl, Caption: caption ?? '',
         });
     }
 
     async sendAudio(phone: string, audioUrl: string, _ptt?: boolean): Promise<SendMessageResult> {
-        return this.sendWuzAPI('/chat/send/audio', { Phone: phone, Audio: audioUrl });
+        return this.sendWuzAPI('/chat/send/audio', { Phone: this.normalizePhone(phone), Audio: audioUrl });
     }
 
     async sendDocument(phone: string, documentUrl: string, filename?: string): Promise<SendMessageResult> {
         return this.sendWuzAPI('/chat/send/document', {
-            Phone: phone, Document: documentUrl, FileName: filename ?? 'documento',
+            Phone: this.normalizePhone(phone), Document: documentUrl, FileName: filename ?? 'documento',
         });
+    }
+
+    /**
+     * Normaliza o phone/JID para o formato esperado pelo WuzAPI:
+     * - Grupos: mantém o JID completo "1234@g.us"
+     * - Pessoas: remove "@s.whatsapp.net", deixa só o número
+     */
+    private normalizePhone(phone: string): string {
+        if (phone.endsWith('@g.us')) return phone;               // grupo → mantém
+        return phone.replace(/@s\.whatsapp\.net$/, '');          // DM → só o número
     }
 
     async sendMessage(
