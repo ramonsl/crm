@@ -15,7 +15,7 @@ export default function WhatsAppPage() {
     const [queueState, setQueueState] = useState<any>(null);
     const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
     const [whatsappError, setWhatsappError] = useState<string | null>(null);
-    const [selectedProvider, setSelectedProvider] = useState<'baileys' | 'wwebjs' | 'wppconnect' | 'ycloud'>('baileys');
+    const [selectedProvider, setSelectedProvider] = useState<'baileys' | 'wwebjs' | 'wuzapi' | 'wppconnect' | 'ycloud'>('baileys');
 
 
     const [currentProvider, setCurrentProvider] = useState<string | null>(null);
@@ -456,18 +456,56 @@ export default function WhatsAppPage() {
                                                     className={styles.input}
                                                     style={{ marginBottom: '0.5rem' }}
                                                 >
+                                                    <option value="wuzapi">WuzAPI (Recomendado)</option>
                                                     <option value="baileys">Baileys</option>
                                                     <option value="wwebjs">WWebJS</option>
                                                 </select>
-                                                <button onClick={handleConnect} className={styles.connectButton} disabled={isLoading}>
-                                                    {isLoading ? 'Conectando...' : 'Gerar QR Code'}
-                                                </button>
+                                                {selectedProvider === 'wuzapi' ? (
+                                                    <a
+                                                        href="https://wuzapi-production-b02f.up.railway.app/dashboard"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className={styles.connectButton}
+                                                        style={{ display: 'inline-block', textAlign: 'center', textDecoration: 'none' }}
+                                                    >
+                                                        Abrir Dashboard WuzAPI
+                                                    </a>
+                                                ) : (
+                                                    <button onClick={handleConnect} className={styles.connectButton} disabled={isLoading}>
+                                                        {isLoading ? 'Conectando...' : 'Gerar QR Code'}
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
+
+                        {/* WuzAPI Section (Compact) */}
+                        {currentProvider === 'wuzapi' && status === 'ready' && (
+                            <div className={styles.ycloudCompact}>
+                                <div className={styles.ycloudHeader}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <Smartphone size={20} color="#10b981" />
+                                        <span style={{ fontWeight: 600, color: '#10b981' }}>WuzAPI</span>
+                                    </div>
+                                    <span className={styles.statusDot} style={{ background: '#10b981' }}></span>
+                                </div>
+                                <div className={styles.ycloudActions}>
+                                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Conectado via WuzAPI</span>
+                                    <a
+                                        href="https://wuzapi-production-b02f.up.railway.app/dashboard"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={styles.miniButton}
+                                        style={{ textDecoration: 'none', textAlign: 'center' }}
+                                    >
+                                        Dashboard
+                                    </a>
+                                </div>
+                            </div>
+                        )}
 
                         {/* YCloud Section (Compact) */}
                         {yCloudConfigured && (

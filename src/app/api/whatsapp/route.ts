@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
             },
             web: {
                 ...webStatus, // Includes qrCode, phoneNumber, etc.
-                provider: (webProvider as any).constructor.name.includes('Baileys') ? 'baileys' : 'wwebjs' // Simplify identification
+                provider: manager.getWebProviderType() ?? 'baileys'
             },
             // Legacy top-level for backward compat (defaults to Web usually, or aggregate)
             status: webStatus.status, // Legacy UI primarily tracks Web QR status
