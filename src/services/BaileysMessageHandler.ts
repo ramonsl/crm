@@ -51,6 +51,7 @@ export class BaileysMessageHandler {
 
   async handle(msg: WhatsAppMessage): Promise<void> {
     whatsappLogger.info(`[Handler] 📨 Mensagem recebida: from=${msg.from} body="${msg.body?.substring(0, 50)}" isGroup=${msg.isGroup} fromMe=${msg.fromMe}`);
+    messageQueue.addLog(`📨 Mensagem recebida | De: ${msg.from} | Texto: "${msg.body?.substring(0, 50)}" | Grupo: ${msg.isGroup} | DeMim: ${msg.fromMe}`, 'info');
 
     if (!msg.id) return;
 
@@ -76,11 +77,6 @@ export class BaileysMessageHandler {
   // =========================================================================
 
   private async handleJobCommand(msg: WhatsAppMessage): Promise<void> {
-    if (msg.fromMe) {
-      whatsappLogger.info('[Handler] ⏭️  Comando ignorado: mensagem enviada pelo próprio bot (fromMe=true)');
-      return;
-    }
-
     try {
       const settingRepo = new SettingRepository();
       const linkedinGroupId = await settingRepo.get('linkedin_group_id');
