@@ -428,7 +428,7 @@ export class WuzAPIAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
         return res.json() as Promise<T>;
     }
 
-    private async post<T>(path: string, body: Record<string, string>): Promise<T> {
+    private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
         const res = await fetch(`${this.baseUrl}${path}`, {
             method: 'POST',
             headers: this.headers(),
@@ -444,7 +444,7 @@ export class WuzAPIAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
 
     private async sendWuzAPI(
         endpoint: string,
-        payload: Record<string, string>,
+        payload: Record<string, unknown>,
     ): Promise<SendMessageResult> {
         if (!this.baseUrl || !this.token) {
             return { success: false, error: 'WuzAPI não configurado' };
@@ -454,8 +454,45 @@ export class WuzAPIAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
             return { success: true, messageId: data.data?.Id };
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
+
+            // Retry automático: "no LID found" → resolve o número via /user/check e tenta de novo
+            if (msg.includes('no LID found') && typeof payload.Phone === 'string' && !payload.Phone.endsWith('@g.us')) {
+                const resolved = await this.resolvePhoneViaCheck(payload.Phone);
+                if (resolved && resolved !== payload.Phone) {
+                    whatsappLogger.info(`[WuzAPI] LID não encontrado para ${payload.Phone}, retentando com ${resolved}`);
+                    try {
+                        const data2 = await this.post<WuzAPISendResponse>(endpoint, { ...payload, Phone: resolved });
+                        return { success: true, messageId: data2.data?.Id };
+                    } catch (err2) {
+                        const msg2 = err2 instanceof Error ? err2.message : String(err2);
+                        whatsappLogger.error(`[WuzAPI] Retry também falhou:`, msg2);
+                        return { success: false, error: msg2 };
+                    }
+                }
+            }
+
             whatsappLogger.error(`[WuzAPI] Erro ao enviar (${endpoint}):`, msg);
             return { success: false, error: msg };
         }
+    }
+
+    /**
+     * Resolve o número de telefone para o JID correto via /user/check.
+     * Útil quando o WhatsApp usa o formato antigo (sem 9) para números brasileiros.
+     */
+    private async resolvePhoneViaCheck(phone: string): Promise<string | null> {
+        try {
+            const res = await this.post<{ data?: { Users?: Array<{ IsInWhatsapp: boolean; JID: string }> } }>(
+                '/user/check',
+                { Phone: [phone] },
+            );
+            const user = res?.data?.Users?.[0];
+            if (user?.IsInWhatsapp && user?.JID) {
+                return user.JID.replace('@s.whatsapp.net', '');
+            }
+        } catch {
+            // Ignora erros na resolução
+        }
+        return null;
     }
 }
