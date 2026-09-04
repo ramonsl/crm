@@ -429,7 +429,7 @@ export class WuzAPIAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
     private headers(): HeadersInit {
         return {
             'Content-Type': 'application/json',
-            'Authorization': this.token!,
+            'token': this.token!,   // WuzAPI usa "token", não "Authorization"
         };
     }
 
