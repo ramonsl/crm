@@ -256,7 +256,10 @@ export class WuzAPIAdapter extends BaseWhatsAppAdapter implements IWhatsAppProvi
             const res = await this.get<WuzAPIStatusResponse>('/session/status');
 
             if (res?.data?.Connected && res?.data?.LoggedIn) {
-                return { status: 'ready' };
+                // Extrai o número do JID (ex: "5511999999999@s.whatsapp.net" → "5511999999999")
+                const jid = (res.data as any).jid as string | undefined;
+                const phoneNumber = jid ? jid.replace('@s.whatsapp.net', '') : undefined;
+                return { status: 'ready', phoneNumber };
             }
 
             // Try to get QR code

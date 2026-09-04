@@ -144,7 +144,12 @@ export class WhatsAppProviderManager {
             if (this.currentWebProviderType === 'wwebjs') {
                 this.webProvider = new WWebJSAdapter();
             } else if (this.currentWebProviderType === 'wuzapi') {
-                this.webProvider = new WuzAPIAdapter();
+                const wuzapi = new WuzAPIAdapter();
+                // WuzAPI precisa de initialize() para carregar URL/token do banco e checar conexão
+                wuzapi.initialize().catch(err => {
+                    whatsappLogger.error('[ProviderManager] WuzAPI init error:', err);
+                });
+                this.webProvider = wuzapi;
             } else {
                 this.webProvider = new BaileysAdapter();
             }
