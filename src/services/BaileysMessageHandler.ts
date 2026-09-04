@@ -60,6 +60,7 @@ export class BaileysMessageHandler {
 
     if (JOB_COMMANDS.includes(bodyMatch as typeof JOB_COMMANDS[number])) {
       whatsappLogger.info(`[Handler] 🎯 Comando de vagas detectado: "${bodyMatch}" | from=${msg.from} | isGroup=${msg.isGroup}`);
+      messageQueue.addLog(`🎯 Comando de vagas detectado: "${bodyMatch}" | Grupo: ${msg.isGroup}`, 'info');
       await this.handleJobCommand(msg);
       if (msg.isGroup) return; // Don't persist group commands to CRM
     } else if (msg.isGroup) {
@@ -87,21 +88,28 @@ export class BaileysMessageHandler {
       const normalizedFrom = msg.from.split('@')[0];
       const normalizedConf = linkedinGroupId?.split('@')[0];
 
-      whatsappLogger.info(`[Handler] 🔍 Verificando grupo autorizado | msg.from="${msg.from}" | configured="${linkedinGroupId ?? 'NÃO CONFIGURADO'}"`); 
+      whatsappLogger.info(`[Handler] 🔍 Verificando grupo autorizado | msg.from="${msg.from}" | configured="${linkedinGroupId ?? 'NÃO CONFIGURADO'}"`);
+      messageQueue.addLog(`🔍 Verificando grupo autorizado... Recebido: "${normalizedFrom}" | Configurado: "${normalizedConf ?? 'NÃO CONFIGURADO'}"`, 'info');
 
       if (!linkedinGroupId) {
         whatsappLogger.warn('[Handler] ❌ BLOQUEADO: setting "linkedin_group_id" não está configurada no banco. Acesse Configurações e defina o grupo.');
+        messageQueue.addLog('❌ BLOQUEADO: "linkedin_group_id" não configurado. Acesse Configurações → Vagas e defina o grupo.', 'error');
         return;
       }
 
       if (!normalizedConf || !normalizedFrom.includes(normalizedConf)) {
         whatsappLogger.warn(`[Handler] ❌ BLOQUEADO: grupo não autorizado. Recebido="${normalizedFrom}" | Esperado contendo="${normalizedConf}". Atualize a setting "linkedin_group_id".`);
+        messageQueue.addLog(`❌ BLOQUEADO: grupo não autorizado. Recebido="${normalizedFrom}" | Esperado="${normalizedConf}". Corrija a setting "linkedin_group_id".`, 'error');
         return;
       }
 
-      if (!this.checkDebounce(msg.from)) return;
+      if (!this.checkDebounce(msg.from)) {
+        messageQueue.addLog(`⏳ Comando ignorado: debounce ativo (aguarde 60s entre comandos).`, 'info');
+        return;
+      }
 
       whatsappLogger.info(`[Handler] ✅ Grupo autorizado! Iniciando sincronização via ${msg.isGroup ? 'grupo' : 'DM'} ${msg.from}`);
+      messageQueue.addLog(`✅ Grupo autorizado! Iniciando sincronização de vagas...`, 'success');
 
       // Send "searching..." notice to the requester and start sync asynchronously
       const notifyTarget = msg.isGroup ? msg.from : null;
@@ -121,6 +129,7 @@ export class BaileysMessageHandler {
 
     } catch (error) {
       whatsappLogger.error('[Handler] Setup error on job command:', error);
+      messageQueue.addLog(`❌ Erro ao processar comando de vagas: ${error instanceof Error ? error.message : String(error)}`, 'error');
     }
   }
 
