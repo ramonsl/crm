@@ -145,10 +145,13 @@ export class WhatsAppProviderManager {
                 this.webProvider = new WWebJSAdapter();
             } else if (this.currentWebProviderType === 'wuzapi') {
                 const wuzapi = new WuzAPIAdapter();
-                // WuzAPI precisa de initialize() para carregar URL/token do banco e checar conexão
-                wuzapi.initialize().catch(err => {
+                // WuzAPI precisa de initialize() para carregar URL/token do banco
+                // Aguardamos para garantir que baseUrl/token estejam prontos antes de qualquer uso
+                try {
+                    await wuzapi.initialize();
+                } catch (err) {
                     whatsappLogger.error('[ProviderManager] WuzAPI init error:', err);
-                });
+                }
                 this.webProvider = wuzapi;
             } else {
                 this.webProvider = new BaileysAdapter();
