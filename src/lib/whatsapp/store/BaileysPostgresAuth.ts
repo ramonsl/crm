@@ -1,6 +1,6 @@
 import { proto, AuthenticationCreds, AuthenticationState, SignalKeyStore, SignalKeyStoreWithTransaction, TransactionCapabilityOptions } from '@whiskeysockets/baileys';
 import { initAuthCreds, BufferJSON } from '@whiskeysockets/baileys';
-import { execute, queryOne, transaction } from '@/lib/db';
+import { execute, query, queryOne, transaction } from '@/lib/db';
 import { whatsappLogger } from '@/lib/logger';
 
 export const createPostgresAuthState = async (sessionId: string): Promise<{ state: AuthenticationState, saveCreds: () => Promise<void> }> => {
@@ -58,30 +58,51 @@ export const createPostgresAuthState = async (sessionId: string): Promise<{ stat
             keys: {
                 get: async (type, ids) => {
                     const data: { [key: string]: any } = {};
-                    // Process sequentially to avoid overwhelming the connection pool
-                    for (const id of ids) {
-                        let value = await readData(`${type}-${id}.json`);
-                        if (type === 'app-state-sync-key' && value) {
-                            value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                    if (!ids || ids.length === 0) return data;
+
+                    try {
+                        const fileNames = ids.map(id => `${type}-${id}.json`);
+                        const rows = await query<{ key: string; value: string }>(
+                            `SELECT key, value FROM whatsapp_sessions WHERE id = $1 AND provider = 'baileys' AND key = ANY($2::text[])`,
+                            [sessionId, fileNames]
+                        );
+
+                        const map = new Map<string, string>();
+                        for (const row of rows) {
+                            map.set(row.key, row.value);
                         }
-                        if (value) {
-                            data[id] = value;
+
+                        for (const id of ids) {
+                            const fileName = `${type}-${id}.json`;
+                            const valStr = map.get(fileName);
+                            if (valStr) {
+                                let value = JSON.parse(valStr, BufferJSON.reviver);
+                                if (type === 'app-state-sync-key' && value) {
+                                    value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                                }
+                                data[id] = value;
+                            }
                         }
+                    } catch (error) {
+                        whatsappLogger.error(`[BaileysPostgres] Error batch reading ${type}:`, error);
                     }
                     return data;
                 },
                 set: async (data) => {
-                    // Process sequentially to avoid overwhelming the connection pool
+                    const tasks: Promise<void>[] = [];
                     for (const category in data) {
                         for (const id in (data as any)[category]) {
                             const value = (data as any)[category][id];
                             const fileName = `${category}-${id}.json`;
                             if (value) {
-                                await writeData(fileName, value);
+                                tasks.push(writeData(fileName, value));
                             } else {
-                                await deleteData(fileName);
+                                tasks.push(deleteData(fileName));
                             }
                         }
+                    }
+                    if (tasks.length > 0) {
+                        await Promise.all(tasks);
                     }
                 }
             }

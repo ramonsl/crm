@@ -152,6 +152,19 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
         try {
             whatsappLogger.info('Initializing Baileys WhatsApp Client...');
 
+            // Clean up any existing socket listeners before initializing new socket
+            if (this.state.socket) {
+                try {
+                    this.state.socket.ev.removeAllListeners('connection.update');
+                    this.state.socket.ev.removeAllListeners('creds.update');
+                    this.state.socket.ev.removeAllListeners('messages.upsert');
+                    this.state.socket.end(undefined);
+                } catch (e) {
+                    // Ignore cleanup error
+                }
+                this.state.socket = null;
+            }
+
             // Ensure session directory exists (kept for compatibility or media cache if needed)
             if (!fs.existsSync(SESSION_PATH)) {
                 fs.mkdirSync(SESSION_PATH, { recursive: true });
@@ -173,6 +186,12 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                 },
                 browser: ['CRM Educacional', 'Chrome', '1.0.0'],
                 markOnlineOnConnect: true,
+                keepAliveIntervalMs: 25000,
+                connectTimeoutMs: 60000,
+                defaultQueryTimeoutMs: 60000,
+                retryRequestDelayMs: 250,
+                maxMsgRetryCount: 5,
+                syncFullHistory: false,
             });
 
             this.state.socket = sock;
@@ -284,23 +303,21 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                     if (shouldReconnect && !this.state.isReconnecting) {
                         this.reconnectAttempts++;
 
-                        if (this.reconnectAttempts > RECONNECT_CONFIG.maxAttempts) {
-                            whatsappLogger.error(`Max reconnection attempts (${RECONNECT_CONFIG.maxAttempts}) reached. Giving up.`);
-                            this.log(`❌ Máximo de tentativas de reconexão atingido (${RECONNECT_CONFIG.maxAttempts}). Clique em conectar para tentar novamente.`, 'error');
-                            this.state.isReconnecting = false;
-                            this.reconnectAttempts = 0;
-                            return;
-                        }
+                        const isRestartRequired = statusCode === DisconnectReason.restartRequired || statusCode === 515;
 
-                        // Calculate delay with exponential backoff
-                        const delay = Math.min(
-                            RECONNECT_CONFIG.baseDelayMs * Math.pow(2, this.reconnectAttempts - 1),
-                            RECONNECT_CONFIG.maxDelayMs
+                        // Immediate reconnect for restartRequired (0s), otherwise exponential backoff capped at 30s
+                        const delay = isRestartRequired ? 0 : Math.min(
+                            RECONNECT_CONFIG.baseDelayMs * Math.pow(2, Math.min(this.reconnectAttempts, 4) - 1),
+                            30000
                         );
 
                         this.state.isReconnecting = true;
-                        whatsappLogger.info(`Reconnection attempt ${this.reconnectAttempts}/${RECONNECT_CONFIG.maxAttempts} in ${delay / 1000}s...`);
-                        this.log(`Reconectando (tentativa ${this.reconnectAttempts}/${RECONNECT_CONFIG.maxAttempts})...`, 'info');
+                        whatsappLogger.info(`Reconnection attempt ${this.reconnectAttempts} in ${delay / 1000}s (statusCode: ${statusCode})...`);
+                        this.log(`Reconectando (tentativa ${this.reconnectAttempts})...`, 'info');
+
+                        if (this.reconnectTimeout) {
+                            clearTimeout(this.reconnectTimeout);
+                        }
 
                         this.reconnectTimeout = setTimeout(() => {
                             this.state.isReconnecting = false;
