@@ -726,8 +726,9 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                     }
                 })();
 
+                let timeoutHandle: NodeJS.Timeout | undefined;
                 const timeoutPromise = new Promise<never>((_, reject) => {
-                    setTimeout(() => {
+                    timeoutHandle = setTimeout(() => {
                         // Zombie socket detected: status is 'ready' but socket is unresponsive.
                         // Trigger an automatic restart so the next operation has a fresh connection.
                         if (this.state.status === 'ready') {
@@ -739,12 +740,18 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                     }, 45000);
                 });
 
-                const sentMsg = await Promise.race([sendPromise, timeoutPromise]);
+                try {
+                    const sentMsg = await Promise.race([sendPromise, timeoutPromise]);
 
-                return {
-                    success: true,
-                    messageId: sentMsg?.key?.id || undefined
-                };
+                    return {
+                        success: true,
+                        messageId: sentMsg?.key?.id || undefined
+                    };
+                } finally {
+                    if (timeoutHandle) {
+                        clearTimeout(timeoutHandle);
+                    }
+                }
             } catch (error) {
                 lastError = error;
                 whatsappLogger.warn(`Error sending message (Attempt ${attempt}/${maxAttempts}):`, error);
