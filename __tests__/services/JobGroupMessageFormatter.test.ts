@@ -47,8 +47,8 @@ describe('JobGroupMessageFormatter', () => {
 
         it('should include institutional footer', () => {
             const result = formatGroupByLevel('estagio', sampleJobs);
-            expect(result).toContain('ULBRA Torres');
-            expect(result).toContain('Análise e Desenvolvimento de Sistemas');
+            expect(result).toContain('Hub Litoral Tech');
+            expect(result).toContain('Litoral Norte do RS');
         });
 
         it('should use singular when only 1 job', () => {
@@ -119,12 +119,12 @@ describe('JobGroupMessageFormatter', () => {
             expect(result).not.toContain('Outros');
         });
 
-        it('should include Coordena+ branding', () => {
+        it('should include Hub Litoral Tech branding', () => {
             const stats: Record<SeniorityLevel, number> = {
                 estagio: 1, junior: 0, pleno: 0, senior: 0, outros: 0,
             };
             const result = formatDailySummary(stats, 'q');
-            expect(result).toContain('Coordena+ ADS');
+            expect(result).toContain('Hub Litoral Tech');
         });
     });
 });
