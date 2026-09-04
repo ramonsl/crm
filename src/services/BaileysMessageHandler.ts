@@ -107,19 +107,22 @@ export class BaileysMessageHandler {
       whatsappLogger.info(`[Handler] ✅ Grupo autorizado! Iniciando sincronização via ${msg.isGroup ? 'grupo' : 'DM'} ${msg.from}`);
       messageQueue.addLog(`✅ Grupo autorizado! Iniciando sincronização de vagas...`, 'success');
 
-      // Send "searching..." notice to the requester and start sync asynchronously
-      const notifyTarget = msg.isGroup ? msg.from : null;
-
-      if (!msg.isGroup) {
+      // Send immediate acknowledgement message to WhatsApp
+      if (msg.isGroup) {
+        await whatsAppGroupService.sendToGroupById(
+          msg.from,
+          '🔄 *Sincronização iniciada!*\n🔍 Buscando e formatando as melhores vagas de hoje para a região. Aguarde um instante... 🚀',
+        ).catch(e => whatsappLogger.warn('[Handler] Aviso de início em grupo não enviado:', e));
+      } else {
         await whatsAppChatService.sendTextMessage(
           msg.from,
-          '🔍 Buscando as vagas de hoje. Aguarde um momento...',
-        );
+          '🔄 *Sincronização iniciada!*\n🔍 Buscando e formatando as vagas de hoje. Aguarde um momento... 🚀',
+        ).catch(e => whatsappLogger.warn('[Handler] Aviso de início em DM não enviado:', e));
       }
 
-      // Fire-and-forget: avoids blocking webhook response (prevents YCloud timeout)
+      // Fire-and-forget: avoids blocking webhook response (prevents timeout)
       this.orchestrationService
-        .runSync(notifyTarget ?? undefined)
+        .runSync()
         .then(stats => this.notifyJobSyncResult(msg, stats))
         .catch(error => this.notifyJobSyncError(msg, error));
 
