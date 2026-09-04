@@ -93,8 +93,8 @@ export class BaileysMessageHandler {
         return;
       }
 
-      if (!normalizedConf || !normalizedFrom.includes(normalizedConf)) {
-        whatsappLogger.warn(`[Handler] ❌ BLOQUEADO: grupo não autorizado. Recebido="${normalizedFrom}" | Esperado contendo="${normalizedConf}". Atualize a setting "linkedin_group_id".`);
+      if (msg.isGroup && (!normalizedConf || (!normalizedFrom.includes(normalizedConf) && !normalizedConf.includes(normalizedFrom)))) {
+        whatsappLogger.warn(`[Handler] ❌ BLOQUEADO: grupo não autorizado. Recebido="${normalizedFrom}" | Esperado="${normalizedConf}". Atualize a setting "linkedin_group_id".`);
         messageQueue.addLog(`❌ BLOQUEADO: grupo não autorizado. Recebido="${normalizedFrom}" | Esperado="${normalizedConf}". Corrija a setting "linkedin_group_id".`, 'error');
         return;
       }
