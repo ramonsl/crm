@@ -727,7 +727,16 @@ export class BaileysAdapter extends BaseWhatsAppAdapter implements IWhatsAppProv
                 })();
 
                 const timeoutPromise = new Promise<never>((_, reject) => {
-                    setTimeout(() => reject(new Error('WhatsApp network operation timeout (45s)')), 45000);
+                    setTimeout(() => {
+                        // Zombie socket detected: status is 'ready' but socket is unresponsive.
+                        // Trigger an automatic restart so the next operation has a fresh connection.
+                        if (this.state.status === 'ready') {
+                            whatsappLogger.warn('[BaileysAdapter] 🧟 Zombie socket detected (timeout during send). Triggering automatic restart...');
+                            this.log('⚠️ Sessão Baileys degradada detectada (timeout de envio). Reconectando automaticamente...', 'error');
+                            this.restart().catch(e => whatsappLogger.error('[BaileysAdapter] Restart after zombie detection failed:', e));
+                        }
+                        reject(new Error('WhatsApp network operation timeout (45s)'));
+                    }, 45000);
                 });
 
                 const sentMsg = await Promise.race([sendPromise, timeoutPromise]);
