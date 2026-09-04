@@ -50,7 +50,7 @@ export class BaileysMessageHandler {
   // =========================================================================
 
   async handle(msg: WhatsAppMessage): Promise<void> {
-    whatsappLogger.debug(`[Handler] Mensagem recebida: from=${msg.from} body="${msg.body?.substring(0, 50)}" isGroup=${msg.isGroup} fromMe=${msg.fromMe}`);
+    whatsappLogger.info(`[Handler] 📨 Mensagem recebida: from=${msg.from} body="${msg.body?.substring(0, 50)}" isGroup=${msg.isGroup} fromMe=${msg.fromMe}`);
 
     if (!msg.id) return;
 
@@ -59,10 +59,11 @@ export class BaileysMessageHandler {
     const bodyMatch = msg.body?.trim().toLowerCase() ?? '';
 
     if (JOB_COMMANDS.includes(bodyMatch as typeof JOB_COMMANDS[number])) {
-      whatsappLogger.debug(`[Handler] Comando de vagas detectado: "${bodyMatch}" from=${msg.from}`);
+      whatsappLogger.info(`[Handler] 🎯 Comando de vagas detectado: "${bodyMatch}" | from=${msg.from} | isGroup=${msg.isGroup}`);
       await this.handleJobCommand(msg);
       if (msg.isGroup) return; // Don't persist group commands to CRM
     } else if (msg.isGroup) {
+      whatsappLogger.info(`[Handler] ↩️  Mensagem de grupo ignorada (não é comando): "${bodyMatch.substring(0, 30)}" from=${msg.from}`);
       return; // Ignore non-command group messages
     }
 
@@ -74,7 +75,10 @@ export class BaileysMessageHandler {
   // =========================================================================
 
   private async handleJobCommand(msg: WhatsAppMessage): Promise<void> {
-    if (msg.fromMe) return;
+    if (msg.fromMe) {
+      whatsappLogger.info('[Handler] ⏭️  Comando ignorado: mensagem enviada pelo próprio bot (fromMe=true)');
+      return;
+    }
 
     try {
       const settingRepo = new SettingRepository();
@@ -83,14 +87,21 @@ export class BaileysMessageHandler {
       const normalizedFrom = msg.from.split('@')[0];
       const normalizedConf = linkedinGroupId?.split('@')[0];
 
-      if (!linkedinGroupId || !normalizedConf || !normalizedFrom.includes(normalizedConf)) {
-        whatsappLogger.debug(`[Handler] Ignorado. msg.from: ${msg.from}, Configured: ${linkedinGroupId}`);
+      whatsappLogger.info(`[Handler] 🔍 Verificando grupo autorizado | msg.from="${msg.from}" | configured="${linkedinGroupId ?? 'NÃO CONFIGURADO'}"`); 
+
+      if (!linkedinGroupId) {
+        whatsappLogger.warn('[Handler] ❌ BLOQUEADO: setting "linkedin_group_id" não está configurada no banco. Acesse Configurações e defina o grupo.');
+        return;
+      }
+
+      if (!normalizedConf || !normalizedFrom.includes(normalizedConf)) {
+        whatsappLogger.warn(`[Handler] ❌ BLOQUEADO: grupo não autorizado. Recebido="${normalizedFrom}" | Esperado contendo="${normalizedConf}". Atualize a setting "linkedin_group_id".`);
         return;
       }
 
       if (!this.checkDebounce(msg.from)) return;
 
-      whatsappLogger.info(`[Handler] Iniciando sincronização manual via ${msg.isGroup ? 'grupo' : 'DM'} ${msg.from}`);
+      whatsappLogger.info(`[Handler] ✅ Grupo autorizado! Iniciando sincronização via ${msg.isGroup ? 'grupo' : 'DM'} ${msg.from}`);
 
       // Send "searching..." notice to the requester and start sync asynchronously
       const notifyTarget = msg.isGroup ? msg.from : null;
