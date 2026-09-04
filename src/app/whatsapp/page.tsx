@@ -419,9 +419,29 @@ export default function WhatsAppPage() {
                         </div>
                     </div>
                     <div className={styles.cardBody}>
-                        {/* Web Connection Status — oculto quando WuzAPI está conectado */}
-                        {!(currentProvider === 'wuzapi' && status === 'ready') && <div className={styles.webSection}>
-                            {status === 'ready' && currentProvider !== 'ycloud' && currentProvider !== 'wuzapi' ? (
+                        {/* Web Connection Status */}
+                        <div className={styles.webSection}>
+                            {status === 'ready' && currentProvider === 'wuzapi' ? (
+                                <div className={styles.connectedState}>
+                                    <div className={styles.iconCircle}>
+                                        <CheckCircle size={48} color="#10b981" />
+                                    </div>
+                                    <h3>WuzAPI Conectado</h3>
+                                    {phoneNumber && <p className={styles.phone}>{phoneNumber}</p>}
+                                    <div className={styles.actions}>
+                                        <button onClick={handleTestMessage} className={styles.testButton}>Testar</button>
+                                        <a
+                                            href="https://wuzapi-production-b02f.up.railway.app/dashboard"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={styles.secondaryButton}
+                                            style={{ textDecoration: 'none', textAlign: 'center' }}
+                                        >
+                                            Dashboard
+                                        </a>
+                                    </div>
+                                </div>
+                            ) : status === 'ready' && currentProvider !== 'ycloud' ? (
                                 <div className={styles.connectedState}>
                                     <div className={styles.iconCircle}>
                                         <CheckCircle size={48} color="#10b981" />
@@ -482,40 +502,7 @@ export default function WhatsAppPage() {
                                     )}
                                 </div>
                             )}
-                        </div>}
-
-                        {/* WuzAPI Section (Compact) */}
-                        {currentProvider === 'wuzapi' && status === 'ready' && (
-                            <div className={styles.ycloudCompact}>
-                                <div className={styles.ycloudHeader}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <Smartphone size={20} color="#10b981" />
-                                        <span style={{ fontWeight: 600, color: '#10b981' }}>WuzAPI</span>
-                                    </div>
-                                    <span className={styles.statusDot} style={{ background: '#10b981' }}></span>
-                                </div>
-                                <div className={styles.ycloudActions}>
-                                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Conectado via WuzAPI</span>
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <button
-                                            onClick={handleTestMessage}
-                                            className={styles.miniButton}
-                                        >
-                                            Testar
-                                        </button>
-                                        <a
-                                            href="https://wuzapi-production-b02f.up.railway.app/dashboard"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className={styles.miniButton}
-                                            style={{ textDecoration: 'none', textAlign: 'center' }}
-                                        >
-                                            Dashboard
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        </div>
 
                         {/* YCloud Section (Compact) */}
                         {yCloudConfigured && (
